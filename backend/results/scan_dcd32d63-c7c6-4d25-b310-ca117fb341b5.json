@@ -1,0 +1,110 @@
+[
+  {
+    "ip": "104.25.38.223",
+    "ping": 84.55,
+    "jitter": 9.01,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.16.188.19",
+    "ping": 86.52,
+    "jitter": 3.89,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.24.75.232",
+    "ping": 79.92,
+    "jitter": 3.95,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.18.139.208",
+    "ping": 89.94,
+    "jitter": 42.02,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "103.21.244.252",
+    "ping": 98.04,
+    "jitter": 29.89,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (CLOUDFLARE)"
+  },
+  {
+    "ip": "104.25.38.124",
+    "ping": 87.77,
+    "jitter": 12.28,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.16.255.186",
+    "ping": 85.91,
+    "jitter": 17.92,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "103.21.244.174",
+    "ping": 92.67,
+    "jitter": 35.64,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (CLOUDFLARE)"
+  },
+  {
+    "ip": "104.25.38.129",
+    "ping": 80.93,
+    "jitter": 4.89,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.25.38.195",
+    "ping": 81.45,
+    "jitter": 6.27,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.25.38.217",
+    "ping": 85.49,
+    "jitter": 12.59,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.25.38.243",
+    "ping": 81.75,
+    "jitter": 3.99,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  }
+]

@@ -1,0 +1,920 @@
+[
+  {
+    "ip": "23.227.38.196",
+    "ping": 87.45,
+    "jitter": 31.74,
+    "download": 12.12,
+    "upload": 11.34,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.156",
+    "ping": 96.71,
+    "jitter": 41.85,
+    "download": 12.39,
+    "upload": 11.02,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.232",
+    "ping": 94.33,
+    "jitter": 48.19,
+    "download": 15.67,
+    "upload": 24.08,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.247",
+    "ping": 79.03,
+    "jitter": 17.16,
+    "download": 12.42,
+    "upload": 9.66,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.107",
+    "ping": 94.18,
+    "jitter": 23.8,
+    "download": 11.35,
+    "upload": 14.79,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.29",
+    "ping": 83.37,
+    "jitter": 10.77,
+    "download": 14.85,
+    "upload": 18.38,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.189",
+    "ping": 90.95,
+    "jitter": 42.6,
+    "download": 13.44,
+    "upload": 16.85,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.49",
+    "ping": 96.65,
+    "jitter": 26.64,
+    "download": 12.4,
+    "upload": 17.42,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.44",
+    "ping": 120.52,
+    "jitter": 86.49,
+    "download": 13.99,
+    "upload": 12.51,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.146",
+    "ping": 96.02,
+    "jitter": 18.55,
+    "download": 10.48,
+    "upload": 9.18,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.51",
+    "ping": 104.22,
+    "jitter": 79.86,
+    "download": 12.45,
+    "upload": 8.44,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.39",
+    "ping": 105.4,
+    "jitter": 63.99,
+    "download": 10.52,
+    "upload": 10.13,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.40",
+    "ping": 102.66,
+    "jitter": 98.19,
+    "download": 10.02,
+    "upload": 8.17,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.50",
+    "ping": 118.6,
+    "jitter": 101.82,
+    "download": 13.77,
+    "upload": 11.88,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.206",
+    "ping": 118.97,
+    "jitter": 64.92,
+    "download": 12.24,
+    "upload": 11.47,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.46",
+    "ping": 111.59,
+    "jitter": 95.91,
+    "download": 13.6,
+    "upload": 12.22,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.35",
+    "ping": 99.33,
+    "jitter": 63.19,
+    "download": 8.37,
+    "upload": 7.14,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.222",
+    "ping": 101.14,
+    "jitter": 17.79,
+    "download": 14.17,
+    "upload": 18.8,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.158",
+    "ping": 106.03,
+    "jitter": 22.37,
+    "download": 15.21,
+    "upload": 15.87,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.170",
+    "ping": 112.46,
+    "jitter": 64.71,
+    "download": 7.42,
+    "upload": 14.23,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.232",
+    "ping": 97.01,
+    "jitter": 65.91,
+    "download": 14.88,
+    "upload": 14.86,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.132",
+    "ping": 99.68,
+    "jitter": 81.49,
+    "download": 14.0,
+    "upload": 10.85,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.4",
+    "ping": 99.61,
+    "jitter": 50.95,
+    "download": 13.83,
+    "upload": 15.53,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.10",
+    "ping": 91.5,
+    "jitter": 16.9,
+    "download": 15.1,
+    "upload": 12.81,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.3",
+    "ping": 97.26,
+    "jitter": 45.22,
+    "download": 10.84,
+    "upload": 10.63,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.163",
+    "ping": 98.44,
+    "jitter": 24.96,
+    "download": 11.47,
+    "upload": 14.71,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.77",
+    "ping": 91.75,
+    "jitter": 31.28,
+    "download": 13.7,
+    "upload": 15.64,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.107",
+    "ping": 84.9,
+    "jitter": 20.81,
+    "download": 6.9,
+    "upload": 16.41,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.239",
+    "ping": 86.6,
+    "jitter": 25.36,
+    "download": 13.8,
+    "upload": 22.83,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.47",
+    "ping": 82.39,
+    "jitter": 21.36,
+    "download": 16.43,
+    "upload": 24.32,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.84",
+    "ping": 98.37,
+    "jitter": 32.89,
+    "download": 15.55,
+    "upload": 20.04,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.195",
+    "ping": 97.86,
+    "jitter": 34.38,
+    "download": 15.72,
+    "upload": 26.01,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.77",
+    "ping": 80.97,
+    "jitter": 11.08,
+    "download": 15.17,
+    "upload": 19.74,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.224",
+    "ping": 78.28,
+    "jitter": 10.17,
+    "download": 13.06,
+    "upload": 14.45,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.61",
+    "ping": 96.79,
+    "jitter": 18.63,
+    "download": 13.63,
+    "upload": 19.13,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.111",
+    "ping": 100.67,
+    "jitter": 48.35,
+    "download": 14.69,
+    "upload": 12.07,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.92",
+    "ping": 91.02,
+    "jitter": 19.38,
+    "download": 14.96,
+    "upload": 23.38,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.228",
+    "ping": 84.75,
+    "jitter": 20.2,
+    "download": 15.62,
+    "upload": 23.76,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.24",
+    "ping": 81.82,
+    "jitter": 9.0,
+    "download": 16.26,
+    "upload": 24.29,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.122",
+    "ping": 88.09,
+    "jitter": 17.15,
+    "download": 13.35,
+    "upload": 21.81,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.191",
+    "ping": 84.48,
+    "jitter": 32.22,
+    "download": 6.25,
+    "upload": 15.02,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.215",
+    "ping": 94.94,
+    "jitter": 54.01,
+    "download": 5.5,
+    "upload": 20.04,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.97",
+    "ping": 97.35,
+    "jitter": 50.64,
+    "download": 15.37,
+    "upload": 23.68,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.156",
+    "ping": 93.33,
+    "jitter": 34.23,
+    "download": 15.87,
+    "upload": 13.74,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.142",
+    "ping": 89.78,
+    "jitter": 16.28,
+    "download": 4.21,
+    "upload": 23.09,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.247",
+    "ping": 96.14,
+    "jitter": 26.95,
+    "download": 14.68,
+    "upload": 16.98,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.75",
+    "ping": 106.73,
+    "jitter": 35.23,
+    "download": 14.87,
+    "upload": 20.01,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.15",
+    "ping": 95.25,
+    "jitter": 14.33,
+    "download": 12.42,
+    "upload": 25.05,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.171",
+    "ping": 90.76,
+    "jitter": 28.8,
+    "download": 15.1,
+    "upload": 22.02,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.59",
+    "ping": 100.97,
+    "jitter": 59.42,
+    "download": 13.43,
+    "upload": 21.59,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.251",
+    "ping": 90.6,
+    "jitter": 19.18,
+    "download": 4.56,
+    "upload": 12.06,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.208",
+    "ping": 105.44,
+    "jitter": 52.01,
+    "download": 14.91,
+    "upload": 23.87,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.133",
+    "ping": 98.08,
+    "jitter": 53.31,
+    "download": 14.79,
+    "upload": 12.43,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.34",
+    "ping": 94.17,
+    "jitter": 7.86,
+    "download": 12.95,
+    "upload": 22.96,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.82",
+    "ping": 90.59,
+    "jitter": 15.58,
+    "download": 0.48,
+    "upload": 24.1,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.43",
+    "ping": 103.07,
+    "jitter": 27.47,
+    "download": 13.64,
+    "upload": 7.42,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.93",
+    "ping": 87.28,
+    "jitter": 21.04,
+    "download": 15.28,
+    "upload": 25.6,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.65",
+    "ping": 93.65,
+    "jitter": 27.6,
+    "download": 13.81,
+    "upload": 26.87,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.101",
+    "ping": 88.05,
+    "jitter": 7.47,
+    "download": 14.84,
+    "upload": 19.63,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.23",
+    "ping": 83.09,
+    "jitter": 11.72,
+    "download": 7.94,
+    "upload": 22.93,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.108",
+    "ping": 99.07,
+    "jitter": 36.3,
+    "download": 7.38,
+    "upload": 20.93,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.119",
+    "ping": 92.2,
+    "jitter": 31.51,
+    "download": 13.13,
+    "upload": 26.12,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.158",
+    "ping": 79.88,
+    "jitter": 14.18,
+    "download": 15.1,
+    "upload": 23.7,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.165",
+    "ping": 98.67,
+    "jitter": 38.91,
+    "download": 12.77,
+    "upload": 22.24,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.53",
+    "ping": 83.12,
+    "jitter": 12.17,
+    "download": 14.63,
+    "upload": 18.81,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.19",
+    "ping": 90.39,
+    "jitter": 29.31,
+    "download": 12.62,
+    "upload": 17.46,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.185",
+    "ping": 96.96,
+    "jitter": 51.04,
+    "download": 12.61,
+    "upload": 19.35,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.17",
+    "ping": 85.18,
+    "jitter": 23.04,
+    "download": 10.99,
+    "upload": 23.54,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.14",
+    "ping": 111.13,
+    "jitter": 18.66,
+    "download": 12.18,
+    "upload": 20.08,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.244",
+    "ping": 79.36,
+    "jitter": 13.0,
+    "download": 15.07,
+    "upload": 21.22,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.128",
+    "ping": 107.01,
+    "jitter": 50.07,
+    "download": 13.54,
+    "upload": 26.42,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.106",
+    "ping": 93.56,
+    "jitter": 15.13,
+    "download": 15.51,
+    "upload": 21.37,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.228",
+    "ping": 103.5,
+    "jitter": 38.12,
+    "download": 12.28,
+    "upload": 15.72,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.101",
+    "ping": 98.77,
+    "jitter": 43.5,
+    "download": 8.05,
+    "upload": 6.19,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.139",
+    "ping": 107.12,
+    "jitter": 60.75,
+    "download": 13.45,
+    "upload": 12.59,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.195",
+    "ping": 136.23,
+    "jitter": 153.82,
+    "download": 12.22,
+    "upload": 1.61,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.128",
+    "ping": 108.65,
+    "jitter": 87.55,
+    "download": 2.4,
+    "upload": 7.69,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.128",
+    "ping": 169.09,
+    "jitter": 141.43,
+    "download": 3.36,
+    "upload": 3.84,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.90",
+    "ping": 112.78,
+    "jitter": 32.01,
+    "download": 2.32,
+    "upload": 6.89,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.1",
+    "ping": 143.02,
+    "jitter": 128.31,
+    "download": 13.0,
+    "upload": 18.47,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.207",
+    "ping": 95.8,
+    "jitter": 23.31,
+    "download": 13.81,
+    "upload": 13.31,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.139",
+    "ping": 98.01,
+    "jitter": 33.53,
+    "download": 13.24,
+    "upload": 13.44,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.164",
+    "ping": 128.02,
+    "jitter": 66.31,
+    "download": 9.24,
+    "upload": 19.68,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.99",
+    "ping": 122.15,
+    "jitter": 97.05,
+    "download": 9.32,
+    "upload": 11.13,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.201",
+    "ping": 126.11,
+    "jitter": 169.82,
+    "download": 5.05,
+    "upload": 8.0,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.178",
+    "ping": 188.42,
+    "jitter": 191.78,
+    "download": 4.45,
+    "upload": 7.07,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.198",
+    "ping": 196.46,
+    "jitter": 131.8,
+    "download": 5.06,
+    "upload": 11.86,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.97",
+    "ping": 219.53,
+    "jitter": 110.94,
+    "download": 8.0,
+    "upload": 14.54,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.225",
+    "ping": 133.77,
+    "jitter": 101.48,
+    "download": 14.25,
+    "upload": 21.77,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.94",
+    "ping": 91.25,
+    "jitter": 39.02,
+    "download": 15.87,
+    "upload": 17.56,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.84",
+    "ping": 78.81,
+    "jitter": 6.36,
+    "download": 12.75,
+    "upload": 20.63,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.41",
+    "ping": 78.63,
+    "jitter": 9.52,
+    "download": 13.19,
+    "upload": 20.98,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.91",
+    "ping": 129.96,
+    "jitter": 103.69,
+    "download": 9.78,
+    "upload": 19.87,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.171",
+    "ping": 90.92,
+    "jitter": 24.26,
+    "download": 11.07,
+    "upload": 10.93,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.209",
+    "ping": 121.34,
+    "jitter": 46.65,
+    "download": 5.54,
+    "upload": 4.76,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.132",
+    "ping": 165.23,
+    "jitter": 85.53,
+    "download": 6.18,
+    "upload": 10.94,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.0",
+    "ping": 102.61,
+    "jitter": 36.84,
+    "download": 6.97,
+    "upload": 3.63,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.169",
+    "ping": 158.36,
+    "jitter": 107.85,
+    "download": 14.93,
+    "upload": 12.67,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.40",
+    "ping": 132.49,
+    "jitter": 142.85,
+    "download": 11.19,
+    "upload": 20.41,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.42",
+    "ping": 101.0,
+    "jitter": 105.5,
+    "download": 14.24,
+    "upload": 17.55,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.131",
+    "ping": 88.41,
+    "jitter": 31.33,
+    "download": 8.26,
+    "upload": 18.87,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.30",
+    "ping": 95.7,
+    "jitter": 26.67,
+    "download": 15.75,
+    "upload": 19.97,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  }
+]

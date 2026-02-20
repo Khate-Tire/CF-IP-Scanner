@@ -1,0 +1,299 @@
+[
+  {
+    "ip": "172.69.158.141",
+    "ping": 138.96,
+    "jitter": 57.39,
+    "download": 8.08,
+    "upload": 10.41,
+    "status": "ok",
+    "location": "Angola - Luanda (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "2a06:98c4:2427:dcdd:c4f1:b684:8150:5c6e",
+    "ping": 130.85,
+    "jitter": 40.0,
+    "download": 3.42,
+    "upload": 9.7,
+    "status": "ok",
+    "location": "United Kingdom - London (CloudFLARENET-EU)"
+  },
+  {
+    "ip": "2c0f:f248:7c52:b457:7324:9fcd:dc5e:8235",
+    "ping": 131.49,
+    "jitter": 28.62,
+    "download": 3.28,
+    "upload": 10.17,
+    "status": "ok",
+    "location": "South Africa - Johannesburg (Cloudflare)"
+  },
+  {
+    "ip": "104.25.216.67",
+    "ping": 148.68,
+    "jitter": 95.62,
+    "download": 6.88,
+    "upload": 7.76,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "103.21.245.67",
+    "ping": 137.14,
+    "jitter": 51.02,
+    "download": 3.2,
+    "upload": 8.69,
+    "status": "ok",
+    "location": "United States - San Francisco (CLOUDFLARE)"
+  },
+  {
+    "ip": "103.31.6.18",
+    "ping": 136.92,
+    "jitter": 30.61,
+    "download": 5.21,
+    "upload": 17.7,
+    "status": "ok",
+    "location": "United States - San Francisco (Cloudflare Sydney)"
+  },
+  {
+    "ip": "162.158.133.161",
+    "ping": 156.0,
+    "jitter": 40.35,
+    "download": 5.75,
+    "upload": 18.31,
+    "status": "ok",
+    "location": "Denmark - Copenhagen (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "103.22.200.193",
+    "ping": 140.86,
+    "jitter": 45.01,
+    "download": 8.85,
+    "upload": 12.76,
+    "status": "ok",
+    "location": "Singapore - Singapore (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.23.192.152",
+    "ping": 144.63,
+    "jitter": 42.97,
+    "download": 7.65,
+    "upload": 11.86,
+    "status": "ok",
+    "location": "Zambia - Lusaka (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "108.162.243.232",
+    "ping": 147.39,
+    "jitter": 28.06,
+    "download": 7.44,
+    "upload": 11.83,
+    "status": "ok",
+    "location": "United States - Seattle (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "131.0.74.106",
+    "ping": 150.26,
+    "jitter": 43.16,
+    "download": 6.99,
+    "upload": 19.4,
+    "status": "ok",
+    "location": "Costa Rica - San Jos\u00e9 (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.100.228",
+    "ping": 139.76,
+    "jitter": 87.32,
+    "download": 7.08,
+    "upload": 15.91,
+    "status": "ok",
+    "location": "Italy - Milan (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "2405:b500:7368:46bc:3fec:3606:d0ee:3c3b",
+    "ping": 153.22,
+    "jitter": 51.06,
+    "download": 6.42,
+    "upload": 9.4,
+    "status": "ok",
+    "location": "Canada - Montreal (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "108.162.252.23",
+    "ping": 131.69,
+    "jitter": 26.68,
+    "download": 4.91,
+    "upload": 8.89,
+    "status": "ok",
+    "location": "United States - New York (Cloudflare)"
+  },
+  {
+    "ip": "131.0.74.119",
+    "ping": 133.98,
+    "jitter": 25.75,
+    "download": 5.49,
+    "upload": 8.34,
+    "status": "ok",
+    "location": "Costa Rica - San Jos\u00e9 (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "172.70.79.85",
+    "ping": 134.81,
+    "jitter": 27.63,
+    "download": 4.46,
+    "upload": 10.34,
+    "status": "ok",
+    "location": "United States - New York (Cloudflare)"
+  },
+  {
+    "ip": "141.101.115.144",
+    "ping": 169.4,
+    "jitter": 68.23,
+    "download": 4.73,
+    "upload": 13.11,
+    "status": "ok",
+    "location": "United States - Washington (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "197.234.240.192",
+    "ping": 148.97,
+    "jitter": 26.77,
+    "download": 7.85,
+    "upload": 12.41,
+    "status": "ok",
+    "location": "South Africa - Johannesburg (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "2405:8100:4782:7d57:126f:5978:2c1c:153b",
+    "ping": 130.85,
+    "jitter": 27.51,
+    "download": 6.17,
+    "upload": 10.34,
+    "status": "ok",
+    "location": "Canada - Montreal (Cloudflare Hong Kong)"
+  },
+  {
+    "ip": "2c0f:f248:a7ae:afa3:1bb6:cad:fe27:737e",
+    "ping": 162.48,
+    "jitter": 100.32,
+    "download": 8.58,
+    "upload": 11.61,
+    "status": "ok",
+    "location": "South Africa - Johannesburg (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "141.101.77.41",
+    "ping": 173.41,
+    "jitter": 93.48,
+    "download": 7.0,
+    "upload": 12.29,
+    "status": "ok",
+    "location": "Netherlands - Amsterdam (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "198.41.196.174",
+    "ping": 147.63,
+    "jitter": 57.66,
+    "download": 6.67,
+    "upload": 11.24,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "2606:4700:6286:899b:4c30:ad9:4411:c822",
+    "ping": 144.13,
+    "jitter": 44.2,
+    "download": 8.58,
+    "upload": 11.66,
+    "status": "ok",
+    "location": "Canada - Montreal (Cloudflare)"
+  },
+  {
+    "ip": "2606:4700:4ad1:ace2:a89:5f23:f238:d6b4",
+    "ping": 138.82,
+    "jitter": 35.75,
+    "download": 6.61,
+    "upload": 10.55,
+    "status": "ok",
+    "location": "Canada - Montreal (Cloudflare)"
+  },
+  {
+    "ip": "172.69.158.27",
+    "ping": 184.16,
+    "jitter": 84.62,
+    "download": 7.98,
+    "upload": 15.61,
+    "status": "ok",
+    "location": "Angola - Luanda (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "172.69.158.250",
+    "ping": 147.62,
+    "jitter": 46.72,
+    "download": 9.36,
+    "upload": 16.68,
+    "status": "ok",
+    "location": "Angola - Luanda (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "2a06:98c4:2427:dcdd:c4f1:b684:8150:5c99",
+    "ping": 168.93,
+    "jitter": 74.88,
+    "download": 7.56,
+    "upload": 15.69,
+    "status": "ok",
+    "location": "United Kingdom - London (CloudFLARENET-EU)"
+  },
+  {
+    "ip": "103.21.245.105",
+    "ping": 171.2,
+    "jitter": 110.82,
+    "download": 9.52,
+    "upload": 12.14,
+    "status": "ok",
+    "location": "Unknown"
+  },
+  {
+    "ip": "141.101.71.199",
+    "ping": 153.91,
+    "jitter": 95.32,
+    "download": 9.6,
+    "upload": 17.9,
+    "status": "ok",
+    "location": "Unknown"
+  },
+  {
+    "ip": "103.22.200.80",
+    "ping": 143.67,
+    "jitter": 59.78,
+    "download": 6.68,
+    "upload": 13.13,
+    "status": "ok",
+    "location": "Singapore - Singapore (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.110.238",
+    "ping": 172.19,
+    "jitter": 57.17,
+    "download": 0.47,
+    "upload": 13.81,
+    "status": "ok",
+    "location": "United States - San Francisco (CLOUDFLARENET-EU)"
+  },
+  {
+    "ip": "104.22.49.84",
+    "ping": 166.52,
+    "jitter": 71.34,
+    "download": 0.47,
+    "upload": 17.37,
+    "status": "ok",
+    "location": "United States - New York (Cloudflare)"
+  },
+  {
+    "ip": "104.17.162.234",
+    "ping": 167.28,
+    "jitter": 47.74,
+    "download": 0.47,
+    "upload": 17.1,
+    "status": "ok",
+    "location": "Unknown"
+  }
+]

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+httpx[socks]
+psutil
+websockets
+aiohttp
+aiohttp_socks
+requests

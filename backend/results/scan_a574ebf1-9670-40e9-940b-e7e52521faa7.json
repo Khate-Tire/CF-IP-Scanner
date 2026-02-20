@@ -1,0 +1,11 @@
+[
+  {
+    "ip": "23.227.38.33",
+    "ping": 93.08,
+    "jitter": 21.49,
+    "download": 13.84,
+    "upload": 17.17,
+    "status": "ok",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  }
+]

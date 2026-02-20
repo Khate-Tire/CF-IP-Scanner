@@ -1,0 +1,54 @@
+{
+  "log": {
+    "loglevel": "none"
+  },
+  "inbounds": [
+    {
+      "port": 18480,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls"
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "2400:cb00:f8c9:7d70:f22b:a83c:c0f4:2180",
+            "port": 443,
+            "users": [
+              {
+                "id": "a5c15602-5247-43f6-878f-6dc3254fcc85",
+                "encryption": "none"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "httpupgrade",
+        "security": "tls",
+        "wsSettings": null,
+        "tlsSettings": {
+          "serverName": "s1.mashverat.live",
+          "allowInsecure": true,
+          "fingerprint": "chrome",
+          "alpn": [
+            "http/1.1"
+          ]
+        }
+      }
+    }
+  ]
+}

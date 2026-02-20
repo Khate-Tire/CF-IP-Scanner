@@ -1,0 +1,92 @@
+[
+  {
+    "ip": "188.114.96.1",
+    "ping": 82.98,
+    "jitter": 4.6,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "104.24.73.46",
+    "ping": 84.57,
+    "jitter": 18.72,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "173.245.49.102",
+    "ping": 97.25,
+    "jitter": 54.41,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "190.93.245.240",
+    "ping": 116.86,
+    "jitter": 77.54,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Costa Rica - Pozos (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.96.61",
+    "ping": 79.27,
+    "jitter": 3.68,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.96.231",
+    "ping": 109.55,
+    "jitter": 9.97,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "173.245.49.41",
+    "ping": 106.93,
+    "jitter": 48.82,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "173.245.49.40",
+    "ping": 87.22,
+    "jitter": 14.71,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.96.44",
+    "ping": 87.24,
+    "jitter": 17.13,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "188.114.96.205",
+    "ping": 95.06,
+    "jitter": 38.31,
+    "download": -1,
+    "upload": -1,
+    "status": "ok",
+    "location": "Canada - Toronto (Cloudflare, Inc.)"
+  }
+]

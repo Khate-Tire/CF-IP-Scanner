@@ -1,0 +1,152 @@
+[
+  {
+    "ip": "23.227.38.137",
+    "ping": 89.22,
+    "jitter": 24.26,
+    "download": 6.67,
+    "upload": 6.77,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.137:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.137",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.111",
+    "ping": 91.86,
+    "jitter": 24.16,
+    "download": 7.79,
+    "upload": 6.96,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.111:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.111",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.70",
+    "ping": 87.55,
+    "jitter": 35.59,
+    "download": 7.65,
+    "upload": 5.91,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.70:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.70",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.242",
+    "ping": 83.22,
+    "jitter": 14.38,
+    "download": 4.17,
+    "upload": 11.19,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.242:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.242",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.144",
+    "ping": 87.0,
+    "jitter": 30.75,
+    "download": 9.39,
+    "upload": 7.09,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.144:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.144",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.129",
+    "ping": 85.98,
+    "jitter": 17.45,
+    "download": 10.2,
+    "upload": 6.14,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.129:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.129",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.109",
+    "ping": 88.32,
+    "jitter": 12.82,
+    "download": 9.83,
+    "upload": 6.85,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.109:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.109",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.141",
+    "ping": 89.72,
+    "jitter": 44.98,
+    "download": 8.79,
+    "upload": 7.34,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.141:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.141",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.110",
+    "ping": 90.86,
+    "jitter": 36.44,
+    "download": 10.35,
+    "upload": 8.78,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.110:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.110",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.50",
+    "ping": 80.34,
+    "jitter": 16.24,
+    "download": 7.85,
+    "upload": 9.93,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.50:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.50",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.114",
+    "ping": 89.25,
+    "jitter": 31.04,
+    "download": 10.17,
+    "upload": 8.86,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.114:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.114",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.247",
+    "ping": 92.7,
+    "jitter": 44.54,
+    "download": 5.79,
+    "upload": 8.98,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.247:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.247",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.254",
+    "ping": 116.74,
+    "jitter": 53.34,
+    "download": 8.68,
+    "upload": 4.15,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.254:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.254",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.44",
+    "ping": 99.06,
+    "jitter": 33.12,
+    "download": 6.45,
+    "upload": 4.72,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.44:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.44",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  },
+  {
+    "ip": "23.227.38.83",
+    "ping": 121.34,
+    "jitter": 94.91,
+    "download": 5.88,
+    "upload": 7.36,
+    "status": "ok",
+    "link": "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.83:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.83",
+    "location": "Canada - Ottawa (Cloudflare, Inc.)"
+  }
+]

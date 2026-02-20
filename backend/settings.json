@@ -1,0 +1,8 @@
+{
+  "concurrency": 5,
+  "stop_after": 100,
+  "max_ping": 800,
+  "max_jitter": 200,
+  "min_download": 0.0,
+  "min_upload": 0.0
+}
