@@ -3,7 +3,9 @@ import ConfigInput from './components/ConfigInput';
 import ResultsTable from './components/ResultsTable';
 import LogBox from './components/LogBox';
 import StatsPanel from './components/StatsPanel';
-import { scanIPs, getScanStatus } from './api';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import AdvancedScanners from './components/AdvancedScanners';
+import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs } from './api';
 
 function App() {
   const [scanId, setScanId] = useState(null);
@@ -11,11 +13,15 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [status, setStatus] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
+  const [activeTab, setActiveTab] = useState('scanner');
 
   useEffect(() => {
     import('./api').then(api => {
       api.getMyIP().then(info => {
-        if (info) setUserInfo(info);
+        if (info) {
+          setUserInfo(info);
+          logUsage("app_open", "User opened the application");
+        }
       });
     });
   }, []);
@@ -34,12 +40,31 @@ function App() {
         max_jitter: settings.maxJitter,
         min_download: settings.minDown,
         min_upload: settings.minUp,
-        ip_version: settings.ipVersion
+        ip_version: settings.ipVersion,
+        ip_source: settings.ipSource,
+        custom_url: settings.customUrl
       });
       if (res.scan_id) {
         setScanId(res.scan_id);
       } else {
         alert("Error starting scan: " + JSON.stringify(res));
+        setIsScanning(false);
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+      setIsScanning(false);
+    }
+  };
+
+  const handleStartAdvanced = async (payload) => {
+    setIsScanning(true);
+    setResults([]);
+    try {
+      const res = await scanAdvancedIPs(payload);
+      if (res.scan_id) {
+        setScanId(res.scan_id);
+      } else {
+        alert("Error starting advanced scan: " + JSON.stringify(res));
         setIsScanning(false);
       }
     } catch (e) {
@@ -93,28 +118,79 @@ function App() {
           )}
         </header>
 
-        <ConfigInput onStartScan={handleStartScan} isLoading={isScanning} />
+        <div className="flex justify-center gap-4 mb-8">
+          <button
+            onClick={() => setActiveTab('scanner')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'scanner' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            Scanner
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'analytics' ? 'bg-neon-purple text-black shadow-[0_0_15px_rgba(188,19,254,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            Global Analytics
+          </button>
+          <button
+            onClick={() => setActiveTab('advanced')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'advanced' ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            Advanced Bypasses
+          </button>
+        </div>
 
-        {isScanning && status && (
-          <div className="mt-4 text-center text-neon-blue animate-pulse mb-6">
-            Scanning... {status.completed} / {status.total} IPs checked
-          </div>
+        {activeTab === 'scanner' ? (
+          <>
+            <ConfigInput onStartScan={handleStartScan} isLoading={isScanning} />
+
+            {isScanning && status && (
+              <div className="mt-4 text-center text-neon-blue animate-pulse mb-6">
+                Scanning... {status.completed} / {status.total} IPs checked
+              </div>
+            )}
+
+            {status && status.stats && (
+              <div className="max-w-4xl mx-auto">
+                <StatsPanel stats={status.stats} />
+              </div>
+            )}
+
+            {/* Logs */}
+            {status && status.logs && (
+              <div className="max-w-4xl mx-auto mt-4">
+                <LogBox logs={status.logs} />
+              </div>
+            )}
+
+            <ResultsTable results={results} />
+          </>
+        ) : activeTab === 'advanced' ? (
+          <>
+            <AdvancedScanners onStartAdvanced={handleStartAdvanced} isLoading={isScanning} />
+
+            {isScanning && status && (
+              <div className="mt-4 text-center text-white animate-pulse mb-6">
+                Testing bypass variations... {status.completed} / {status.total} checks complete
+              </div>
+            )}
+
+            {status && status.stats && (
+              <div className="max-w-4xl mx-auto">
+                <StatsPanel stats={status.stats} />
+              </div>
+            )}
+
+            {status && status.logs && (
+              <div className="max-w-4xl mx-auto mt-4">
+                <LogBox logs={status.logs} />
+              </div>
+            )}
+
+            <ResultsTable results={results} />
+          </>
+        ) : (
+          <AnalyticsDashboard />
         )}
-
-        {status && status.stats && (
-          <div className="max-w-4xl mx-auto">
-            <StatsPanel stats={status.stats} />
-          </div>
-        )}
-
-        {/* Logs */}
-        {status && status.logs && (
-          <div className="max-w-4xl mx-auto mt-4">
-            <LogBox logs={status.logs} />
-          </div>
-        )}
-
-        <ResultsTable results={results} />
       </div>
 
       {/* Background ambient glow */}

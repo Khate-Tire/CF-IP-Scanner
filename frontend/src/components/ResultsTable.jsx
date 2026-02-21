@@ -16,6 +16,12 @@ export default function ResultsTable({ results }) {
         else alert("No valid links to copy.");
     };
 
+    const copyAllIps = () => {
+        const allIps = results.map(r => r.ip).filter(Boolean).join('\n');
+        if (allIps) copyToClipboard(allIps);
+        else alert("No valid IPs to copy.");
+    };
+
     return (
         <div className="glass-panel p-6 mt-6 neon-border">
             <div className="flex justify-between items-center mb-4">
@@ -23,10 +29,12 @@ export default function ResultsTable({ results }) {
                     Scan Results
                 </h2>
                 <div className="space-x-4">
+                    <button onClick={copyAllIps} className="btn-secondary text-xs px-3 py-1">
+                        Copy All IPs
+                    </button>
                     <button onClick={copyAll} className="btn-secondary text-xs px-3 py-1">
                         Copy All Configs
                     </button>
-                    {/* Add CSV export or other actions if needed */}
                 </div>
             </div>
 

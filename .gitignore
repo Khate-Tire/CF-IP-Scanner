@@ -1,0 +1,4 @@
+backend/*.json
+backend/__pycache__/*.pyc
+backend/__pycache__
+backend/results/*.json

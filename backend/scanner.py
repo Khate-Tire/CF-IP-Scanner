@@ -35,18 +35,74 @@ def parse_vless(vless_url: str):
         "params": params
     }
 
-def generate_xray_config(vless_data, target_ip, local_port):
+def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None):
     # Prepare TLS settings
     tls_settings = None
     if vless_data["params"].get("security") == "tls":
         tls_settings = {
-            "serverName": vless_data["params"].get("sni", ""),
+            "serverName": test_sni if test_sni else vless_data["params"].get("sni", ""),
             "allowInsecure": True,
             "fingerprint": vless_data["params"].get("fp", "")
         }
         if "alpn" in vless_data["params"]:
             alpn_val = urllib.parse.unquote(vless_data["params"]["alpn"])
             tls_settings["alpn"] = alpn_val.split(",")
+
+    vless_stream_settings = {
+        "network": vless_data["params"].get("type", "tcp"),
+        "security": vless_data["params"].get("security", "none"),
+        "wsSettings": {
+            "path": urllib.parse.unquote(vless_data["params"].get("path", "/")),
+            "headers": {
+                "Host": test_sni if test_sni else vless_data["params"].get("host", "")
+            }
+        } if vless_data["params"].get("type") == "ws" else None,
+         "tlsSettings": tls_settings
+    }
+
+    outbounds = [{
+        "protocol": "vless",
+        "settings": {
+            "vnext": [{
+                "address": target_ip,
+                "port": test_port if test_port is not None else vless_data["port"],
+                "users": [{
+                    "id": vless_data["uuid"],
+                    "encryption": vless_data["params"].get("encryption", "none")
+                }]
+            }]
+        },
+        "streamSettings": vless_stream_settings
+    }]
+
+    if fragment:
+        vless_stream_settings["sockopt"] = {
+            "dialerProxy": "fragment",
+            "tcpKeepAliveIdle": 100,
+            "tcpNoDelay": True
+        }
+        outbounds.append({
+            "protocol": "freedom",
+            "tag": "fragment",
+            "domainStrategy": "UseIP",
+            "sniffing": {
+                "enabled": True,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "fragment": {
+                    "packets": "tlshello",
+                    "length": fragment.get("length", "10-20"),
+                    "interval": fragment.get("interval", "10-20")
+                }
+            },
+            "streamSettings": {
+                "sockopt": {
+                    "tcpNoDelay": True,
+                    "tcpKeepAliveIdle": 100
+                }
+            }
+        })
 
     config = {
         "log": {"loglevel": "none"},
@@ -56,37 +112,14 @@ def generate_xray_config(vless_data, target_ip, local_port):
             "settings": {"auth": "noauth", "udp": True},
             "sniffing": {"enabled": True, "destOverride": ["http", "tls"]}
         }],
-        "outbounds": [{
-            "protocol": "vless",
-            "settings": {
-                "vnext": [{
-                    "address": target_ip,
-                    "port": vless_data["port"],
-                    "users": [{
-                        "id": vless_data["uuid"],
-                        "encryption": vless_data["params"].get("encryption", "none")
-                    }]
-                }]
-            },
-            "streamSettings": {
-                "network": vless_data["params"].get("type", "tcp"),
-                "security": vless_data["params"].get("security", "none"),
-                "wsSettings": {
-                    "path": urllib.parse.unquote(vless_data["params"].get("path", "/")),
-                    "headers": {
-                        "Host": vless_data["params"].get("host", "")
-                    }
-                } if vless_data["params"].get("type") == "ws" else None,
-                 "tlsSettings": tls_settings
-            }
-        }]
+        "outbounds": outbounds
     }
     return config
 
 async def measure_ping(session, url):
     start = time.time()
     try:
-        async with session.get(url, timeout=10) as response:
+        async with session.get(url, timeout=12) as response:
             if response.status == 204 or response.status == 200:
                 duration = (time.time() - start) * 1000
                 return duration
@@ -101,7 +134,7 @@ async def measure_speed(session, url, size_mb=1, is_upload=False):
         if is_upload:
             # Upload 1MB
             data = b'0' * (1024 * 1024 * size_mb) 
-            async with session.post(url, data=data, timeout=20) as response:
+            async with session.post(url, data=data, timeout=25) as response:
                  # Accept 200 or 204 or even others if stream worked
                 if response.status < 400:
                     duration = time.time() - start
@@ -110,7 +143,7 @@ async def measure_speed(session, url, size_mb=1, is_upload=False):
                         return speed_mbps
         else:
             # Download
-            async with session.get(url, timeout=20) as response:
+            async with session.get(url, timeout=25) as response:
                  await response.read()
                  duration = time.time() - start
                  if duration > 0:
@@ -132,12 +165,12 @@ def reconstruct_vless(parts, new_ip):
     url = f"{base}?{query}#IP-{new_ip}"
     return url
 
-async def scan_ip(ip, vless_parts, thresholds, speed_sem=None):
+async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None):
     ip = ip.strip()
     if not ip: return {"status": "error"}
     
     local_port = random.randint(10000, 20000)
-    config = generate_xray_config(vless_parts, ip, local_port)
+    config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni)
     
     safe_ip = ip.replace(":", "_")
     config_path = f"config_{safe_ip}_{local_port}.json"
@@ -158,6 +191,7 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None):
         "download": -1, 
         "upload": -1,
         "status": "timeout",
+        "datacenter": "Unknown",
         "link": ""
     }
     
@@ -167,13 +201,13 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None):
             pings = []
             test_url = "http://cp.cloudflare.com/generate_204"
             
-            # Warmup with Retry
+            # Warmup with Retry to allow Xray to establish connection
             warmup_success = False
-            for _ in range(2):
+            for _ in range(5):
                 if await measure_ping(session, test_url) != -1:
                     warmup_success = True
                     break
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
             
             if not warmup_success:
                  result["status"] = "unreachable"
@@ -193,6 +227,18 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None):
             jitter = max(pings) - min(pings)
             result["ping"] = round(avg_ping, 2)
             result["jitter"] = round(jitter, 2)
+            
+            # Extract Datacenter Colo
+            try:
+                async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=5) as t_resp:
+                    if t_resp.status == 200:
+                        trace_text = await t_resp.text()
+                        for line in trace_text.splitlines():
+                            if line.startswith("colo="):
+                                result["datacenter"] = line.split("=")[1].strip()
+                                break
+            except:
+                pass
             
             # FAIL-FAST CHECK: PING
             if avg_ping > thresholds.get("max_ping", 1000):

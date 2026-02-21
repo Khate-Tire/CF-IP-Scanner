@@ -39,3 +39,43 @@ export const saveSettings = async (settings) => {
         });
     } catch (e) { console.error(e); }
 };
+
+export const fetchConfigFromUrl = async (url) => {
+    try {
+        const response = await fetch(`${API_URL}/fetch-config`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        return await response.json();
+    } catch (e) {
+        return { error: e.message };
+    }
+};
+
+export const logUsage = async (event_type, details = "") => {
+    try {
+        await fetch(`${API_URL}/log-usage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_type, details })
+        });
+    } catch (e) { console.error(e); }
+};
+
+export const getAnalytics = async () => {
+    try {
+        const response = await fetch(`${API_URL}/analytics`);
+        if (response.ok) return response.json();
+    } catch (e) { console.error(e); }
+    return null;
+};
+
+export const scanAdvancedIPs = async (payload) => {
+    const response = await fetch(`${API_URL}/scan-advanced`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    return response.json();
+};

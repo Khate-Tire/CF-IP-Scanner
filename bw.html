@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <title>
+        BuiltWith Trends
+    </title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <style>
+        body {
+            font-family: Poppins;
+        }
+    </style>
+</head>
+<body>
+
+
+    <script>
+        (function () {
+            function A() {
+                var h = location["host" + "name"], i = /^[0-9.]+$/.test(h);
+                if (h === "local" + "host" || i) return "";
+                var p = h.split(".");
+                return p.length > 2 ? "." + p.slice(p.length - 2).join(".") : "." + h;
+            }
+
+            var B = A(), C = B ? ";dom" + "ain=" + B : "";
+
+            function D(x) {
+                var y = 0, z = 0;
+                while (z < x.length) {
+                    y = (y << 5) - y + x.charCodeAt(z++);
+                    y |= 0;
+                }
+                return (y >>> 0).toString(16);
+            }
+
+            function E(m, n) {
+                try {
+                    if (ISE()) {
+                        return 888888888;
+                    }
+
+                    const issues = GLT();
+                    if (issues.length > 0) return 888888888;
+                } catch (_) { }
+
+                var v = 0, w;
+                for (; v < 1e6; v++) {
+                    w = D(m + ":" + n + ":" + v);
+                    if (w[w.length - 1] === "0") {
+                        return v;
+                    }
+                }
+                return 0;
+            }
+
+
+            function ISE() {
+                try {
+                    var a = window, b = navigator || {}, u = b["user" + "Agent"] || "", s = 0;
+
+                    if (b["web" + "driver"] === true) s += 3;
+                    if (/\bHeadlessChrome\b/i.test(u)) s += 3;
+                    if (/\bNode\.js\b|\bjsdom\b/i.test(u)) s += 3;
+
+                    if (a._phantom || a.__nightmare || a.callPhantom) s += 3;
+                    if (a.__selenium_unwrapped || a.__webdriver_evaluate ||
+                        a.__driver_evaluate || a.__webdriver_script_fn) s += 3;
+
+                    var d = /\bWindows NT\b|\bMacintosh\b|\bX11; Linux\b/.test(u);
+
+                    if (d && b.plugins && b.plugins.length === 0) s += 1;
+                    if (d && b.mimeTypes && b.mimeTypes.length === 0) s += 1;
+
+                    try {
+                        var c = document.createElement("canvas");
+                        var g = c.getContext("webgl") || c.getContext("experimental-" + "webgl");
+                        if (g) {
+                            var x = g.getExtension("WEBGL_debug_renderer_info");
+                            if (x) {
+                                var v = (g.getParameter(x.UNMASKED_VENDOR_WEBGL) || "") + " ";
+                                var r = (g.getParameter(x.UNMASKED_RENDERER_WEBGL) || "");
+                                var z = (v + r).toLowerCase();
+                                if (z.indexOf("swiftshader") !== -1 || z.indexOf("llvmpipe") !== -1) {
+                                    s += 2;
+                                }
+                            }
+                        }
+                    } catch (_) { }
+
+                    return s >= 3;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            function GLT() {
+                const o = [];
+                try {
+                    const _S = Function.prototype.toString;
+                    const _I = (f) => {
+                        if (typeof f !== "function") return false;
+                        const s = _S.call(f);
+                        return s.indexOf("[native" + " code]") === -1;
+                    };
+
+                    const n = navigator;
+                    const p = Object.getOwnPropertyNames(n);
+
+                    if (p.indexOf("web" + "driver") !== -1) o.push("n_own_wd");
+                    if (p.indexOf("plu" + "gins") !== -1) o.push("n_own_pl");
+                    if (p.indexOf("mim" + "eTypes") !== -1) o.push("n_own_mt");
+                    if (p.indexOf("user" + "Agent") !== -1) o.push("n_own_ua");
+
+                    const chk = (proto, prop, lab) => {
+                        try {
+                            const d = Object.getOwnPropertyDescriptor(proto, prop);
+                            if (!d || typeof d.get !== "function") return;
+                            if (_I(d.get)) o.push(lab);
+                        } catch (e) { }
+                    };
+
+                    chk(Navigator.prototype, "plugins", "pl_get_p");
+                    chk(Navigator.prototype, "mimeTypes", "mt_get_p");
+                    chk(Navigator.prototype, "userAgent", "ua_get_p");
+                    chk(Navigator.prototype, "webdriver", "wd_get_p");
+
+                    try {
+                        const g1 = window.WebGLRenderingContext && WebGLRenderingContext.prototype;
+                        if (g1 && _I(g1.getParameter)) o.push("gl1_gp_p");
+                    } catch (e) { }
+
+                    try {
+                        const g2 = window.WebGL2RenderingContext && WebGL2RenderingContext.prototype;
+                        if (g2 && _I(g2.getParameter)) o.push("gl2_gp_p");
+                    } catch (e) { }
+
+                    try {
+                        const f = document.createElement("iframe");
+                        f.style.display = "none";
+                        document.documentElement.appendChild(f);
+
+                        const w = f.contentWindow;
+                        if (w && w.Navigator) {
+                            const c = w.Navigator.prototype;
+
+                            const cmp = (x, lab) => {
+                                const a = Object.getOwnPropertyDescriptor(Navigator.prototype, x);
+                                const b = Object.getOwnPropertyDescriptor(c, x);
+                                if (!a || !b || typeof a.get !== "function" || typeof b.get !== "function") return;
+                                if (_S.call(a.get) !== _S.call(b.get)) o.push(lab);
+                            };
+
+                            cmp("plugins", "pl_if_m");
+                            cmp("mimeTypes", "mt_if_m");
+                            cmp("userAgent", "ua_if_m");
+                            cmp("webdriver", "wd_if_m");
+                        }
+
+                        f.remove();
+                    } catch (e) { }
+
+                } catch (e) {
+                    return o;
+                }
+                return o;
+            }
+
+
+
+            function F(k) { return k.replace(/./g, function (c) { return c; }); }
+
+            setTimeout(function () {
+                var g = Date.now().toString();
+                var h = Math.random().toString(36).slice(2, 12);
+
+                setTimeout(function () {
+                    var i = E(g, h);
+                    var j = g + ":" + h + ":" + i;
+                    var l = j + ":" + D(j);
+
+                    document.cookie = F("BWSTATE") + "=" + l +
+                        ";pa" + "th=/;max-" + "age=300;Sa" + "meSit" + "e=Lax" + C;
+
+                    window.location.replace("" + location.href);
+                }, 50);
+            }, 100);
+
+        })();
+    </script>
+
+    <style>
+        @keyframes flutterBlue {
+            0% {
+                fill: #0b2a59;
+                /* deep blue */
+            }
+
+            25% {
+                fill: #154a8a;
+                /* medium blue */
+            }
+
+            50% {
+                fill: #1f78d1;
+                /* vibrant blue */
+            }
+
+            75% {
+                fill: #154a8a;
+                /* medium blue again */
+            }
+
+            100% {
+                fill: #0b2a59;
+                /* back to deep blue */
+            }
+        }
+
+
+        #logo g {
+            animation: flutterBlue 3s ease-in-out infinite;
+        }
+    </style>
+    <center style="margin-top:2em">
+        <svg xmlns="http://www.w3.org/2000/svg" id="logo" height="60" viewBox="0 0 1150 328">
+            <g fill="#0d3f07">
+                <path d="M12.3 113.7l.3 101.8 2.6 10.5c3.1 12.4 7.6 24 12.5 32.4 15.5 26.5 42.2 45 74.3 51.6 14.4 3 36.7 2.4 51.2-1.3 31.8-8.3 59.1-30.2 73.7-59.4 9-18 12.9-42.6 10.1-64.3-4.6-35.7-26.8-67.5-59.1-84.9-15.9-8.6-30.8-12.1-52-12.1-8.1 0-16.1.3-17.8.6l-3.1.6v44.5c0 24.5.3 44.3.7 44.1 13.6-6.8 14.2-7 21.6-6.6 4.3.2 8.8 1.2 11.2 2.3 6.1 3 12 9.4 14.4 15.9 8.4 22.4-7.9 44.1-31.9 42.4-13-1-21.6-8.5-25.7-22.3-1.6-5.5-1.8-13.7-2.1-101.8L92.9 12h-81l.4 101.7zM386.2 122.6c-5.3 2.6-10.3 7.9-12.2 12.8-1.3 3.5-1.3 11.1.1 16 1.4 5.1 8.8 12.2 14.2 13.7 20.6 5.7 37.9-9.5 32.6-28.5-1.3-4.8-8.2-12.3-13.4-14.7-6.1-2.8-14.9-2.5-21.3.7zM875.5 122.4c-8.8 4.1-13.5 11.4-13.5 21.3 0 11.1 7 19.6 18 21.9 6.3 1.3 14 .5 18.7-2 8.8-4.5 13.7-15.5 11.3-25.4-1.4-6.2-7.6-13.7-13.5-16.3-5.8-2.7-14.7-2.5-21 .5zM437 219v89h49V130h-49v89zM495.3 190.7c.5 64.8.5 65.7 5.7 79.5 8.1 21.7 31.5 37.8 57.3 39.5l8.7.6v-52l-5-.6c-11.5-1.4-15.9-6.5-16.8-19.5l-.5-7.2H566v-52h-21v-49h-50.1l.4 60.7zM604.2 192.7c.4 61.3.4 63 2.6 70.7 3.8 13.5 8.6 22.1 17.7 31.2 13.2 13.3 28.4 19.5 47.9 19.6 18.1.1 32.4-5.6 49.4-20l5.2-4.4 7 5.9c17.2 14.6 35.8 20.8 55 18.3 14.4-1.8 23.6-5.6 34.1-14 11.7-9.3 19.6-20.4 24.7-34.7l2.7-7.8.3-63.8.3-63.7-33.8.2-33.8.3-.5 54.7c-.5 53.5-.5 54.7-2.6 57.5-5.1 6.8-13.5 6.6-17-.5-1.8-3.4-1.9-7.4-2.2-58l-.3-54.2-33.7.2-33.7.3-.5 54.7c-.5 53.5-.5 54.7-2.6 57.5-3.2 4.3-6.9 5.8-11.4 4.4-6.6-2-6.4-.5-7-61.6l-.5-55-33.8-.3-33.8-.2.3 62.7zM920 184.7c0 56.8.6 68 4.1 79.8 7.6 25.6 30.8 43.4 59.2 45.2l8.7.6v-52l-5-.6c-10.5-1.3-15.4-6.1-16.6-16.4-.3-2.7-.7-6-.9-7.6l-.4-2.7H991v-52h-22v-49h-49v54.7zM1002 219v89h49v-38c0-31.5.3-38.6 1.5-40.9 2.4-4.8 8.1-5.6 12-1.6l2.5 2.4V308h49v-46.8c0-51.4-.3-54.4-6.1-65.2-5.4-10.2-13.5-16.9-23.6-19.5-10.3-2.7-20.5-1.4-29.9 3.9-2.6 1.4-4.8 2.6-5 2.6-.2 0-.4-11.9-.4-26.5V130h-49v89zM373 243v65h49V178h-49v65zM862 243v65h49V178h-49v65zM242 219.7c0 45.6.4 49.4 6.5 62.1 6.5 13.6 20.8 25.2 35.6 28.7 8.2 1.9 22.9 1.9 30.2 0 18.7-4.9 34.9-20.7 41-40 2.1-6.8 2.2-8.4 2.2-49v-42l-24.2-.3-24.2-.2-.3 40.1-.3 40.1-2.9 2.5c-2.4 2.1-3.7 2.4-6.9 2-7.5-1-7.1.9-7.7-44l-.5-40.2-24.2-.3-24.3-.2v40.7z" />
+            </g>
+        </svg>
+    </center>
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins&display=swap" rel="stylesheet">
+
+</body>
+</html>
