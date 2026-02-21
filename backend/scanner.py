@@ -8,6 +8,8 @@ import os
 import random
 from core_manager import get_xray_path
 import urllib.parse
+import socket
+import ssl
 
 def parse_vless(vless_url: str):
     if not vless_url.startswith("vless://"):
@@ -128,6 +130,29 @@ async def measure_ping(session, url):
         return -1
     return -1
 
+def check_tls_cert_sync(ip, port=443, sni=None):
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        with socket.create_connection((ip, port), timeout=3) as sock:
+            with ctx.wrap_socket(sock, server_hostname=sni or "cloudflare.com") as ssock:
+                cert = ssock.getpeercert()
+                issuer = dict(x[0] for x in cert.get('issuer', []))
+                org = issuer.get('organizationName', '')
+                subject = dict(x[0] for x in cert.get('subject', []))
+                subj_cn = subject.get('commonName', '')
+                
+                valid_orgs = ['Cloudflare', 'Google Trust Services', "Let's Encrypt", 'DigiCert', 'GlobalSign']
+                is_valid_org = any(vo in org for vo in valid_orgs)
+                is_valid_subj = 'cloudflare' in subj_cn.lower() or 'sni.cloudflaressl.com' in subj_cn.lower()
+                
+                return is_valid_org or is_valid_subj
+    except Exception as e:
+        return False
+
+async def verify_cloudflare_tls(ip, port=443, sni=None):
+    return await asyncio.to_thread(check_tls_cert_sync, ip, port, sni)
+
 async def measure_speed(session, url, size_mb=1, is_upload=False):
     start = time.time()
     try:
@@ -165,7 +190,7 @@ def reconstruct_vless(parts, new_ip):
     url = f"{base}?{query}#IP-{new_ip}"
     return url
 
-async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None):
+async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False):
     ip = ip.strip()
     if not ip: return {"status": "error"}
     
@@ -195,6 +220,12 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         "link": ""
     }
     
+    if verify_tls:
+        is_valid_tls = await verify_cloudflare_tls(ip, port=test_port or vless_parts.get('port', 443), sni=test_sni or vless_parts['params'].get('sni'))
+        if not is_valid_tls:
+            result["status"] = "compromised"
+            return result
+
     try:
         async with aiohttp.ClientSession(connector=connector) as session:
             # 1. PING & JITTER

@@ -66,6 +66,7 @@ class ScanRequest(BaseModel):
     min_download: float = 0.1
     min_upload: float = 0.1
     test_ports: Optional[List[int]] = []
+    verify_tls: bool = False
 
 class FetchConfigRequest(BaseModel):
     url: str
@@ -175,6 +176,7 @@ async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
             'low_upload': 0,
             'timeout': 0,
             'unreachable': 0,
+            'compromised': 0,
             'error': 0
         }
     }
@@ -351,7 +353,7 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
             async with discovery_sem:
                 port_str = f":{t_port}" if t_port else ""
                 add_log(scan_id, f'Checking {ip}{port_str}...')
-                res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port)
+                res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port, verify_tls=req.verify_tls)
                 
                 if 'stats' in active_scans[scan_id]:
                     stats = active_scans[scan_id]['stats']
@@ -372,6 +374,8 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                         stats['unreachable'] += 1
                     elif status_key == 'timeout':
                         stats['timeout'] += 1
+                    elif status_key == 'compromised':
+                        stats['compromised'] += 1
                     else:
                         stats['error'] += 1
 
@@ -603,6 +607,78 @@ async def get_analytics_endpoint():
     from db import get_analytics
     data = await get_analytics()
     return data
+
+# --- WARP SCANNER ROUTES ---
+class WarpScanRequest(BaseModel):
+    concurrency: int = 50
+    stop_after: int = 20
+    max_ping: int = 800
+    test_ports: List[int] = [2408, 1701, 500, 4500]
+
+active_warp_scans = {}
+warp_results = {}
+
+@app.post('/scan-warp')
+async def start_warp_scan(req: WarpScanRequest, background_tasks: BackgroundTasks):
+    scan_id = str(uuid.uuid4())
+    active_warp_scans[scan_id] = {'status': 'running', 'completed': 0, 'found_good': 0, 'logs': []}
+    warp_results[scan_id] = []
+    
+    background_tasks.add_task(run_warp_job, scan_id, req)
+    return {'scan_id': scan_id}
+
+@app.get('/scan-warp/{scan_id}')
+def get_warp_scan_status(scan_id: str):
+    if scan_id not in active_warp_scans: return {'error': 'not found'}
+    return {
+        'status': active_warp_scans[scan_id],
+        'results': warp_results[scan_id]
+    }
+
+@app.post('/scan-warp/{scan_id}/stop')
+def stop_warp_scan(scan_id: str):
+    if scan_id in active_warp_scans: active_warp_scans[scan_id]['status'] = 'stopped'
+    return {'status': 'stopped'}
+
+async def run_warp_job(scan_id, req):
+    from warp_scanner import scan_warp_ip
+    from cf_ips import get_smart_ip
+    
+    sem = asyncio.Semaphore(req.concurrency)
+    def wlog(msg): active_warp_scans[scan_id]['logs'].append(msg)
+    
+    wlog("Starting WARP Endpoint Scanner...")
+    
+    async def process_ip(ip, port):
+        if active_warp_scans[scan_id]['status'] != 'running': return
+        async with sem:
+            active_warp_scans[scan_id]['completed'] += 1
+            res = await scan_warp_ip(ip, port)
+            if res['status'] == 'ok' and res['ping'] <= req.max_ping:
+                active_warp_scans[scan_id]['found_good'] += 1
+                warp_results[scan_id].append(res)
+                wlog(f"Found clean WARP endpoint: {res['endpoint']} ({res['ping']}ms, {res['datacenter']})")
+                
+                if active_warp_scans[scan_id]['found_good'] >= req.stop_after:
+                    active_warp_scans[scan_id]['status'] = 'completed'
+                    
+    tasks = []
+    # Test up to 5000 random IPs
+    for _ in range(5000):
+        if active_warp_scans[scan_id]['status'] != 'running': break
+        ip = get_smart_ip()
+        port = random.choice(req.test_ports)
+        tasks.append(asyncio.create_task(process_ip(ip, port)))
+        
+        # Batch concurrency execution
+        if len(tasks) > 50:
+            done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+            tasks = list(pending)
+            
+    if tasks: await asyncio.gather(*tasks)
+    if active_warp_scans[scan_id]['status'] == 'running':
+        active_warp_scans[scan_id]['status'] = 'completed'
+    wlog("WARP Scan job finished.")
 
 if __name__ == '__main__':
     uvicorn.run(app, host='127.0.0.1', port=8000)

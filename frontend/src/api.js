@@ -79,3 +79,22 @@ export const scanAdvancedIPs = async (payload) => {
     });
     return response.json();
 };
+
+export async function scanWarpIPs(data) {
+    const res = await fetch(`${API_URL}/scan-warp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    return res.json();
+}
+
+export async function getWarpScanStatus(scanId) {
+    const res = await fetch(`${API_URL}/scan-warp/${scanId}`);
+    return res.json();
+}
+
+export async function stopWarpScan(scanId) {
+    const res = await fetch(`${API_URL}/scan-warp/${scanId}/stop`, { method: 'POST' });
+    return res.json();
+}

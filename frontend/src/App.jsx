@@ -5,6 +5,8 @@ import LogBox from './components/LogBox';
 import StatsPanel from './components/StatsPanel';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedScanners from './components/AdvancedScanners';
+import WarpScanner from './components/WarpScanner';
+import AboutBox from './components/AboutBox';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs } from './api';
 
 function App() {
@@ -137,6 +139,18 @@ function App() {
           >
             Advanced Bypasses
           </button>
+          <button
+            onClick={() => setActiveTab('warp')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'warp' ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            WARP Endpoints
+          </button>
+          <button
+            onClick={() => setActiveTab('about')}
+            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'about' ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            About App
+          </button>
         </div>
 
         {activeTab === 'scanner' ? (
@@ -188,8 +202,12 @@ function App() {
 
             <ResultsTable results={results} />
           </>
-        ) : (
+        ) : activeTab === 'analytics' ? (
           <AnalyticsDashboard />
+        ) : activeTab === 'warp' ? (
+          <WarpScanner />
+        ) : (
+          <AboutBox />
         )}
       </div>
 

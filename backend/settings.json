@@ -1,9 +1,9 @@
 {
-  "concurrency": 10,
+  "concurrency": 5,
   "stop_after": 10,
-  "max_ping": 500,
+  "max_ping": 800,
   "max_jitter": 200,
-  "min_download": 5.0,
+  "min_download": 0.0,
   "min_upload": 0.0,
   "ip_version": "all"
 }
