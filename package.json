@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "electron .",
-    "build:backend": "cd backend && pyinstaller --onefile --noconsole main.py",
+    "build:backend": "python build_backend.py",
     "build:frontend": "cd frontend && npm run build",
     "dist": "npm run build:frontend && npm run build:backend && electron-builder"
   },

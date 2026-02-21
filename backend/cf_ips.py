@@ -3,7 +3,6 @@ import random
 import urllib.request
 import aiohttp
 import asyncio
-import cloudscraper
 import re
 from datetime import datetime, timedelta
 from db import get_country_domains, save_country_domains
