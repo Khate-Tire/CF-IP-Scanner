@@ -60,7 +60,7 @@ export default function ConfigInput({ onStartScan, isLoading }) {
     const handleAutoScan = async () => {
         setIsFetching(true);
         // We will try fetching from community link, but default to a highly reliable config if all fails
-        const autoUrl = "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub1.txt";
+        const autoUrl = "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/refs/heads/main/V2Ray-Configs/main/Sub1.txt";
         const fallbackConfig = "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.92:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.92";
 
         let fetchedConfig = config || fallbackConfig;
