@@ -61,7 +61,88 @@ export default function AboutBox() {
                         </div>
                     </section>
 
-                    <div className="mt-10 pt-6 border-t border-white/10 flex items-center justify-between text-sm text-gray-500">
+                    <section className="mt-10 pt-8 border-t border-white/10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {/* Developer Info */}
+                            <div className="bg-black/40 p-6 rounded-lg border border-white/5 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-neon-blue/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-neon-blue/20"></div>
+                                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                    <span className="text-neon-blue">👨‍💻</span> Author & Contact
+                                </h3>
+                                <div className="space-y-3 relative z-10">
+                                    <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-teal-400">Khate Tire</p>
+
+                                    <div className="flex items-center gap-3 text-sm text-gray-300">
+                                        <span className="w-6 text-center">✉️</span>
+                                        <a href="mailto:khatetire@proton.me" className="hover:text-neon-blue transition-colors">khatetire@proton.me</a>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-sm text-gray-300">
+                                        <span className="w-6 text-center">🐙</span>
+                                        <a href="https://github.com/Khate-Tire" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">github.com/Khate-Tire</a>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-sm text-gray-300">
+                                        <span className="w-6 text-center">✈️</span>
+                                        <a href="https://t.me/hossein_shiravani" target="_blank" rel="noreferrer" className="hover:text-neon-blue transition-colors">@hossein_shiravani</a>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 text-sm text-gray-300">
+                                        <span className="w-6 text-center">🆔</span>
+                                        <a href="https://orcid.org/0000-0002-9517-9773" target="_blank" rel="noreferrer" className="hover:text-green-400 transition-colors">ORCID: 0000-0002-9517-9773</a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Community & Support */}
+                            <div className="bg-black/40 p-6 rounded-lg border border-white/5 relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-neon-purple/10 rounded-full blur-3xl -mr-10 -mt-10 transition-all group-hover:bg-neon-purple/20"></div>
+                                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                    <span className="text-neon-purple">🌟</span> Community & Support
+                                </h3>
+
+                                <div className="space-y-4 relative z-10">
+                                    <a href="https://github.com/Khate-Tire/CF-IP-Scanner" target="_blank" rel="noreferrer"
+                                        className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded transition-all group/btn">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xl">⭐</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-white group-hover/btn:text-yellow-400 transition-colors">Star us on GitHub</p>
+                                                <p className="text-xs text-gray-400">Support the open-source project</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-gray-500 group-hover/btn:text-white">→</span>
+                                    </a>
+
+                                    <a href="https://t.me/antigravity_ip_bot" target="_blank" rel="noreferrer"
+                                        className="flex items-center justify-between p-3 bg-neon-blue/5 hover:bg-neon-blue/10 border border-neon-blue/20 rounded transition-all group/btn">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xl">🤖</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-neon-blue group-hover/btn:drop-shadow-[0_0_5px_rgba(0,243,255,0.8)] transition-all">Free VPN Telegram Bot</p>
+                                                <p className="text-xs text-gray-400">Get free configurations instantly</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-neon-blue opacity-50 group-hover/btn:opacity-100">→</span>
+                                    </a>
+
+                                    <a href="https://t.me/ANTIGRAVITY_IP" target="_blank" rel="noreferrer"
+                                        className="flex items-center justify-between p-3 bg-neon-purple/5 hover:bg-neon-purple/10 border border-neon-purple/20 rounded transition-all group/btn">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xl">💬</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-neon-purple group-hover/btn:drop-shadow-[0_0_5px_rgba(188,19,254,0.8)] transition-all">Join our Telegram Group</p>
+                                                <p className="text-xs text-gray-400">Share bugs, comments & feedback</p>
+                                            </div>
+                                        </div>
+                                        <span className="text-neon-purple opacity-50 group-hover/btn:opacity-100">→</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div className="mt-8 pt-6 border-t border-white/10 flex items-center justify-between text-sm text-gray-500">
                         <p>Built for a free and open internet.</p>
                         <p>Version 2.5</p>
                     </div>

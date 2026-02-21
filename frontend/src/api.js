@@ -63,6 +63,28 @@ export const logUsage = async (event_type, details = "") => {
     } catch (e) { console.error(e); }
 };
 
+export const getHealth = async () => {
+    try {
+        const response = await fetch(`${API_URL}/health`);
+        return await response.json();
+    } catch (e) {
+        return { internet: 'offline', database: 'offline' };
+    }
+};
+
+export const proxyDatabase = async (vlessConfig) => {
+    try {
+        const response = await fetch(`${API_URL}/proxy-db`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ vless_config: vlessConfig })
+        });
+        return await response.json();
+    } catch (e) {
+        return { status: 'error', message: e.message };
+    }
+};
+
 export const getAnalytics = async () => {
     try {
         const response = await fetch(`${API_URL}/analytics`);

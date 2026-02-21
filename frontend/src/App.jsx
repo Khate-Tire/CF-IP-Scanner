@@ -7,6 +7,7 @@ import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedScanners from './components/AdvancedScanners';
 import WarpScanner from './components/WarpScanner';
 import AboutBox from './components/AboutBox';
+import HealthWidget from './components/HealthWidget';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs } from './api';
 
 function App() {
@@ -100,7 +101,8 @@ function App() {
   }, [scanId, isScanning]);
 
   return (
-    <div className="min-h-screen p-8 bg-[url('/bg-grid.svg')] bg-cover">
+    <div className="min-h-screen p-8 bg-[url('/bg-grid.svg')] bg-cover relative">
+      <HealthWidget />
       <div className="max-w-4xl mx-auto relative z-10">
         <header className="text-center mb-10">
           <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple drop-shadow-[0_0_10px_rgba(188,19,254,0.5)]">

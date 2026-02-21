@@ -1,5 +1,6 @@
 import aiomysql
 import asyncio
+import time
 from datetime import datetime
 
 DB_HOST = 'aapanel.amnvpn.org'
@@ -9,6 +10,8 @@ DB_NAME = 'saflysurf'
 DB_PORT = 3306
 
 pool = None
+_analytics_cache = None
+_analytics_cache_time = 0
 
 async def init_db():
     global pool
@@ -22,7 +25,8 @@ async def init_db():
             autocommit=True,
             minsize=1,
             maxsize=10, 
-            pool_recycle=300
+            pool_recycle=300,
+            connect_timeout=5
         )
         
         # Ensure table exists
@@ -271,6 +275,11 @@ async def get_community_good_ips(country: str, isp: str, limit: int = 50):
         return []
 
 async def get_analytics():
+    global _analytics_cache, _analytics_cache_time
+    # Return cache if less than 5 minutes old
+    if _analytics_cache and (time.time() - _analytics_cache_time) < 300:
+        return _analytics_cache
+
     if not pool:
         return {}
     try:
@@ -336,7 +345,7 @@ async def get_analytics():
                         "successful_scans": int(row["successful_scans"]) if row["successful_scans"] is not None else 0
                     })
 
-                return {
+                _analytics_cache = {
                     "top_datacenters": top_datacenters,
                     "top_ports": top_ports,
                     "network_types": network_types,
@@ -344,6 +353,8 @@ async def get_analytics():
                     "total_good": total_good,
                     "timeline_data": timeline_data
                 }
+                _analytics_cache_time = time.time()
+                return _analytics_cache
     except Exception as e:
         print(f"DB Analytics Error: {e}")
         return {}

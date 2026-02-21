@@ -71,6 +71,9 @@ class ScanRequest(BaseModel):
 class FetchConfigRequest(BaseModel):
     url: str
 
+class ProxyDbRequest(BaseModel):
+    vless_config: str
+
 active_scans = {}
 results = {}
 
@@ -89,14 +92,76 @@ async def update_cf_ranges_periodic():
             pass
         await asyncio.sleep(86400) # Once a day
 
+print("DEBUG: Registering GET settings")
 @app.get('/settings')
 def get_settings():
     return load_settings().dict()
 
+print("DEBUG: Registering POST settings")
 @app.post('/settings')
 def update_settings(settings: Settings):
     save_settings(settings)
     return {'status': 'ok'}
+print("DEBUG: Successfully registered POST settings")
+
+@app.get('/health')
+async def check_health():
+    import db
+    db_status = "offline"
+    internet_status = "offline"
+    internet_err = ""
+    db_err = ""
+    
+    # Check general internet
+    try:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://cp.cloudflare.com/generate_204", timeout=3) as resp:
+                if resp.status == 204:
+                    internet_status = "online"
+                else:
+                    internet_err = f"Unexpected status code: {resp.status}"
+    except Exception as e:
+        internet_err = str(e)
+        
+    # Check DB
+    try:
+        if db.pool:
+            async with db.pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("SELECT 1")
+                db_status = "online"
+        else:
+            db_status = "offline"
+            db_err = "Pool is not initialized. ISP may have blocked initial connection."
+    except Exception as e:
+        db_status = "offline"
+        db_err = str(e)
+        
+    return {
+        "internet": internet_status,
+        "internet_error": internet_err,
+        "database": db_status,
+        "database_error": db_err
+    }
+
+@app.post('/proxy-db')
+async def proxy_db(req: ProxyDbRequest):
+    import db
+    from db_proxy import start_db_tunnel
+    try:
+        vless_parts = parse_vless(req.vless_config)
+        start_db_tunnel(vless_parts)
+        await asyncio.sleep(2) # Give Xray time to boot up the tunnel
+        
+        # Reconnect DB through local dokodemo-door
+        success = await db.reconnect_db('127.0.0.1', 33060)
+        if success:
+            return {"status": "ok", "message": "Database tunneled successfully"}
+        else:
+            return {"status": "error", "message": "Tunnel started but DB reconnection failed"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 @app.get('/my-ip')
 async def get_my_ip():

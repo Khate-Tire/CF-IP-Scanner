@@ -61,7 +61,7 @@ export default function ConfigInput({ onStartScan, isLoading }) {
     const handleAutoScan = async () => {
         setIsFetching(true);
         // We will try fetching from community link, but default to a highly reliable config if all fails
-        const autoUrl = "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/refs/heads/main/V2Ray-Configs/main/Sub1.txt";
+        const autoUrl = "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/main/V2Ray-Configs/main/Sub1.txt";
         const fallbackConfig = "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.92:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.92";
 
         let fetchedConfig = config || fallbackConfig;
@@ -69,10 +69,8 @@ export default function ConfigInput({ onStartScan, isLoading }) {
         try {
             const res = await fetchConfigFromUrl(autoUrl);
             if (res && res.configs && res.configs.length > 0) {
-                // If fetched successfully, let's still just use the fallback because we know community lists have a 99% failure rate 
-                // and give false positive "Unreachable" for good IPs. 
-                // We will silently prefer the fallback config the user gave us for the "One-Click Auto Scan" to guarantee it works.
-                fetchedConfig = fallbackConfig;
+                // Select a random config from the community list
+                fetchedConfig = res.configs[Math.floor(Math.random() * res.configs.length)];
             }
         } catch (e) {
             console.warn("Auto fetch failed, using fallback config.");
