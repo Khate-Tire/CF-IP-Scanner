@@ -1,6 +1,6 @@
 import ipaddress
 import random
-import requests
+import urllib.request
 import aiohttp
 import asyncio
 import cloudscraper
@@ -33,11 +33,13 @@ def update_cf_ranges():
     
     for url in urls:
         try:
-            resp = requests.get(url, timeout=10)
-            if resp.status_code == 200:
-                lines = resp.text.strip().split('\n')
-                valid = [line.strip() for line in lines if line.strip()]
-                new_ranges.extend(valid)
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    text = resp.read().decode('utf-8')
+                    lines = text.strip().split('\n')
+                    valid = [line.strip() for line in lines if line.strip()]
+                    new_ranges.extend(valid)
         except Exception as e:
             print(f"Failed to update CF ranges from {url}: {e}")
             
@@ -69,16 +71,19 @@ def get_bw_cookie():
     return f'{j}:{D(j)}'
 
 def _scrape_builtwith_sync(country: str):
-    import requests
+    import urllib.request
     from collections import Counter
     url = f"https://trends.builtwith.com/websitelist/Cloudflare/{country.replace(' ', '-')}"
     try:
-        resp = requests.get(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }, cookies={"BWSTATE": get_bw_cookie()}, timeout=20)
-        
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Cookie": f"BWSTATE={get_bw_cookie()}"
+        })
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            text = resp.read().decode('utf-8', errors='ignore')
+            
         # Extract everything that looks like a domain
-        raw_domains = re.findall(r'[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', resp.text)
+        raw_domains = re.findall(r'[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
         
         # Filter junk and valid
         junk = {"builtwith", "w3.org", "cdnpi.pe", "twitter.com", "facebook.com", "google.com", "linkedin.com", "github.com", "pinterest.com", "youtube.com"}

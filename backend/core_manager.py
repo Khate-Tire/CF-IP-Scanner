@@ -1,5 +1,5 @@
 import os
-import requests
+import urllib.request
 import zipfile
 import subprocess
 import platform
@@ -20,12 +20,11 @@ def download_xray():
         return
     
     print("Downloading Xray Core...")
-    response = requests.get(XRAY_URL, stream=True)
     zip_path = os.path.join(APP_DIR, "xray.zip")
     
-    with open(zip_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+    with urllib.request.urlopen(XRAY_URL) as response, open(zip_path, 'wb') as out_file:
+        data = response.read()
+        out_file.write(data)
             
     print("Extracting Xray Core...")
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
