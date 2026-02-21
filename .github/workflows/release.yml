@@ -1,0 +1,61 @@
+name: Build Desktop Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller fastapi uvicorn pydantic aiohttp aiohttp-socks aiomysql mysql-connector-python
+          
+      - name: Build Python Backend (.exe)
+        run: |
+          python build_backend.py
+          
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm install
+        
+      - name: Build React Frontend
+        working-directory: ./frontend
+        run: npm run build
+        
+      - name: Install Root Electron Dependencies
+        run: npm install
+
+      - name: Build Electron App
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload Artifact to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/*.exe
+          tag_name: "v1.0.${{ github.run_number }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

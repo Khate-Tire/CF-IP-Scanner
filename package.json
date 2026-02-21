@@ -1,0 +1,47 @@
+{
+  "name": "cf-ip-scanner",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron .",
+    "build:backend": "cd backend && pyinstaller --onefile --noconsole main.py",
+    "build:frontend": "cd frontend && npm run build",
+    "dist": "npm run build:frontend && npm run build:backend && electron-builder"
+  },
+  "keywords": [],
+  "author": "Antigravity",
+  "license": "ISC",
+  "description": "Cloudflare IP Scanner Desktop App",
+  "build": {
+    "appId": "com.antigravity.scanner",
+    "productName": "Antigravity Scanner",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "frontend/dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist/main.exe",
+        "to": "backend.exe"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1",
+    "wait-on": "^8.2.1"
+  }
+}

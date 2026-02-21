@@ -2,3 +2,7 @@ backend/*.json
 backend/__pycache__/*.pyc
 backend/__pycache__
 backend/results/*.json
+node_modules
+backend/build
+backend/dist
+dist
