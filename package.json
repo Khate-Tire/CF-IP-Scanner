@@ -42,6 +42,6 @@
     "concurrently": "^9.2.1",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
-    "wait-on": "^8.2.1"
+    "wait-on": "^7.2.0"
   }
 }
