@@ -12,7 +12,7 @@ import random
 
 from scanner import scan_ip, parse_vless
 from cf_ips import update_cf_ranges
-from core_manager import download_xray
+from core_manager import download_xray, APP_DIR
 import aiohttp
 import socket
 
@@ -34,7 +34,7 @@ class Settings(BaseModel):
     min_upload: float = 0.1
     ip_version: str = 'ipv4'
 
-SETTINGS_FILE = 'settings.json'
+SETTINGS_FILE = os.path.join(APP_DIR, 'settings.json')
 
 def load_settings():
     try:
@@ -76,6 +76,7 @@ results = {}
 
 @app.on_event('startup')
 async def startup_event():
+    download_xray()
     import db
     await db.init_db()
     asyncio.create_task(update_cf_ranges_periodic())

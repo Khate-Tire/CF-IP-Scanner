@@ -4,20 +4,24 @@ import zipfile
 import subprocess
 import platform
 
+APP_DIR = os.path.join(os.path.expanduser("~"), ".antigravity_scanner")
 XRAY_URL = "https://github.com/XTLS/Xray-core/releases/download/v1.8.4/Xray-windows-64.zip"
-XRAY_DIR = "xray_core"
+XRAY_DIR = os.path.join(APP_DIR, "xray_core")
 XRAY_EXE = os.path.join(XRAY_DIR, "xray.exe")
 
 def download_xray():
+    if not os.path.exists(APP_DIR):
+        os.makedirs(APP_DIR, exist_ok=True)
+        
     if not os.path.exists(XRAY_DIR):
-        os.makedirs(XRAY_DIR)
+        os.makedirs(XRAY_DIR, exist_ok=True)
     
     if os.path.exists(XRAY_EXE):
         return
     
     print("Downloading Xray Core...")
     response = requests.get(XRAY_URL, stream=True)
-    zip_path = "xray.zip"
+    zip_path = os.path.join(APP_DIR, "xray.zip")
     
     with open(zip_path, "wb") as f:
         for chunk in response.iter_content(chunk_size=8192):

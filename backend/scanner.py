@@ -6,7 +6,7 @@ import aiohttp
 from aiohttp_socks import ProxyConnector
 import os
 import random
-from core_manager import get_xray_path
+from core_manager import get_xray_path, APP_DIR
 import urllib.parse
 import socket
 import ssl
@@ -198,12 +198,18 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
     config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni)
     
     safe_ip = ip.replace(":", "_")
-    config_path = f"config_{safe_ip}_{local_port}.json"
+    config_path = os.path.join(APP_DIR, f"config_{safe_ip}_{local_port}.json")
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
         
     xray_path = get_xray_path()
-    process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    # Hide terminal window on Windows Pyinstaller builds
+    creationflags = 0
+    if os.name == 'nt':
+        creationflags = subprocess.CREATE_NO_WINDOW
+        
+    process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
     
     await asyncio.sleep(2) 
     

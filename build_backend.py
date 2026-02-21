@@ -15,5 +15,12 @@ PyInstaller.__main__.run([
     '--name=backend',
     '--distpath=backend/dist',
     '--workpath=backend/build',
-    '--specpath=backend'
+    '--specpath=backend',
+    '--hidden-import=requests',
+    '--hidden-import=cloudscraper',
+    '--hidden-import=certifi',
+    '--hidden-import=websockets',
+    '--hidden-import=aiomysql',
+    '--hidden-import=aiohttp_socks',
+    '--hidden-import=cryptography',
 ])
