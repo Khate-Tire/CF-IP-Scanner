@@ -5,6 +5,9 @@ import os
 import atexit
 from core_manager import get_xray_path, APP_DIR
 import urllib.parse
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 db_xray_process = None
 
@@ -78,8 +81,10 @@ def stop_db_tunnel():
             pass
         db_xray_process = None
 
-def start_db_tunnel(vless_parts, target_db_host='aapanel.amnvpn.org', target_db_port=3306, local_port=33060):
+def start_db_tunnel(vless_parts, target_db_host=None, target_db_port=3306, local_port=33060):
     global db_xray_process
+    if target_db_host is None:
+        target_db_host = os.environ.get('DB_HOST', '')
     
     stop_db_tunnel()
     

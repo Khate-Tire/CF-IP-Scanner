@@ -1,13 +1,18 @@
 import aiomysql
 import asyncio
 import time
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 
-DB_HOST = 'aapanel.amnvpn.org'
-DB_USER = 'saflysurf'
-DB_PASSWORD = 'xaAxctbXwp4XfmTa'
-DB_NAME = 'saflysurf'
-DB_PORT = 3306
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
+DB_HOST = os.environ['DB_HOST']
+DB_USER = os.environ['DB_USER']
+DB_PASSWORD = os.environ['DB_PASSWORD']
+DB_NAME = os.environ['DB_NAME']
+DB_PORT = int(os.environ.get('DB_PORT', '3306'))
 
 pool = None
 _analytics_cache = None

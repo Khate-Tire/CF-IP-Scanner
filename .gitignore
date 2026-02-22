@@ -1,9 +1,31 @@
-backend/*.json
+# Secrets & Environment
+.env
+!.env.example
+backend/.env
+!backend/.env.example
+
+# Python
+backend/__pycache__/
 backend/__pycache__/*.pyc
-backend/__pycache__
+*.pyc
+__pycache__/
+.venv/
+venv/
+
+# Backend artifacts
+backend/*.json
 backend/results/*.json
-node_modules
-backend/build
-backend/dist
-dist
-backend\__pycache__\*.pyc
+backend/build/
+backend/dist/
+
+# Frontend
+node_modules/
+frontend/node_modules/
+
+# Build output
+dist/
+
+# Debug & temp files
+debug.html
+bw.html
+*.log

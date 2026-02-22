@@ -91,8 +91,8 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
 
     const handleAutoScan = async () => {
         setIsFetching(true);
-        const autoUrl = "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/main/V2Ray-Configs/main/Sub1.txt";
-        const fallbackConfig = "vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@23.227.38.92:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&alpn=http%2F1.1&fp=chrome&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#IP-23.227.38.92";
+        const autoUrl = import.meta.env.VITE_AUTO_SUB_URL || "";
+        const fallbackConfig = import.meta.env.VITE_FALLBACK_CONFIG || "";
 
         let fetchedConfig = null;
 
@@ -121,13 +121,20 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
                     fetchedConfig = res.configs[Math.floor(Math.random() * res.configs.length)];
                 }
             } catch (e) {
-                console.warn("Auto fetch from community URL failed, using fallback.");
+                console.warn("Auto fetch from community URL failed.");
             }
         }
 
-        // Priority 4: Absolute last resort hardcoded fallback
-        if (!fetchedConfig) {
+        // Priority 4: Use fallback config from environment variable
+        if (!fetchedConfig && fallbackConfig) {
             fetchedConfig = fallbackConfig;
+        }
+
+        // If all sources failed, prompt the user
+        if (!fetchedConfig) {
+            setIsFetching(false);
+            alert("Could not fetch a config automatically. Please paste a VLESS config or subscription URL manually.");
+            return;
         }
 
         setIsFetching(false);
