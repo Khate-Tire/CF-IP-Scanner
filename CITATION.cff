@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+title: "Antigravity IP Scanner"
+abstract: >-
+  Advanced Cloudflare IP optimization and censorship bypass tool.
+  Discovers and verifies clean Cloudflare Edge IPs and WARP endpoints
+  using real-world latency, jitter, and speed tests. Features DPI
+  fragment analysis, SNI fronting, global analytics heatmap, and
+  multi-language support (English, Persian, Russian).
+type: software
+authors:
+  - given-names: Taher
+    family-names: Akbari Saeed
+    alias: Khate-Tire
+    email: khatetire@proton.me
+    orcid: "https://orcid.org/0000-0002-9517-9773"
+repository-code: "https://github.com/Khate-Tire/CF-IP-Scanner"
+url: "https://github.com/Khate-Tire/CF-IP-Scanner"
+license: MIT
+version: 2.5.0
+date-released: "2024-12-01"
+keywords:
+  - cloudflare
+  - ip-scanner
+  - censorship-bypass
+  - vless
+  - warp
+  - dpi-bypass
+  - network-tools
+  - internet-freedom
+  - v2ray
+  - wireguard
