@@ -6,3 +6,4 @@ node_modules
 backend/build
 backend/dist
 dist
+backend\__pycache__\*.pyc

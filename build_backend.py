@@ -10,9 +10,20 @@ print("Building Antigravity IP Scanner Backend...")
 
 PyInstaller.__main__.run([
     'backend/main.py',
+    '--name=backend',
     '--onefile',
     '--noconsole',
-    '--name=backend',
+    '--clean',
+    '--hidden-import=aiohttp',
+    '--hidden-import=aiohttp_socks',
+    '--hidden-import=urllib.parse',
+    '--hidden-import=pymysql',
+    '--hidden-import=cryptography',
+    '--hidden-import=yaml',
+    '--exclude-module=PyQt5',
+    '--exclude-module=PyQt6',
+    '--exclude-module=tkinter',
+    '--exclude-module=matplotlib',
     '--distpath=backend/dist',
     '--workpath=backend/build',
     '--specpath=backend',
@@ -21,6 +32,5 @@ PyInstaller.__main__.run([
     '--hidden-import=certifi',
     '--hidden-import=websockets',
     '--hidden-import=aiomysql',
-    '--hidden-import=aiohttp_socks',
     '--hidden-import=cryptography',
 ])

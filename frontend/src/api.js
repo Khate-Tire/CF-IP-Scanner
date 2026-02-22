@@ -9,6 +9,15 @@ export const scanIPs = async (config) => {
     return response.json();
 };
 
+export const exportSubscription = async (format, vlessConfig, ips) => {
+    const response = await fetch(`${API_URL}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format, vless_config: vlessConfig, ips })
+    });
+    return response.json();
+};
+
 export const getScanStatus = async (scanId) => {
     const response = await fetch(`${API_URL}/scan/${scanId}`);
     return response.json();
@@ -22,9 +31,9 @@ export const getSettings = async () => {
     return null;
 };
 
-export const getMyIP = async () => {
+export const getMyIP = async (useProxy = false) => {
     try {
-        const response = await fetch(`${API_URL}/my-ip`);
+        const response = await fetch(`${API_URL}/my-ip?proxy=${useProxy ? '1' : '0'}`);
         if (response.ok) return response.json();
     } catch (e) { console.error(e); }
     return null;
@@ -38,11 +47,24 @@ export const saveSettings = async (settings) => {
             body: JSON.stringify(settings)
         });
     } catch (e) { console.error(e); }
+    return { error: "Network error" };
 };
 
-export const fetchConfigFromUrl = async (url) => {
+export const getExportLink = async (vlessConfig, ips) => {
     try {
-        const response = await fetch(`${API_URL}/fetch-config`, {
+        const response = await fetch(`${API_URL}/export-link`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format: 'base64', vless_config: vlessConfig, ips: ips })
+        });
+        if (response.ok) return await response.json();
+    } catch (e) { console.error(e); }
+    return { error: 'Failed to create export link' };
+};
+
+export const fetchConfigFromUrl = async (url, useProxy = false) => {
+    try {
+        const response = await fetch(`${API_URL}/fetch-config?proxy=${useProxy ? '1' : '0'}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url })
@@ -93,6 +115,14 @@ export const getAnalytics = async () => {
     return null;
 };
 
+export const getGeoAnalytics = async () => {
+    try {
+        const response = await fetch(`${API_URL}/analytics/geo`);
+        if (response.ok) return response.json();
+    } catch (e) { console.error(e); }
+    return [];
+};
+
 export const scanAdvancedIPs = async (payload) => {
     const response = await fetch(`${API_URL}/scan-advanced`, {
         method: 'POST',
@@ -118,5 +148,20 @@ export async function getWarpScanStatus(scanId) {
 
 export async function stopWarpScan(scanId) {
     const res = await fetch(`${API_URL}/scan-warp/${scanId}/stop`, { method: 'POST' });
+    return res.json();
+}
+
+export async function pauseScan(scanId) {
+    const res = await fetch(`${API_URL}/scan/${scanId}/pause`, { method: 'POST' });
+    return res.json();
+}
+
+export async function resumeScan(scanId) {
+    const res = await fetch(`${API_URL}/scan/${scanId}/resume`, { method: 'POST' });
+    return res.json();
+}
+
+export async function stopScan(scanId) {
+    const res = await fetch(`${API_URL}/scan/${scanId}/stop`, { method: 'POST' });
     return res.json();
 }

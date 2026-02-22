@@ -2,9 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Language-specific fonts ── */
+html[lang="en"],
+html:not([lang]) {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+html[lang="fa"] {
+  font-family: 'Vazirmatn', 'Inter', system-ui, sans-serif;
+}
+
+html[lang="ru"] {
+  font-family: 'Nunito', 'Inter', system-ui, sans-serif;
+}
+
+body {
+  overflow-anchor: none;
+}
+
 @layer base {
   body {
-    @apply bg-neon-dark text-white font-sans overflow-x-hidden;
+    @apply bg-neon-dark text-white overflow-x-hidden;
   }
 }
 
@@ -12,12 +30,15 @@
   .neon-border {
     @apply border border-neon-blue/50 shadow-neon-blue/20 hover:shadow-neon-blue/50 transition-all duration-300;
   }
+
   .glass-panel {
     @apply bg-neon-surface/80 backdrop-blur-md border border-white/10 rounded-xl;
   }
+
   .input-field {
     @apply w-full bg-black/50 border border-white/20 rounded-lg p-3 text-neon-blue focus:outline-none focus:border-neon-blue placeholder-white/30;
   }
+
   .btn-primary {
     @apply px-6 py-2 bg-neon-blue/10 text-neon-blue border border-neon-blue rounded-lg hover:bg-neon-blue hover:text-black font-bold uppercase tracking-wider transition-all duration-300 shadow-neon-blue;
   }
@@ -27,13 +48,29 @@
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
-  background: #0a0a0a; 
+  background: #0a0a0a;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #333; 
+  background: #333;
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #00f3ff; 
+  background: #00f3ff;
+}
+
+/* Logo float animation */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
 }

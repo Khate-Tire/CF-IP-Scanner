@@ -156,7 +156,8 @@ async def get_historical_good_ips(isp: str, location: str, limit: int = 100):
                     """
                     await cur.execute(query2, (isp, limit))
                     more_results = await cur.fetchall()
-                    results.extend(more_results)
+                    results = list(results)
+                    results.extend(list(more_results))
                     
                 # If still too few, broaden entirely (just recently successful globally)
                 if not results:
@@ -260,7 +261,8 @@ async def get_community_good_ips(country: str, isp: str, limit: int = 50):
                     """
                     await cur.execute(query2, (limit,))
                     more_results = await cur.fetchall()
-                    results.extend(more_results)
+                    results = list(results)
+                    results.extend(list(more_results))
                     
                 seen = set()
                 unique_ips = []
@@ -358,3 +360,135 @@ async def get_analytics():
     except Exception as e:
         print(f"DB Analytics Error: {e}")
         return {}
+
+_geo_cache = None
+_geo_cache_time = 0
+
+async def get_geo_analytics():
+    """Aggregate scan results by country for the world heatmap"""
+    global _geo_cache, _geo_cache_time
+    if _geo_cache and (time.time() - _geo_cache_time) < 300:
+        return _geo_cache
+
+    if not pool:
+        return []
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cur:
+                # Aggregate by country (extracted from user_location "Country - City")
+                await cur.execute("""
+                    SELECT 
+                        TRIM(SUBSTRING_INDEX(user_location, ' - ', 1)) as country,
+                        COUNT(*) as total_scans,
+                        SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as good_ips,
+                        ROUND(AVG(CASE WHEN ping > 0 THEN ping ELSE NULL END)) as avg_ping,
+                        ROUND(AVG(CASE WHEN download > 0 THEN download ELSE NULL END), 1) as avg_download,
+                        ROUND(AVG(CASE WHEN upload > 0 THEN upload ELSE NULL END), 1) as avg_upload,
+                        ROUND(AVG(CASE WHEN jitter > 0 THEN jitter ELSE NULL END)) as avg_jitter,
+                        COUNT(DISTINCT user_ip) as unique_users
+                    FROM scan_results 
+                    WHERE user_location IS NOT NULL AND user_location != 'Unknown'
+                    GROUP BY TRIM(SUBSTRING_INDEX(user_location, ' - ', 1))
+                    HAVING total_scans > 0
+                    ORDER BY total_scans DESC
+                """)
+                country_stats = await cur.fetchall()
+
+                # Top ISP per country
+                await cur.execute("""
+                    SELECT 
+                        TRIM(SUBSTRING_INDEX(user_location, ' - ', 1)) as country,
+                        user_isp as isp,
+                        COUNT(*) as scan_count
+                    FROM scan_results 
+                    WHERE user_location IS NOT NULL AND user_location != 'Unknown'
+                        AND user_isp IS NOT NULL AND user_isp != 'Unknown'
+                    GROUP BY country, user_isp
+                    ORDER BY country, scan_count DESC
+                """)
+                isp_rows = await cur.fetchall()
+
+                # Top datacenter per country
+                await cur.execute("""
+                    SELECT 
+                        TRIM(SUBSTRING_INDEX(user_location, ' - ', 1)) as country,
+                        datacenter,
+                        COUNT(*) as hit_count
+                    FROM scan_results 
+                    WHERE user_location IS NOT NULL AND user_location != 'Unknown'
+                        AND datacenter IS NOT NULL AND datacenter != 'Unknown'
+                        AND status = 'ok'
+                    GROUP BY country, datacenter
+                    ORDER BY country, hit_count DESC
+                """)
+                dc_rows = await cur.fetchall()
+
+                # Build ISP map: {country: [top 3 ISPs]}
+                isp_map = {}
+                for row in isp_rows:
+                    c = row['country']
+                    if c not in isp_map:
+                        isp_map[c] = []
+                    if len(isp_map[c]) < 3:
+                        isp_map[c].append({'name': row['isp'], 'scans': int(row['scan_count'])})
+
+                # Build DC map: {country: [top 3 datacenters]}
+                dc_map = {}
+                for row in dc_rows:
+                    c = row['country']
+                    if c not in dc_map:
+                        dc_map[c] = []
+                    if len(dc_map[c]) < 3:
+                        dc_map[c].append({'code': row['datacenter'], 'hits': int(row['hit_count'])})
+
+                # Merge
+                result = []
+                for row in country_stats:
+                    c = row['country']
+                    total = int(row['total_scans']) if row['total_scans'] else 0
+                    good = int(row['good_ips']) if row['good_ips'] else 0
+                    result.append({
+                        'country': c,
+                        'total_scans': total,
+                        'good_ips': good,
+                        'success_rate': round((good / total * 100), 1) if total > 0 else 0,
+                        'avg_ping': int(row['avg_ping']) if row['avg_ping'] else None,
+                        'avg_download': float(row['avg_download']) if row['avg_download'] else None,
+                        'avg_upload': float(row['avg_upload']) if row['avg_upload'] else None,
+                        'avg_jitter': int(row['avg_jitter']) if row['avg_jitter'] else None,
+                        'unique_users': int(row['unique_users']) if row['unique_users'] else 0,
+                        'top_isps': isp_map.get(c, []),
+                        'top_datacenters': dc_map.get(c, [])
+                    })
+
+                _geo_cache = result
+                _geo_cache_time = time.time()
+                return result
+    except Exception as e:
+        print(f"DB Geo Analytics Error: {e}")
+        return []
+
+async def reconnect_db(host, port):
+    global pool
+    try:
+        if pool:
+            pool.close()
+            await pool.wait_closed()
+        
+        pool = await aiomysql.create_pool(
+            host=host,
+            port=port,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            db=DB_NAME,
+            autocommit=True,
+            minsize=1,
+            maxsize=5,
+            pool_recycle=300,
+            connect_timeout=10
+        )
+        print(f"DEBUG: Successfully reconnected Database Pool to -> {host}:{port}")
+        return True
+    except Exception as e:
+        print(f"CRITICAL: Failed to proxy database connection: {e}")
+        return False

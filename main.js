@@ -1,9 +1,12 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
 let pythonProcess;
+let tray = null;
+let isQuitting = false;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -25,6 +28,14 @@ function createWindow() {
     } else {
         mainWindow.loadFile(path.join(__dirname, 'frontend/dist/index.html'));
     }
+
+    mainWindow.on('close', function (event) {
+        if (!isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+            return false;
+        }
+    });
 
     mainWindow.on('closed', function () {
         mainWindow = null;
@@ -66,12 +77,44 @@ app.on('ready', () => {
 
     // Give the python backend a second or two to bind to port 8000 before loading UI
     setTimeout(createWindow, 2000);
+
+    // Auto updater logic
+    autoUpdater.checkForUpdatesAndNotify();
+
+    // System Tray logic
+    const icon = nativeImage.createEmpty(); // Transparent fallback icon
+    tray = new Tray(icon);
+    const contextMenu = Menu.buildFromTemplate([
+        { label: 'Show CF Scanner', click: () => mainWindow.show() },
+        {
+            label: 'Quit', click: () => {
+                isQuitting = true;
+                app.quit();
+            }
+        }
+    ]);
+    tray.setToolTip('Antigravity Scanner');
+    tray.setContextMenu(contextMenu);
+    tray.on('double-click', () => {
+        mainWindow.show();
+    });
+});
+
+autoUpdater.on('update-available', () => {
+    if (mainWindow) mainWindow.webContents.send('update_available');
+});
+
+autoUpdater.on('update-downloaded', () => {
+    if (mainWindow) mainWindow.webContents.send('update_downloaded');
+});
+
+ipcMain.on('restart_app', () => {
+    autoUpdater.quitAndInstall();
 });
 
 app.on('window-all-closed', function () {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    // Keep app running in tray when all windows are closed
+    // Do nothing here instead of app.quit()
 });
 
 app.on('will-quit', () => {

@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { getAnalytics } from '../api';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import WorldHeatmap from './WorldHeatmap';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function AnalyticsDashboard() {
+    const { t } = useTranslation();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -14,29 +17,32 @@ export default function AnalyticsDashboard() {
     }, []);
 
     if (loading) {
-        return <div className="text-neon-blue text-center animate-pulse">Loading Global Intelligence...</div>;
+        return <div className="text-neon-blue text-center animate-pulse">{t('analytics.loading')}</div>;
     }
 
-    if (!data) return <div className="text-red-500 text-center">Failed to load analytics.</div>;
+    if (!data) return <div className="text-red-500 text-center">{t('analytics.failed')}</div>;
 
     const { top_datacenters, top_ports, network_types, total_scans, total_good, timeline_data } = data;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* World Heatmap - Hero Section */}
+            <WorldHeatmap />
+
             <div className="grid grid-cols-2 gap-4">
                 <div className="glass-panel p-6 neon-border text-center">
-                    <h3 className="text-gray-400 text-xs uppercase tracking-widest mb-2">Total IP Scans</h3>
+                    <h3 className="text-gray-400 text-xs uppercase tracking-widest mb-2">{t('analytics.totalScans')}</h3>
                     <div className="text-4xl font-black text-white">{total_scans?.toLocaleString() || 0}</div>
                 </div>
                 <div className="glass-panel p-6 neon-border text-center">
-                    <h3 className="text-gray-400 text-xs uppercase tracking-widest mb-2">Verified Good IPs</h3>
+                    <h3 className="text-gray-400 text-xs uppercase tracking-widest mb-2">{t('analytics.verifiedGood')}</h3>
                     <div className="text-4xl font-black text-neon-blue">{total_good?.toLocaleString() || 0}</div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="glass-panel p-6 col-span-1 md:col-span-2 text-center md:text-left">
-                    <h3 className="text-lg font-bold text-neon-purple mb-4">Discovery Performance Over Time (7 Days)</h3>
+                    <h3 className="text-lg font-bold text-neon-purple mb-4">{t('analytics.timeline')}</h3>
                     {timeline_data && timeline_data.length > 0 ? (
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -55,12 +61,12 @@ export default function AnalyticsDashboard() {
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="text-gray-500 text-sm py-10 text-center">No scanning history available yet.</div>
+                        <div className="text-gray-500 text-sm py-10 text-center">{t('analytics.noData')}</div>
                     )}
                 </div>
 
                 <div className="glass-panel p-6">
-                    <h3 className="text-lg font-bold text-neon-blue mb-4">Datacenter Latency (Average Ping)</h3>
+                    <h3 className="text-lg font-bold text-neon-blue mb-4">{t('analytics.dcLatency')}</h3>
                     {top_datacenters && top_datacenters.length > 0 ? (
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -77,37 +83,37 @@ export default function AnalyticsDashboard() {
                             </ResponsiveContainer>
                         </div>
                     ) : (
-                        <div className="text-gray-500 text-sm py-10 text-center">No datacenter data available yet.</div>
+                        <div className="text-gray-500 text-sm py-10 text-center">{t('analytics.noData')}</div>
                     )}
                 </div>
 
                 <div className="space-y-6">
                     <div className="glass-panel p-6">
-                        <h3 className="text-lg font-bold text-neon-blue mb-4">Fastest Ports</h3>
+                        <h3 className="text-lg font-bold text-neon-blue mb-4">{t('analytics.fastestPorts')}</h3>
                         <div className="space-y-3">
                             {top_ports?.map((pt, i) => (
                                 <div key={i} className="flex justify-between items-center bg-black/40 p-2 rounded">
                                     <span className="text-gray-300 font-mono">Port {pt.port}</span>
-                                    <span className="text-neon-blue">{pt.count} successes</span>
+                                    <span className="text-neon-blue">{pt.count} {t('analytics.successes')}</span>
                                 </div>
                             ))}
                             {(!top_ports || top_ports.length === 0) && (
-                                <div className="text-gray-500 text-sm">No port data available yet.</div>
+                                <div className="text-gray-500 text-sm">{t('analytics.noData')}</div>
                             )}
                         </div>
                     </div>
 
                     <div className="glass-panel p-6">
-                        <h3 className="text-lg font-bold text-white mb-4">Network Protocols</h3>
+                        <h3 className="text-lg font-bold text-white mb-4">{t('analytics.networkProto')}</h3>
                         <div className="space-y-3">
                             {network_types?.map((nt, i) => (
                                 <div key={i} className="flex justify-between items-center bg-black/40 p-2 rounded">
                                     <span className="text-gray-300 font-mono uppercase">{nt.network_type}</span>
-                                    <span className="text-white">{nt.count} routes</span>
+                                    <span className="text-white">{nt.count} {t('analytics.routes')}</span>
                                 </div>
                             ))}
                             {(!network_types || network_types.length === 0) && (
-                                <div className="text-gray-500 text-sm">No network protocol data available yet.</div>
+                                <div className="text-gray-500 text-sm">{t('analytics.noData')}</div>
                             )}
                         </div>
                     </div>

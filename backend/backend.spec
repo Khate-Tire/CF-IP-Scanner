@@ -6,11 +6,11 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['requests', 'cloudscraper', 'certifi', 'websockets', 'aiomysql', 'aiohttp_socks', 'cryptography'],
+    hiddenimports=['aiohttp', 'aiohttp_socks', 'urllib.parse', 'pymysql', 'cryptography', 'yaml', 'requests', 'cloudscraper', 'certifi', 'websockets', 'aiomysql', 'cryptography'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt5', 'PyQt6', 'tkinter', 'matplotlib'],
     noarchive=False,
     optimize=0,
 )

@@ -61,18 +61,26 @@ class ScanRequest(BaseModel):
     stop_after: int = 10
     ip_source: str = 'official'
     custom_url: Optional[str] = None
+    domains: Optional[List[str]] = None
     max_ping: int = 1500
     max_jitter: int = 500
     min_download: float = 0.1
     min_upload: float = 0.1
-    test_ports: Optional[List[int]] = []
+    test_ports: Optional[List[int]] = None
     verify_tls: bool = False
+    target_country: Optional[str] = None
+    use_system_proxy: bool = False
 
 class FetchConfigRequest(BaseModel):
     url: str
 
 class ProxyDbRequest(BaseModel):
     vless_config: str
+
+class ExportRequest(BaseModel):
+    format: Optional[str] = "base64"
+    vless_config: str
+    ips: List[str]
 
 active_scans = {}
 results = {}
@@ -83,6 +91,31 @@ async def startup_event():
     import db
     await db.init_db()
     asyncio.create_task(update_cf_ranges_periodic())
+    asyncio.create_task(run_autopilot_scheduler())
+
+async def run_autopilot_scheduler():
+    while True:
+        await asyncio.sleep(43200) # Wait 12 hours between headless runs
+        try:
+            from export import export_base64
+            # Grab latest 20 good IPs from db
+            import db
+            top_ips = db.get_dashboard_stats().get("recent_good", [])
+            if top_ips:
+                ips = [row["ip"] for row in top_ips]
+                settings = load_settings()
+                # Dummy config structure for export, using a basic fallback if we don't store the user's vless
+                fallback_parts = {
+                    "protocol": "vless",
+                    "uuid": "auto-pilot",
+                    "port": 443,
+                    "params": {"security": "tls", "type": "ws", "path": "/", "host": "update.me"}
+                }
+                content = export_base64(ips, fallback_parts)
+                with open(os.path.join(APP_DIR, "latest_subscription.txt"), "w") as f:
+                    f.write(content)
+        except Exception as e:
+            print(f"Autopilot Background Error: {e}")
 
 async def update_cf_ranges_periodic():
     while True:
@@ -114,26 +147,27 @@ async def check_health():
     
     # Check general internet
     try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.get("http://cp.cloudflare.com/generate_204", timeout=3) as resp:
-                if resp.status == 204:
-                    internet_status = "online"
-                else:
-                    internet_err = f"Unexpected status code: {resp.status}"
+        import socket
+        sock = socket.create_connection(("1.1.1.1", 53), timeout=2)
+        sock.close()
+        internet_status = "online"
     except Exception as e:
         internet_err = str(e)
         
     # Check DB
     try:
         if db.pool:
-            async with db.pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("SELECT 1")
-                db_status = "online"
+            async with asyncio.timeout(3.0):
+                async with db.pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("SELECT 1")
+                    db_status = "online"
         else:
             db_status = "offline"
             db_err = "Pool is not initialized. ISP may have blocked initial connection."
+    except asyncio.TimeoutError:
+        db_status = "offline"
+        db_err = "Database connection timed out (ISP Blocked)."
     except Exception as e:
         db_status = "offline"
         db_err = str(e)
@@ -145,10 +179,14 @@ async def check_health():
         "database_error": db_err
     }
 
+class ProxyDbRequest(BaseModel):
+    vless_config: str
+
 @app.post('/proxy-db')
 async def proxy_db(req: ProxyDbRequest):
     import db
     from db_proxy import start_db_tunnel
+    from scanner import parse_vless
     try:
         vless_parts = parse_vless(req.vless_config)
         start_db_tunnel(vless_parts)
@@ -164,10 +202,14 @@ async def proxy_db(req: ProxyDbRequest):
         return {"status": "error", "message": str(e)}
 
 @app.get('/my-ip')
-async def get_my_ip():
+async def get_my_ip(proxy: str = '0'):
+    use_proxy = proxy == '1'
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get('http://ip-api.com/json/', timeout=5) as resp:
+        import aiohttp
+        import traceback
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Host': 'ip-api.com'}
+        async with aiohttp.ClientSession(trust_env=use_proxy) as session:
+            async with session.get('http://208.95.112.1/json/', headers=headers, timeout=5) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return {
@@ -175,16 +217,24 @@ async def get_my_ip():
                         'location': f"{data.get('country', '')} - {data.get('city', '')}",
                         'isp': data.get('isp', 'Unknown')
                     }
-    except:
-        pass
+                else:
+                    print(f"ip-api.com returned status {resp.status}")
+    except Exception as e:
+        print(f"Error fetching IP: {e}")
     return {'ip': 'Unknown', 'location': 'Unknown', 'isp': 'Unknown'}
+
+import aiodns
+import pycares
+from discovery import batch_resolve_domains, scrape_builtwith_domains, get_advanced_ips
 
 import base64
 
 @app.post('/fetch-config')
-async def fetch_config(req: FetchConfigRequest):
-    try:
-        async with aiohttp.ClientSession() as session:
+async def fetch_config(req: FetchConfigRequest, proxy: str = '0'):
+    """Fetch subscription configs. Tries proxy first, then direct, to handle ISP blocks."""
+    
+    async def _try_fetch(trust_env):
+        async with aiohttp.ClientSession(trust_env=trust_env) as session:
             async with session.get(req.url, timeout=10) as resp:
                 if resp.status == 200:
                     text = await resp.text()
@@ -206,8 +256,61 @@ async def fetch_config(req: FetchConfigRequest):
                         return {'error': 'No VLESS configs found in the link.'}
                 else:
                     return {'error': f'Failed to fetch config. Status code: {resp.status}'}
+
+    # Always try with system proxy first (VPN), then direct if proxy fails
+    for trust in [True, False]:
+        try:
+            result = await _try_fetch(trust)
+            if result and 'configs' in result:
+                return result
+        except Exception as e:
+            print(f"fetch-config attempt (trust_env={trust}) failed: {e}")
+            continue
+    
+    return {'error': 'Could not reach subscription URL. Check your internet connection or enable the System Proxy toggle.'}
+
+@app.post('/export')
+async def handle_export(req: ExportRequest):
+    from export import export_base64, export_clash, export_singbox
+    try:
+        vless_parts = parse_vless(req.vless_config)
+    except Exception as e:
+        return {'error': f'Invalid config: {str(e)}'}
+
+    try:
+        if req.format == 'base64':
+            return {'content': export_base64(req.ips, vless_parts)}
+        elif req.format == 'clash':
+            return {'content': export_clash(req.ips, vless_parts)}
+        elif req.format == 'singbox':
+            return {'content': export_singbox(req.ips, vless_parts)}
+        else:
+            return {'error': 'Unsupported format'}
     except Exception as e:
         return {'error': str(e)}
+
+export_links = {}
+
+@app.post('/export-link')
+async def create_export_link(req: ExportRequest):
+    link_id = str(uuid.uuid4())
+    from export import export_base64
+    try:
+        vless_parts = parse_vless(req.vless_config)
+        content = export_base64(req.ips, vless_parts)
+        export_links[link_id] = content
+        return {"link_id": link_id}
+    except Exception as e:
+        return {"error": str(e)}
+
+from fastapi.responses import PlainTextResponse
+
+@app.get('/sub/{link_id}')
+async def get_subscription(link_id: str):
+    if link_id in export_links:
+        return PlainTextResponse(export_links[link_id])
+    return PlainTextResponse("Subscription not found or expired.", status_code=404)
+
 
 @app.post('/scan')
 async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
@@ -290,20 +393,22 @@ async def start_scan_job_wrapper(scan_id, ips_source, vless_parts, req):
     user_info = await get_my_ip()
     await run_scan_job(scan_id, ips_source, vless_parts, req, user_info)
 
-async def enrich_ip_data(ip):
+async def enrich_ip_data(ip, use_proxy=False):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://ip-api.com/json/{ip}?fields=country,city,isp,as", timeout=5) as resp:
+        headers = {'Host': 'ip-api.com'}
+        async with aiohttp.ClientSession(trust_env=use_proxy) as session:
+            async with session.get(f"http://208.95.112.1/json/{ip}?fields=country,countryCode,city,isp,as", headers=headers, timeout=5) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     asn = data.get('as', 'Unknown').split(' ')[0] if data.get('as') else 'Unknown'
                     return {
                         "location": f"{data.get('country', '')} - {data.get('city', '')} ({data.get('isp', '')})",
-                        "asn": asn
+                        "asn": asn,
+                        "countryCode": data.get('countryCode', '')
                     }
     except:
         pass
-    return {"location": "Unknown", "asn": "Unknown"}
+    return {"location": "Unknown", "asn": "Unknown", "countryCode": ""}
 
 def add_log(scan_id, message):
     if scan_id in active_scans:
@@ -326,9 +431,13 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
         from db import save_scan_result
         
         custom_generator = None
-        if not ips_static and getattr(req, 'ip_source', 'official') in ['custom_url', 'auto_scrape']:
+        if not ips_static and getattr(req, 'ip_source', 'official') in ['custom_url', 'auto_scrape', 'community_scrape']:
             add_log(scan_id, f'Fetching IPs for source: {req.ip_source}...')
-            custom_ranges = await fetch_custom_ips(req.ip_source, getattr(req, 'custom_url', None))
+            if req.ip_source in ['community_scrape', 'custom_url']:
+                custom_ranges = await get_advanced_ips(req, getattr(req, 'use_system_proxy', False))
+            else:
+                custom_ranges = await fetch_custom_ips(req.ip_source, getattr(req, 'custom_url', None))
+            
             if custom_ranges:
                 add_log(scan_id, f'Loaded {len(custom_ranges)} subnets/IPs from custom source.')
                 custom_generator = SmartIPGenerator(custom_ranges=custom_ranges)
@@ -368,20 +477,13 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
             
             loc_str = user_info.get('location', 'Unknown')
             country = loc_str.split('-')[0].strip() if '-' in loc_str else loc_str
-            gold_domains = await get_gold_domains(country)
+            gold_domains = await scrape_builtwith_domains(country)
             
+            db_ips = db_ips or []
+            gold_domains = gold_domains or []
             add_log(scan_id, f'Found {len(db_ips)} History IPs and {len(gold_domains)} Gold domains for {country}.')
             
-            expanded_gold_ips = []
-            if gold_domains:
-                for domain in gold_domains[:100]:
-                    try:
-                        _, _, ips = await asyncio.to_thread(socket.gethostbyname_ex, domain)
-                        expanded_gold_ips.extend(ips)
-                        add_log(scan_id, f'Resolved {domain} to {len(ips)} IPs.')
-                    except Exception as e:
-                        add_log(scan_id, f'Failed {domain}: {type(e).__name__}')
-                        pass
+            expanded_gold_ips = gold_domains
                         
             ips_static = list(set(db_ips + expanded_gold_ips))
             if ips_static:
@@ -414,12 +516,24 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
         
         async def bounded_scan(ip, t_port=None):
             nonlocal good_ips_count
+            
+            while active_scans[scan_id]['status'] == 'paused':
+                await asyncio.sleep(0.5)
+                
             if active_scans[scan_id]['status'] != 'running': return
             
             async with discovery_sem:
                 port_str = f":{t_port}" if t_port else ""
                 add_log(scan_id, f'Checking {ip}{port_str}...')
-                res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port, verify_tls=req.verify_tls)
+                res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port, verify_tls=req.verify_tls, check_status_cb=lambda: active_scans[scan_id]['status'])
+                
+                if res['status'] == 'abort':
+                    return
+                
+                while active_scans[scan_id]['status'] == 'paused':
+                    await asyncio.sleep(0.5)
+                
+                if active_scans[scan_id]['status'] != 'running': return
                 
                 if 'stats' in active_scans[scan_id]:
                     stats = active_scans[scan_id]['stats']
@@ -448,17 +562,23 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                 is_good = res['status'] == 'ok'
                 
                 if is_good:
-                    add_log(scan_id, f"GOOD IP FOUND: {ip} (Ping: {res['ping']}ms, DL: {res['download']}Mbps)")
-                    if custom_generator:
-                        custom_generator.report_success(ip)
-                    else:
-                        report_good_ip(ip)
+                    enriched = await enrich_ip_data(ip, getattr(req, 'use_system_proxy', False))
                     
-                    enriched = await enrich_ip_data(ip)
-                    res['location'] = enriched['location']
-                    res['asn'] = enriched['asn']
-                    good_ips_count += 1
-                    active_scans[scan_id]['found_good'] = good_ips_count
+                    if req.target_country and enriched['countryCode'].upper() != req.target_country.upper():
+                        is_good = False
+                        res['status'] = 'wrong_geo'
+                        add_log(scan_id, f"Rejected {ip}: Wrong Geo ({enriched['countryCode']})")
+                    else:
+                        add_log(scan_id, f"GOOD IP FOUND: {ip} (Ping: {res['ping']}ms, DL: {res['download']}Mbps)")
+                        if custom_generator:
+                            custom_generator.report_success(ip)
+                        else:
+                            report_good_ip(ip)
+                        
+                        res['location'] = enriched['location']
+                        res['asn'] = enriched['asn']
+                        good_ips_count += 1
+                        active_scans[scan_id]['found_good'] = good_ips_count
                 else:
                     add_log(scan_id, f"Failed {ip}: {res['status']}")
                 
@@ -489,9 +609,13 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                     add_log(scan_id, 'Limit reached. Stopping scan.')
                     active_scans[scan_id]['status'] = 'completed'
 
-        while active_scans[scan_id]['status'] == 'running':
+        while active_scans[scan_id]['status'] in ['running', 'paused']:
             if good_ips_count >= req.stop_after: break
             if scanned_count >= target_count: break
+            
+            if active_scans[scan_id]['status'] == 'paused':
+                await asyncio.sleep(0.5)
+                continue
             
             while len(running_tasks) < req.concurrency * 5 and scanned_count < target_count:
                 if active_scans[scan_id]['status'] != 'running': break
@@ -553,6 +677,27 @@ def get_scan_status(scan_id: str):
         'status': active_scans[scan_id],
         'results': sorted(valid_results, key=lambda x: x.get('ping', 9999))
     }
+
+@app.post('/scan/{scan_id}/pause')
+def pause_scan(scan_id: str):
+    if scan_id in active_scans and active_scans[scan_id]['status'] == 'running':
+        active_scans[scan_id]['status'] = 'paused'
+        return {'status': 'ok'}
+    return {'error': 'Cannot pause'}
+
+@app.post('/scan/{scan_id}/resume')
+def resume_scan(scan_id: str):
+    if scan_id in active_scans and active_scans[scan_id]['status'] == 'paused':
+        active_scans[scan_id]['status'] = 'running'
+        return {'status': 'ok'}
+    return {'error': 'Cannot resume'}
+
+@app.post('/scan/{scan_id}/stop')
+def stop_scan(scan_id: str):
+    if scan_id in active_scans:
+        active_scans[scan_id]['status'] = 'stopped'
+        return {'status': 'ok'}
+    return {'error': 'Cannot stop'}
 
 class UsageLogRequest(BaseModel):
     event_type: str
@@ -672,6 +817,12 @@ async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_t
 async def get_analytics_endpoint():
     from db import get_analytics
     data = await get_analytics()
+    return data
+
+@app.get('/analytics/geo')
+async def get_geo_analytics_endpoint():
+    from db import get_geo_analytics
+    data = await get_geo_analytics()
     return data
 
 # --- WARP SCANNER ROUTES ---

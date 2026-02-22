@@ -12,10 +12,17 @@ import socket
 import ssl
 
 def parse_vless(vless_url: str):
-    if not vless_url.startswith("vless://"):
-        raise ValueError("Invalid VLESS URL")
+    protocol = "vless"
+    url_stripped = vless_url
+    if vless_url.startswith("vless://"):
+        url_stripped = vless_url.replace("vless://", "")
+    elif vless_url.startswith("trojan://"):
+        protocol = "trojan"
+        url_stripped = vless_url.replace("trojan://", "")
+    else:
+        raise ValueError("Invalid URL: Must be vless:// or trojan://")
     
-    parts = vless_url.replace("vless://", "").split("@")
+    parts = url_stripped.split("@")
     uuid = parts[0]
     rest = parts[1].split("?")
     address_port = rest[0].split(":")
@@ -31,6 +38,7 @@ def parse_vless(vless_url: str):
                 params[k] = v
                 
     return {
+        "protocol": protocol,
         "uuid": uuid,
         "address": address,
         "port": port,
@@ -53,24 +61,41 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
     vless_stream_settings = {
         "network": vless_data["params"].get("type", "tcp"),
         "security": vless_data["params"].get("security", "none"),
+        "sockopt": {
+            "tcpNoDelay": True,
+            "tcpKeepAliveIdle": 30,
+            "tcpKeepAliveInterval": 15,
+            "tcpUserTimeout": 10000,
+            "tcpMaxSeg": 1440
+        },
         "wsSettings": {
             "path": urllib.parse.unquote(vless_data["params"].get("path", "/")),
             "headers": {
                 "Host": test_sni if test_sni else vless_data["params"].get("host", "")
             }
         } if vless_data["params"].get("type") == "ws" else None,
-         "tlsSettings": tls_settings
+        "tlsSettings": tls_settings,
+        "realitySettings": {
+            "serverName": test_sni if test_sni else vless_data["params"].get("sni", ""),
+            "fingerprint": vless_data["params"].get("fp", "chrome"),
+            "publicKey": vless_data["params"].get("pbk", ""),
+            "shortId": vless_data["params"].get("sid", ""),
+            "spiderX": vless_data["params"].get("spx", "/")
+        } if vless_data["params"].get("security") == "reality" else None
     }
 
     outbounds = [{
-        "protocol": "vless",
+        "protocol": vless_data.get("protocol", "vless"),
         "settings": {
             "vnext": [{
                 "address": target_ip,
                 "port": test_port if test_port is not None else vless_data["port"],
                 "users": [{
                     "id": vless_data["uuid"],
-                    "encryption": vless_data["params"].get("encryption", "none")
+                    "encryption": vless_data["params"].get("encryption", "none"),
+                    "flow": vless_data["params"].get("flow", "")
+                }] if vless_data.get("protocol", "vless") == "vless" else [{
+                    "password": vless_data["uuid"]
                 }]
             }]
         },
@@ -118,7 +143,13 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
     }
     return config
 
-async def measure_ping(session, url):
+async def measure_ping(session, url, check_status_cb=None):
+    if check_status_cb:
+        while check_status_cb() == 'paused':
+            await asyncio.sleep(0.5)
+        if check_status_cb() not in ['running', 'paused']:
+            return -1
+
     start = time.time()
     try:
         async with session.get(url, timeout=12) as response:
@@ -153,7 +184,13 @@ def check_tls_cert_sync(ip, port=443, sni=None):
 async def verify_cloudflare_tls(ip, port=443, sni=None):
     return await asyncio.to_thread(check_tls_cert_sync, ip, port, sni)
 
-async def measure_speed(session, url, size_mb=1, is_upload=False):
+async def measure_speed(session, url, size_mb=1, is_upload=False, check_status_cb=None):
+    if check_status_cb:
+        while check_status_cb() == 'paused':
+            await asyncio.sleep(0.5)
+        if check_status_cb() not in ['running', 'paused']:
+            return 0
+
     start = time.time()
     try:
         if is_upload:
@@ -190,9 +227,15 @@ def reconstruct_vless(parts, new_ip):
     url = f"{base}?{query}#IP-{new_ip}"
     return url
 
-async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False):
+async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None):
     ip = ip.strip()
     if not ip: return {"status": "error"}
+    
+    if check_status_cb:
+        while check_status_cb() == 'paused':
+            await asyncio.sleep(0.5)
+        if check_status_cb() not in ['running', 'paused']:
+            return {"status": "abort"}
     
     local_port = random.randint(10000, 20000)
     config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni)
@@ -211,9 +254,19 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         
     process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
     
-    await asyncio.sleep(2) 
-    
+    # FIX #3: Adaptive Xray boot - poll readiness instead of fixed 2s wait
     connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+    xray_ready = False
+    for _ in range(10):  # Up to 5 seconds (10 x 500ms)
+        await asyncio.sleep(0.5)
+        try:
+            async with aiohttp.ClientSession(connector=ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")) as probe:
+                async with probe.get("http://cp.cloudflare.com/generate_204", timeout=2) as r:
+                    if r.status in [200, 204]:
+                        xray_ready = True
+                        break
+        except:
+            pass
     
     result = {
         "ip": ip, 
@@ -227,6 +280,13 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
     }
     
     if verify_tls:
+        if check_status_cb:
+            while check_status_cb() == 'paused':
+                await asyncio.sleep(0.5)
+            if check_status_cb() not in ['running', 'paused']:
+                result["status"] = "abort"
+                return result
+
         is_valid_tls = await verify_cloudflare_tls(ip, port=test_port or vless_parts.get('port', 443), sni=test_sni or vless_parts['params'].get('sni'))
         if not is_valid_tls:
             result["status"] = "compromised"
@@ -238,22 +298,30 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
             pings = []
             test_url = "http://cp.cloudflare.com/generate_204"
             
-            # Warmup with Retry to allow Xray to establish connection
-            warmup_success = False
-            for _ in range(5):
-                if await measure_ping(session, test_url) != -1:
-                    warmup_success = True
-                    break
-                await asyncio.sleep(2)
+            # Warmup with Retry (skip if adaptive boot already confirmed)
+            if not xray_ready:
+                warmup_success = False
+                for _ in range(5):
+                    if await measure_ping(session, test_url, check_status_cb) != -1:
+                        warmup_success = True
+                        break
+                    await asyncio.sleep(2)
+                
+                if not warmup_success:
+                     result["status"] = "unreachable"
+                     raise Exception("Warmup failed")
             
-            if not warmup_success:
-                 result["status"] = "unreachable"
-                 raise Exception("Warmup failed")
+            # FIX #5: Post-warmup cooldown - let TLS session stabilize
+            await asyncio.sleep(0.5)
 
-            for _ in range(5):
-                p = await measure_ping(session, test_url)
+            # FIX #1: Run 6 pings, drop the first (cold-start TLS overhead)
+            for i in range(6):
+                p = await measure_ping(session, test_url, check_status_cb)
                 if p != -1:
-                    pings.append(p)
+                    if i == 0:
+                        pass  # Discard first ping (cold-start bias)
+                    else:
+                        pings.append(p)
                 await asyncio.sleep(0.2)
             
             if not pings:
@@ -277,35 +345,64 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
             except:
                 pass
             
-            # FAIL-FAST CHECK: PING
-            if avg_ping > thresholds.get("max_ping", 1000):
-                result["status"] = "high_ping"
-                return result # STOP HERE
+            # FIX #4: Borderline retry - 10% grace margin
+            max_ping_threshold = thresholds.get("max_ping", 1000)
+            max_jitter_threshold = thresholds.get("max_jitter", 1000)
             
-            # FAIL-FAST CHECK: JITTER
-            if jitter > thresholds.get("max_jitter", 1000):
-                result["status"] = "high_jitter"
-                return result # STOP HERE
+            # FAIL-FAST CHECK: PING (with grace margin retry)
+            if avg_ping > max_ping_threshold:
+                # If within 10% grace, retry once
+                if avg_ping <= max_ping_threshold * 1.1:
+                    retry_pings = []
+                    for _ in range(3):
+                        p = await measure_ping(session, test_url, check_status_cb)
+                        if p != -1:
+                            retry_pings.append(p)
+                        await asyncio.sleep(0.2)
+                    if retry_pings:
+                        avg_ping = sum(retry_pings) / len(retry_pings)
+                        result["ping"] = round(avg_ping, 2)
+                if avg_ping > max_ping_threshold:
+                    result["status"] = "high_ping"
+                    return result
+            
+            # FAIL-FAST CHECK: JITTER (with grace margin retry)
+            if jitter > max_jitter_threshold:
+                if jitter <= max_jitter_threshold * 1.1:
+                    retry_pings = []
+                    for _ in range(3):
+                        p = await measure_ping(session, test_url, check_status_cb)
+                        if p != -1:
+                            retry_pings.append(p)
+                        await asyncio.sleep(0.2)
+                    if len(retry_pings) >= 2:
+                        jitter = max(retry_pings) - min(retry_pings)
+                        result["jitter"] = round(jitter, 2)
+                if jitter > max_jitter_threshold:
+                    result["status"] = "high_jitter"
+                    return result
 
-            # Tentatively set status to scanning_speed or similar if needed, 
-            # but we just wait to set 'ok' until the end.
-            
             sem_ctx = speed_sem if speed_sem else asyncio.Semaphore(1)
             
             async with sem_ctx:
-                 # 2. DOWNLOAD SPEED
+                 # FIX #2: Best-of-2 speed tests
                  download_url = "http://speed.cloudflare.com/__down?bytes=1000000" 
-                 speed_down = await measure_speed(session, download_url, size_mb=1, is_upload=False)
+                 
+                 # 2. DOWNLOAD SPEED (best of 2)
+                 speed_down_1 = await measure_speed(session, download_url, size_mb=1, is_upload=False, check_status_cb=check_status_cb)
+                 speed_down_2 = await measure_speed(session, download_url, size_mb=1, is_upload=False, check_status_cb=check_status_cb)
+                 speed_down = max(speed_down_1, speed_down_2)
                  result["download"] = round(speed_down, 2)
                  
-                 # Force fail if speed is 0 or low
                  if speed_down <= 0 or speed_down < thresholds.get("min_download", 0):
                      result["status"] = "low_download"
                      return result
 
-                 # 3. UPLOAD SPEED
+                 # 3. UPLOAD SPEED (best of 2)
                  upload_url = "http://speed.cloudflare.com/__up"
-                 speed_up = await measure_speed(session, upload_url, size_mb=1, is_upload=True)
+                 speed_up_1 = await measure_speed(session, upload_url, size_mb=1, is_upload=True, check_status_cb=check_status_cb)
+                 speed_up_2 = await measure_speed(session, upload_url, size_mb=1, is_upload=True, check_status_cb=check_status_cb)
+                 speed_up = max(speed_up_1, speed_up_2)
                  result["upload"] = round(speed_up, 2)
                  
                  if speed_up <= 0 or speed_up < thresholds.get("min_upload", 0):
@@ -320,10 +417,16 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         # print(f"Scan fatal error {ip}: {e}")
         pass
     finally:
-        process.terminate()
         try:
+             process.terminate()
              outs, errs = process.communicate(timeout=1)
-        except:
+        except subprocess.TimeoutExpired:
+             process.kill()
+             try:
+                 outs, errs = process.communicate(timeout=1)
+             except:
+                 pass
+        except Exception as e:
              pass
 
         try:
