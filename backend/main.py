@@ -118,10 +118,59 @@ def dlog(msg):
 def get_debug_logs():
     return {"logs": list(_debug_logs)}
 
-# ─── Startup ───
+# Global: store the VLESS config that successfully connected to DB
+_working_vless_config = None
+
+@app.get('/working-config')
+def get_working_config():
+    return {"config": _working_vless_config or ""}
+
+async def _try_tunnel_with_config(vless_config, db_module):
+    """Try to tunnel DB through a single VLESS config. Returns True if DB connected."""
+    from db_proxy import start_db_tunnel, stop_db_tunnel
+    from scanner import parse_vless
+    try:
+        stop_db_tunnel()  # Kill any existing tunnel
+        vless_parts = parse_vless(vless_config)
+        start_db_tunnel(vless_parts)
+        await asyncio.sleep(3)
+        success = await db_module.reconnect_db('127.0.0.1', 33060)
+        if success:
+            return True
+        stop_db_tunnel()
+        return False
+    except Exception as e:
+        dlog(f"  Tunnel attempt failed: {e}")
+        try: stop_db_tunnel()
+        except: pass
+        return False
+
+async def _fetch_subscription_configs(sub_url):
+    """Fetch VLESS configs from a subscription URL."""
+    import httpx, base64
+    configs = []
+    try:
+        async with httpx.AsyncClient(timeout=10, verify=False) as client:
+            resp = await client.get(sub_url)
+            if resp.status_code == 200:
+                text = resp.text.strip()
+                # Try base64 decode
+                try:
+                    decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
+                    lines = decoded.strip().split('\n')
+                except Exception:
+                    lines = text.strip().split('\n')
+                configs = [l.strip() for l in lines if l.strip().startswith('vless://')]
+                dlog(f"  Fetched {len(configs)} VLESS configs from subscription")
+    except Exception as e:
+        dlog(f"  Failed to fetch subscription: {type(e).__name__}: {e}")
+    return configs
+
+# --- Startup ---
 @app.on_event('startup')
 async def startup_event():
-    dlog("═══ STARTUP BEGIN ═══")
+    global _working_vless_config
+    dlog("=== STARTUP BEGIN ===")
     dlog(f"Python: {sys.executable}")
     dlog(f"Frozen: {getattr(sys, 'frozen', False)}")
     dlog(f"CWD: {os.getcwd()}")
@@ -136,7 +185,8 @@ async def startup_event():
     
     # Check .env loading
     dlog(f"DB_HOST: {'SET' if os.environ.get('DB_HOST') else 'EMPTY'}")
-    dlog(f"VITE_FALLBACK_CONFIG: {'SET (' + os.environ.get('VITE_FALLBACK_CONFIG','')[:30] + '...)' if os.environ.get('VITE_FALLBACK_CONFIG') else 'EMPTY'}")
+    dlog(f"VITE_FALLBACK_CONFIG: {'SET' if os.environ.get('VITE_FALLBACK_CONFIG') else 'EMPTY'}")
+    dlog(f"VITE_AUTO_SUB_URL: {'SET' if os.environ.get('VITE_AUTO_SUB_URL') else 'EMPTY'}")
     
     # Test raw internet
     dlog("Testing internet connectivity...")
@@ -144,64 +194,64 @@ async def startup_event():
         import socket
         sock = socket.create_connection(("1.1.1.1", 80), timeout=3)
         sock.close()
-        dlog("✅ Raw socket to 1.1.1.1:80 → OK")
+        dlog("[OK] Raw socket to 1.1.1.1:80")
     except Exception as e:
-        dlog(f"❌ Raw socket to 1.1.1.1:80 → {e}")
-    
-    try:
-        import socket
-        sock = socket.create_connection(("1.1.1.1", 443), timeout=3)
-        sock.close()
-        dlog("✅ Raw socket to 1.1.1.1:443 → OK")
-    except Exception as e:
-        dlog(f"❌ Raw socket to 1.1.1.1:443 → {e}")
-    
-    # Test HTTPS
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=5, verify=True) as client:
-            resp = await client.get("https://1.1.1.1/cdn-cgi/trace")
-            dlog(f"✅ HTTPS 1.1.1.1 → {resp.status_code}")
-    except Exception as e:
-        dlog(f"❌ HTTPS 1.1.1.1 → {type(e).__name__}: {e}")
+        dlog(f"[FAIL] Raw socket to 1.1.1.1:80: {e}")
     
     try:
         import httpx
         async with httpx.AsyncClient(timeout=5, verify=False) as client:
             resp = await client.get("https://1.1.1.1/cdn-cgi/trace")
-            dlog(f"✅ HTTPS (no-verify) 1.1.1.1 → {resp.status_code}")
+            dlog(f"[OK] HTTPS 1.1.1.1 -> {resp.status_code}")
     except Exception as e:
-        dlog(f"❌ HTTPS (no-verify) 1.1.1.1 → {type(e).__name__}: {e}")
+        dlog(f"[FAIL] HTTPS 1.1.1.1: {type(e).__name__}: {e}")
 
     download_xray()
     import db
     await db.init_db()
     
-    # If direct DB failed, try auto-proxy fallback
-    if db.pool is None:
-        dlog("⚠️ Direct DB connection failed. Attempting auto-proxy fallback...")
-        fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
-        if fallback_config and fallback_config.startswith('vless://'):
-            try:
-                from db_proxy import start_db_tunnel
-                from scanner import parse_vless
-                vless_parts = parse_vless(fallback_config)
-                start_db_tunnel(vless_parts)
-                await asyncio.sleep(3)  # Give Xray tunnel time to establish
-                success = await db.reconnect_db('127.0.0.1', 33060)
-                if success:
-                    db.db_via_proxy = True
-                    dlog("✅ Database connected via VLESS proxy tunnel!")
-                else:
-                    dlog("❌ Proxy tunnel started but DB reconnection failed.")
-            except Exception as e:
-                dlog(f"❌ Auto-proxy fallback failed: {e}")
-        else:
-            dlog("⚠️ No VITE_FALLBACK_CONFIG in .env — cannot auto-proxy.")
+    # === Smart DB Fallback Chain ===
+    if db.pool is not None:
+        dlog("[OK] Database connected directly!")
     else:
-        dlog("✅ Database connected directly!")
+        dlog("[!] Direct DB connection failed. Starting smart fallback chain...")
+        
+        # Step 1: Try configs from VITE_AUTO_SUB_URL (subscription)
+        sub_url = os.environ.get('VITE_AUTO_SUB_URL', '')
+        if sub_url:
+            dlog("Step 1: Fetching configs from VITE_AUTO_SUB_URL...")
+            configs = await _fetch_subscription_configs(sub_url)
+            for i, cfg in enumerate(configs[:5]):  # Try up to 5 configs
+                short = cfg[:50] + '...' if len(cfg) > 50 else cfg
+                dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
+                if await _try_tunnel_with_config(cfg, db):
+                    db.db_via_proxy = True
+                    _working_vless_config = cfg
+                    dlog(f"[OK] DB connected via subscription config #{i+1}!")
+                    break
+        else:
+            dlog("Step 1: No VITE_AUTO_SUB_URL set, skipping subscription configs.")
+        
+        # Step 2: Try VITE_FALLBACK_CONFIG (hardcoded in build)
+        if db.pool is None:
+            fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
+            if fallback_config and fallback_config.startswith('vless://'):
+                dlog("Step 2: Trying VITE_FALLBACK_CONFIG...")
+                if await _try_tunnel_with_config(fallback_config, db):
+                    db.db_via_proxy = True
+                    _working_vless_config = fallback_config
+                    dlog("[OK] DB connected via fallback config!")
+                else:
+                    dlog("[FAIL] Fallback config did not work.")
+            else:
+                dlog("Step 2: No VITE_FALLBACK_CONFIG set, skipping.")
+        
+        # Step 3: If still no DB, user will need to provide config manually via UI
+        if db.pool is None:
+            dlog("[!] All automatic DB connection attempts failed.")
+            dlog("[!] User must provide a VLESS config via the 'Tunnel DB' button.")
     
-    dlog("═══ STARTUP COMPLETE ═══")
+    dlog("=== STARTUP COMPLETE ===")
     asyncio.create_task(update_cf_ranges_periodic())
     asyncio.create_task(run_autopilot_scheduler())
 
@@ -305,18 +355,20 @@ class ProxyDbRequest(BaseModel):
 
 @app.post('/proxy-db')
 async def proxy_db(req: ProxyDbRequest):
+    global _working_vless_config
     import db
     from db_proxy import start_db_tunnel
     from scanner import parse_vless
     try:
         vless_parts = parse_vless(req.vless_config)
         start_db_tunnel(vless_parts)
-        await asyncio.sleep(2) # Give Xray time to boot up the tunnel
+        await asyncio.sleep(2)
         
-        # Reconnect DB through local dokodemo-door
         success = await db.reconnect_db('127.0.0.1', 33060)
         if success:
             db.db_via_proxy = True
+            _working_vless_config = req.vless_config
+            dlog(f"[OK] DB tunneled via user-provided config")
             return {"status": "ok", "message": "Database tunneled successfully"}
         else:
             return {"status": "error", "message": "Tunnel started but DB reconnection failed"}

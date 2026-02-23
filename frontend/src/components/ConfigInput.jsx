@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { fetchConfigFromUrl } from '../api';
+import { fetchConfigFromUrl, API_URL } from '../api';
 import GeoMap from './GeoMap';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -113,7 +113,21 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
             }
         }
 
-        // Priority 3: Try community GitHub URL (needs proxy to bypass ISP block)
+        // Priority 3: Use the working DB tunnel config (same config that connected DB)
+        if (!fetchedConfig) {
+            try {
+                const res = await fetch(`${API_URL}/working-config`);
+                const data = await res.json();
+                if (data.config && data.config.startsWith('vless://')) {
+                    fetchedConfig = data.config;
+                    console.log("Using working DB tunnel config for scan");
+                }
+            } catch (e) {
+                console.warn("Could not fetch working config:", e);
+            }
+        }
+
+        // Priority 4: Try community GitHub URL (needs proxy to bypass ISP block)
         if (!fetchedConfig) {
             try {
                 const res = await fetchConfigFromUrl(autoUrl, useSystemProxy);
@@ -125,7 +139,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
             }
         }
 
-        // Priority 4: Use fallback config from environment variable
+        // Priority 5: Use fallback config from environment variable
         if (!fetchedConfig && fallbackConfig) {
             fetchedConfig = fallbackConfig;
         }
