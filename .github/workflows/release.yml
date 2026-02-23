@@ -51,6 +51,14 @@ jobs:
       - name: Build Python Backend (.exe)
         run: |
           python build_backend.py
+
+      - name: Download Xray Core
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/XTLS/Xray-core/releases/download/v26.2.6/Xray-windows-64.zip" -OutFile xray.zip
+          Expand-Archive -Path xray.zip -DestinationPath xray_core -Force
+          Remove-Item xray.zip
+          dir xray_core
+        shell: pwsh
           
       - name: Install Frontend Dependencies
         working-directory: ./frontend

@@ -169,26 +169,35 @@ async def _fetch_subscription_configs(sub_url):
 # --- Startup ---
 @app.on_event('startup')
 async def startup_event():
-    global _working_vless_config
-    dlog("=== STARTUP BEGIN ===")
+    dlog("=== STARTUP BEGIN (fast) ===")
     dlog(f"Python: {sys.executable}")
     dlog(f"Frozen: {getattr(sys, 'frozen', False)}")
     dlog(f"CWD: {os.getcwd()}")
     
+    download_xray()
+    
+    # Launch heavy DB/network work as background task so server starts immediately
+    asyncio.create_task(_background_init())
+    asyncio.create_task(update_cf_ranges_periodic())
+    asyncio.create_task(run_autopilot_scheduler())
+    dlog("=== SERVER READY (DB connecting in background) ===")
+
+async def _background_init():
+    """Heavy init work that runs AFTER the server is already listening."""
+    global _working_vless_config
+    await asyncio.sleep(0.5)  # Let the server fully start
+    
     # Check SSL
     import ssl
-    dlog(f"SSL default verify: {ssl.get_default_verify_paths()}")
     cert_file = os.environ.get('SSL_CERT_FILE', 'NOT SET')
-    dlog(f"SSL_CERT_FILE: {cert_file}")
-    if cert_file != 'NOT SET':
-        dlog(f"  exists: {os.path.exists(cert_file)}")
+    dlog(f"SSL_CERT_FILE: {cert_file} (exists: {os.path.exists(cert_file) if cert_file != 'NOT SET' else 'N/A'})")
     
     # Check .env loading
     dlog(f"DB_HOST: {'SET' if os.environ.get('DB_HOST') else 'EMPTY'}")
     dlog(f"VITE_FALLBACK_CONFIG: {'SET' if os.environ.get('VITE_FALLBACK_CONFIG') else 'EMPTY'}")
     dlog(f"VITE_AUTO_SUB_URL: {'SET' if os.environ.get('VITE_AUTO_SUB_URL') else 'EMPTY'}")
     
-    # Test raw internet
+    # Test internet
     dlog("Testing internet connectivity...")
     try:
         import socket
@@ -206,7 +215,7 @@ async def startup_event():
     except Exception as e:
         dlog(f"[FAIL] HTTPS 1.1.1.1: {type(e).__name__}: {e}")
 
-    download_xray()
+    # Init DB
     import db
     await db.init_db()
     
@@ -221,7 +230,7 @@ async def startup_event():
         if sub_url:
             dlog("Step 1: Fetching configs from VITE_AUTO_SUB_URL...")
             configs = await _fetch_subscription_configs(sub_url)
-            for i, cfg in enumerate(configs[:5]):  # Try up to 5 configs
+            for i, cfg in enumerate(configs[:5]):
                 short = cfg[:50] + '...' if len(cfg) > 50 else cfg
                 dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
                 if await _try_tunnel_with_config(cfg, db):
@@ -230,7 +239,7 @@ async def startup_event():
                     dlog(f"[OK] DB connected via subscription config #{i+1}!")
                     break
         else:
-            dlog("Step 1: No VITE_AUTO_SUB_URL set, skipping subscription configs.")
+            dlog("Step 1: No VITE_AUTO_SUB_URL set, skipping.")
         
         # Step 2: Try VITE_FALLBACK_CONFIG (hardcoded in build)
         if db.pool is None:
@@ -246,14 +255,11 @@ async def startup_event():
             else:
                 dlog("Step 2: No VITE_FALLBACK_CONFIG set, skipping.")
         
-        # Step 3: If still no DB, user will need to provide config manually via UI
+        # Step 3: Manual fallback
         if db.pool is None:
-            dlog("[!] All automatic DB connection attempts failed.")
-            dlog("[!] User must provide a VLESS config via the 'Tunnel DB' button.")
+            dlog("[!] All auto DB attempts failed. User must use 'Tunnel DB' button.")
     
-    dlog("=== STARTUP COMPLETE ===")
-    asyncio.create_task(update_cf_ranges_periodic())
-    asyncio.create_task(run_autopilot_scheduler())
+    dlog("=== BACKGROUND INIT COMPLETE ===")
 
 async def run_autopilot_scheduler():
     while True:
