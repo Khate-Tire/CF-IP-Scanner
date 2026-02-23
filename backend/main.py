@@ -170,14 +170,22 @@ async def check_health():
     internet_err = ""
     db_err = ""
     
-    # Check general internet
+    # Check general internet (HTTP-based, more firewall-friendly)
     try:
-        import socket
-        sock = socket.create_connection(("1.1.1.1", 53), timeout=2)
-        sock.close()
-        internet_status = "online"
-    except Exception as e:
-        internet_err = str(e)
+        import httpx
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get("https://1.1.1.1/cdn-cgi/trace")
+            if resp.status_code == 200:
+                internet_status = "online"
+    except Exception:
+        # Fallback to raw socket
+        try:
+            import socket
+            sock = socket.create_connection(("1.1.1.1", 53), timeout=2)
+            sock.close()
+            internet_status = "online"
+        except Exception as e:
+            internet_err = str(e)
         
     # Check DB
     try:
