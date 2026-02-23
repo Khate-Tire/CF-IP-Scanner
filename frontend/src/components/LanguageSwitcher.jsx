@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation, LANGUAGES } from '../i18n/LanguageContext';
 

@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { exportSubscription, getExportLink } from '../api';

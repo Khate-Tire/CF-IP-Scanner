@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useEffect, useState } from 'react';
 import { getAnalytics } from '../api';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';

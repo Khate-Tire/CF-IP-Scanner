@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect, useRef } from 'react';
 import { API_URL } from '../api';
 
@@ -96,11 +97,11 @@ export default function DebugConsole() {
                         )}
                         {logs.map((line, i) => (
                             <div key={i} className={`whitespace-pre-wrap break-all ${line.includes('✅') || line.includes('ready') ? 'text-green-400' :
-                                    line.includes('❌') || line.includes('ERR') || line.includes('ERROR') || line.includes('error') ? 'text-red-400' :
-                                        line.includes('⚠️') || line.includes('WARNING') || line.includes('Waiting') ? 'text-amber-400' :
-                                            line.includes('═══') ? 'text-neon-blue font-bold' :
-                                                line.includes('Backend:') ? 'text-cyan-300' :
-                                                    'text-gray-400'
+                                line.includes('❌') || line.includes('ERR') || line.includes('ERROR') || line.includes('error') ? 'text-red-400' :
+                                    line.includes('⚠️') || line.includes('WARNING') || line.includes('Waiting') ? 'text-amber-400' :
+                                        line.includes('═══') ? 'text-neon-blue font-bold' :
+                                            line.includes('Backend:') ? 'text-cyan-300' :
+                                                'text-gray-400'
                                 }`}>
                                 {line}
                             </div>

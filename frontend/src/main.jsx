@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

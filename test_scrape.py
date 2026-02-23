@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Taher AkbariSaeed
 import cloudscraper
 import re
 

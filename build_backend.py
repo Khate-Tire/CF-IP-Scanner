@@ -1,4 +1,5 @@
 import os
+# Copyright (c) 2026 Taher AkbariSaeed
 import PyInstaller.__main__
 import certifi
 

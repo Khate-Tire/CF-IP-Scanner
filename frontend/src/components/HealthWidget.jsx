@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect } from 'react';
 import { getHealth, proxyDatabase } from '../api';
 

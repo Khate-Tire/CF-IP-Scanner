@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect, useRef } from 'react';
 import ConfigInput from './components/ConfigInput';
 import ResultsTable from './components/ResultsTable';

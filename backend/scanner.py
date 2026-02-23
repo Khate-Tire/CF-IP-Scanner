@@ -1,6 +1,7 @@
 import json
 import subprocess
 import time
+# Copyright (c) 2026 Taher AkbariSaeed
 import asyncio
 import aiohttp
 from aiohttp_socks import ProxyConnector

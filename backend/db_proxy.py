@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Taher AkbariSaeed
 import json
 import subprocess
 import asyncio

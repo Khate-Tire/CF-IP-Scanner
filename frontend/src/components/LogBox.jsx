@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useRef, useEffect, useState } from 'react';
 
 export default function LogBox({ logs }) {

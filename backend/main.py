@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Taher AkbariSaeed
 from fastapi import FastAPI, BackgroundTasks, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

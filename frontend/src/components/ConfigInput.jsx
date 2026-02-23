@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState } from 'react';
 import { fetchConfigFromUrl, API_URL } from '../api';
 import GeoMap from './GeoMap';

@@ -1,4 +1,5 @@
 import json
+# Copyright (c) 2026 Taher AkbariSaeed
 import base64
 import yaml
 

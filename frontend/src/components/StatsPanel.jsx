@@ -1,3 +1,4 @@
+/* Copyright (c) 2026 Taher AkbariSaeed */
 import React from 'react';
 
 export default function StatsPanel({ stats }) {
