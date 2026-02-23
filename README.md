@@ -5,7 +5,7 @@
   <p>
     <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-00F3FF?style=for-the-badge&logo=rocket&logoColor=black" /></a>
     <a href="https://github.com/Khate-Tire/CF-IP-Scanner/stargazers"><img src="https://img.shields.io/github/stars/Khate-Tire/CF-IP-Scanner?style=for-the-badge&color=BC13FE&logo=github" /></a>
-    <a href="LICENSE"><img src="Lihttps://img.shields.io/badge/cense-GNU AGPLv3-39ff14?style=for-the-badge" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-GNU AGPLv3-39ff14?style=for-the-badge" /></a>
     <a href="https://t.me/ANTIGRAVITY_IP"><img src="https://img.shields.io/badge/Telegram-Community-0088cc?style=for-the-badge&logo=telegram" /></a>
   </p>
   <p>
