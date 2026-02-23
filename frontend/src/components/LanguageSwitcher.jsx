@@ -20,8 +20,8 @@ export default function LanguageSwitcher() {
                 onClick={() => setOpen(!open)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-neon-blue/50 text-xs text-gray-300 hover:text-white transition-all"
             >
-                <span className="text-sm">{current.flag}</span>
-                <span className="font-mono">{current.code.toUpperCase()}</span>
+                <current.Flag />
+                <span className="text-[10px] font-black tracking-wider bg-neon-blue/20 text-neon-blue px-1.5 py-0.5 rounded">{current.flag}</span>
                 <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
             </button>
 
@@ -34,7 +34,8 @@ export default function LanguageSwitcher() {
                             className={`w-full flex items-center gap-2 px-4 py-2.5 text-xs hover:bg-white/10 transition-colors ${l.code === lang ? 'text-neon-blue bg-neon-blue/10' : 'text-gray-300'
                                 }`}
                         >
-                            <span className="text-sm">{l.flag}</span>
+                            <l.Flag />
+                            <span className="text-[10px] font-black tracking-wider bg-white/10 px-1.5 py-0.5 rounded">{l.flag}</span>
                             <span className="font-medium">{l.name}</span>
                             {l.code === lang && <span className="ml-auto text-neon-blue">✓</span>}
                         </button>

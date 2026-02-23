@@ -33,4 +33,5 @@ PyInstaller.__main__.run([
     '--hidden-import=websockets',
     '--hidden-import=aiomysql',
     '--hidden-import=cryptography',
+    '--hidden-import=dotenv',
 ])

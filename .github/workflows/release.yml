@@ -29,7 +29,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller fastapi uvicorn pydantic aiohttp aiohttp-socks aiomysql mysql-connector-python
+          pip install pyinstaller fastapi uvicorn pydantic aiohttp aiohttp-socks aiomysql mysql-connector-python python-dotenv httpx[socks] psutil websockets requests
           
       - name: Build Python Backend (.exe)
         run: |
@@ -37,7 +37,7 @@ jobs:
           
       - name: Install Frontend Dependencies
         working-directory: ./frontend
-        run: npm install
+        run: npm install --legacy-peer-deps
         
       - name: Build React Frontend
         working-directory: ./frontend

@@ -33,7 +33,7 @@ export default function AboutBox() {
             <div className="glass-panel p-8 neon-border shadow-[0_0_20px_rgba(0,243,255,0.1)]">
                 {/* Header */}
                 <div className="text-center mb-8 pb-6 border-b border-white/10">
-                    <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-4 rounded-full drop-shadow-[0_0_15px_rgba(0,243,255,0.5)]" />
+                    <img src={new URL('/logo.png', import.meta.url).href} alt="Logo" className="w-16 h-16 mx-auto mb-4 rounded-full drop-shadow-[0_0_15px_rgba(0,243,255,0.5)]" />
                     <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neon-blue to-neon-purple">
                         {t('about.title')}
                     </h2>

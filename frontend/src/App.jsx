@@ -13,6 +13,7 @@ import FragmentChart from './components/FragmentChart';
 import IranLogo from './components/IranLogo';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useTranslation } from './i18n/LanguageContext';
+import logoImg from '/logo.png';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan } from './api';
 
 function App() {
@@ -184,7 +185,7 @@ function App() {
               <div className="absolute inset-[-3px] rounded-full bg-gradient-to-tr from-neon-blue/20 to-neon-purple/20 blur-md"></div>
               {/* The logo */}
               <img
-                src="/logo.png"
+                src={logoImg}
                 alt="Antigravity IP Scanner"
                 className="relative w-24 h-24 object-contain rounded-full drop-shadow-[0_0_15px_rgba(0,243,255,0.5)] group-hover:scale-110 group-hover:drop-shadow-[0_0_25px_rgba(188,19,254,0.6)] transition-all duration-500"
                 style={{ animation: 'float 3s ease-in-out infinite' }}
