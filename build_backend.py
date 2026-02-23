@@ -34,4 +34,6 @@ PyInstaller.__main__.run([
     '--hidden-import=aiomysql',
     '--hidden-import=cryptography',
     '--hidden-import=dotenv',
+    '--hidden-import=aiodns',
+    '--hidden-import=pycares',
 ])

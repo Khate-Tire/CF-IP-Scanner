@@ -8,3 +8,5 @@ aiohttp_socks
 requests
 aiomysql
 python-dotenv
+aiodns
+pycares
