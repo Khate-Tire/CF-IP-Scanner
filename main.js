@@ -9,9 +9,14 @@ let tray = null;
 let isQuitting = false;
 
 function createWindow() {
+    const iconPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(__dirname, 'build', 'icon.png');
+
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
+        icon: iconPath,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
@@ -82,8 +87,11 @@ app.on('ready', () => {
     autoUpdater.checkForUpdatesAndNotify();
 
     // System Tray logic
-    const icon = nativeImage.createEmpty(); // Transparent fallback icon
-    tray = new Tray(icon);
+    const trayIconPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'icon.png')
+        : path.join(__dirname, 'build', 'icon.png');
+    const trayIcon = nativeImage.createFromPath(trayIconPath).resize({ width: 16, height: 16 });
+    tray = new Tray(trayIcon);
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Show CF Scanner', click: () => mainWindow.show() },
         {
