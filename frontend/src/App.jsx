@@ -9,6 +9,7 @@ import WarpScanner from './components/WarpScanner';
 import AboutBox from './components/AboutBox';
 import HealthWidget from './components/HealthWidget';
 import UpdateModal from './components/UpdateModal';
+import DebugConsole from './components/DebugConsole';
 import FragmentChart from './components/FragmentChart';
 import IranLogo from './components/IranLogo';
 import LanguageSwitcher from './components/LanguageSwitcher';
@@ -172,6 +173,7 @@ function App() {
     <div className="min-h-screen p-8 bg-[url('/bg-grid.svg')] bg-cover relative">
       <HealthWidget />
       <UpdateModal />
+      <DebugConsole />
       <div className="max-w-4xl mx-auto relative z-10">
         <header className="text-center mb-10">
           <div className="flex justify-center mb-6">

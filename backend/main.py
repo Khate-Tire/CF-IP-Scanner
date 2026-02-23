@@ -85,15 +85,86 @@ class ExportRequest(BaseModel):
 active_scans = {}
 results = {}
 
+# ─── Debug Log System ───
+import sys
+from datetime import datetime as _dt
+from collections import deque
+
+_debug_logs = deque(maxlen=200)
+
+def dlog(msg):
+    """Write to both console and in-memory debug log."""
+    ts = _dt.now().strftime('%H:%M:%S')
+    entry = f"[{ts}] {msg}"
+    print(entry)
+    _debug_logs.append(entry)
+
+@app.get('/debug-logs')
+def get_debug_logs():
+    return {"logs": list(_debug_logs)}
+
+# ─── Startup ───
 @app.on_event('startup')
 async def startup_event():
+    dlog("═══ STARTUP BEGIN ═══")
+    dlog(f"Python: {sys.executable}")
+    dlog(f"Frozen: {getattr(sys, 'frozen', False)}")
+    dlog(f"CWD: {os.getcwd()}")
+    
+    # Check SSL
+    import ssl
+    dlog(f"SSL default verify: {ssl.get_default_verify_paths()}")
+    cert_file = os.environ.get('SSL_CERT_FILE', 'NOT SET')
+    dlog(f"SSL_CERT_FILE: {cert_file}")
+    if cert_file != 'NOT SET':
+        dlog(f"  exists: {os.path.exists(cert_file)}")
+    
+    # Check .env loading
+    dlog(f"DB_HOST: {'SET' if os.environ.get('DB_HOST') else 'EMPTY'}")
+    dlog(f"VITE_FALLBACK_CONFIG: {'SET (' + os.environ.get('VITE_FALLBACK_CONFIG','')[:30] + '...)' if os.environ.get('VITE_FALLBACK_CONFIG') else 'EMPTY'}")
+    
+    # Test raw internet
+    dlog("Testing internet connectivity...")
+    try:
+        import socket
+        sock = socket.create_connection(("1.1.1.1", 80), timeout=3)
+        sock.close()
+        dlog("✅ Raw socket to 1.1.1.1:80 → OK")
+    except Exception as e:
+        dlog(f"❌ Raw socket to 1.1.1.1:80 → {e}")
+    
+    try:
+        import socket
+        sock = socket.create_connection(("1.1.1.1", 443), timeout=3)
+        sock.close()
+        dlog("✅ Raw socket to 1.1.1.1:443 → OK")
+    except Exception as e:
+        dlog(f"❌ Raw socket to 1.1.1.1:443 → {e}")
+    
+    # Test HTTPS
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5, verify=True) as client:
+            resp = await client.get("https://1.1.1.1/cdn-cgi/trace")
+            dlog(f"✅ HTTPS 1.1.1.1 → {resp.status_code}")
+    except Exception as e:
+        dlog(f"❌ HTTPS 1.1.1.1 → {type(e).__name__}: {e}")
+    
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5, verify=False) as client:
+            resp = await client.get("https://1.1.1.1/cdn-cgi/trace")
+            dlog(f"✅ HTTPS (no-verify) 1.1.1.1 → {resp.status_code}")
+    except Exception as e:
+        dlog(f"❌ HTTPS (no-verify) 1.1.1.1 → {type(e).__name__}: {e}")
+
     download_xray()
     import db
     await db.init_db()
     
     # If direct DB failed, try auto-proxy fallback
     if db.pool is None:
-        print("⚠️ Direct DB connection failed. Attempting auto-proxy fallback...")
+        dlog("⚠️ Direct DB connection failed. Attempting auto-proxy fallback...")
         fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
         if fallback_config and fallback_config.startswith('vless://'):
             try:
@@ -105,16 +176,17 @@ async def startup_event():
                 success = await db.reconnect_db('127.0.0.1', 33060)
                 if success:
                     db.db_via_proxy = True
-                    print("✅ Database connected via VLESS proxy tunnel!")
+                    dlog("✅ Database connected via VLESS proxy tunnel!")
                 else:
-                    print("❌ Proxy tunnel started but DB reconnection failed.")
+                    dlog("❌ Proxy tunnel started but DB reconnection failed.")
             except Exception as e:
-                print(f"❌ Auto-proxy fallback failed: {e}")
+                dlog(f"❌ Auto-proxy fallback failed: {e}")
         else:
-            print("⚠️ No VITE_FALLBACK_CONFIG in .env — cannot auto-proxy.")
+            dlog("⚠️ No VITE_FALLBACK_CONFIG in .env — cannot auto-proxy.")
     else:
-        print("✅ Database connected directly!")
+        dlog("✅ Database connected directly!")
     
+    dlog("═══ STARTUP COMPLETE ═══")
     asyncio.create_task(update_cf_ranges_periodic())
     asyncio.create_task(run_autopilot_scheduler())
 
