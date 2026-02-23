@@ -85,10 +85,19 @@ class ExportRequest(BaseModel):
 active_scans = {}
 results = {}
 
-# ─── Debug Log System ───
+# --- Debug Log System ---
 import sys
 from datetime import datetime as _dt
 from collections import deque
+
+# Fix Windows encoding for PyInstaller noconsole mode
+try:
+    if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
 
 _debug_logs = deque(maxlen=200)
 
@@ -96,7 +105,13 @@ def dlog(msg):
     """Write to both console and in-memory debug log."""
     ts = _dt.now().strftime('%H:%M:%S')
     entry = f"[{ts}] {msg}"
-    print(entry)
+    try:
+        print(entry)
+    except (UnicodeEncodeError, OSError):
+        try:
+            print(entry.encode('ascii', errors='replace').decode('ascii'))
+        except Exception:
+            pass
     _debug_logs.append(entry)
 
 @app.get('/debug-logs')
