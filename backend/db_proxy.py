@@ -2,12 +2,19 @@ import json
 import subprocess
 import asyncio
 import os
+import sys
 import atexit
 from core_manager import get_xray_path, APP_DIR
 import urllib.parse
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+# Load .env (PyInstaller-compatible)
+if getattr(sys, 'frozen', False):
+    _env_path = os.path.join(os.path.dirname(sys.executable), '.env')
+else:
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+if os.path.exists(_env_path):
+    load_dotenv(_env_path)
 
 db_xray_process = None
 

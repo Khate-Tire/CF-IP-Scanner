@@ -2,16 +2,33 @@ import aiomysql
 import asyncio
 import time
 import os
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+# Load .env from multiple possible locations (PyInstaller vs dev)
+def _load_env():
+    candidates = []
+    # 1. Next to the running exe (PyInstaller production)
+    if getattr(sys, 'frozen', False):
+        candidates.append(os.path.join(os.path.dirname(sys.executable), '.env'))
+        candidates.append(os.path.join(os.path.dirname(sys.executable), 'backend', '.env'))
+    # 2. Next to this source file (development)
+    candidates.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+    
+    for path in candidates:
+        if os.path.exists(path):
+            load_dotenv(path)
+            print(f"DEBUG: Loaded .env from {path}")
+            return
+    print("WARNING: No .env file found. DB connection will fail unless env vars are set externally.")
 
-DB_HOST = os.environ['DB_HOST']
-DB_USER = os.environ['DB_USER']
-DB_PASSWORD = os.environ['DB_PASSWORD']
-DB_NAME = os.environ['DB_NAME']
+_load_env()
+
+DB_HOST = os.environ.get('DB_HOST', '')
+DB_USER = os.environ.get('DB_USER', '')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
+DB_NAME = os.environ.get('DB_NAME', '')
 DB_PORT = int(os.environ.get('DB_PORT', '3306'))
 
 pool = None
