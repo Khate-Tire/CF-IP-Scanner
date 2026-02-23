@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getHealth, proxyDatabase } from '../api';
 
 function HealthWidget() {
-    const [health, setHealth] = useState({ internet: 'checking', database: 'checking', internet_error: '', database_error: '' });
+    const [health, setHealth] = useState({ internet: 'checking', database: 'checking', internet_error: '', database_error: '', via_proxy: false });
     const [isProxying, setIsProxying] = useState(false);
     const [showProxyModal, setShowProxyModal] = useState(false);
     const [proxyConfig, setProxyConfig] = useState('');
@@ -14,7 +14,7 @@ function HealthWidget() {
         };
 
         checkHealth();
-        const interval = setInterval(checkHealth, 30000); // Check every 30s
+        const interval = setInterval(checkHealth, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -39,7 +39,7 @@ function HealthWidget() {
 
         if (res.status === 'ok') {
             setShowProxyModal(false);
-            setHealth({ ...health, database: 'online' });
+            setHealth({ ...health, database: 'online', via_proxy: true });
             alert(res.message);
         } else {
             alert(res.message);
@@ -58,7 +58,17 @@ function HealthWidget() {
             <div className="flex items-center gap-3">
                 <div className="flex flex-col items-center">
                     <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Global DB</span>
-                    {renderStatus(health.database, health.database_error)}
+                    <div className="flex items-center gap-1">
+                        {renderStatus(health.database, health.database_error)}
+                        {health.via_proxy && health.database === 'online' && (
+                            <span
+                                className="text-amber-400 text-[10px] cursor-help"
+                                title="Connected through VLESS proxy tunnel (ISP bypass active)"
+                            >
+                                🔀
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 {health.database === 'offline' && (

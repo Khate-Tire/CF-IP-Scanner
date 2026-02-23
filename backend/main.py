@@ -90,6 +90,31 @@ async def startup_event():
     download_xray()
     import db
     await db.init_db()
+    
+    # If direct DB failed, try auto-proxy fallback
+    if db.pool is None:
+        print("⚠️ Direct DB connection failed. Attempting auto-proxy fallback...")
+        fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
+        if fallback_config and fallback_config.startswith('vless://'):
+            try:
+                from db_proxy import start_db_tunnel
+                from scanner import parse_vless
+                vless_parts = parse_vless(fallback_config)
+                start_db_tunnel(vless_parts)
+                await asyncio.sleep(3)  # Give Xray tunnel time to establish
+                success = await db.reconnect_db('127.0.0.1', 33060)
+                if success:
+                    db.db_via_proxy = True
+                    print("✅ Database connected via VLESS proxy tunnel!")
+                else:
+                    print("❌ Proxy tunnel started but DB reconnection failed.")
+            except Exception as e:
+                print(f"❌ Auto-proxy fallback failed: {e}")
+        else:
+            print("⚠️ No VITE_FALLBACK_CONFIG in .env — cannot auto-proxy.")
+    else:
+        print("✅ Database connected directly!")
+    
     asyncio.create_task(update_cf_ranges_periodic())
     asyncio.create_task(run_autopilot_scheduler())
 
@@ -176,7 +201,8 @@ async def check_health():
         "internet": internet_status,
         "internet_error": internet_err,
         "database": db_status,
-        "database_error": db_err
+        "database_error": db_err,
+        "via_proxy": db.db_via_proxy
     }
 
 class ProxyDbRequest(BaseModel):
@@ -195,6 +221,7 @@ async def proxy_db(req: ProxyDbRequest):
         # Reconnect DB through local dokodemo-door
         success = await db.reconnect_db('127.0.0.1', 33060)
         if success:
+            db.db_via_proxy = True
             return {"status": "ok", "message": "Database tunneled successfully"}
         else:
             return {"status": "error", "message": "Tunnel started but DB reconnection failed"}

@@ -15,6 +15,7 @@ DB_NAME = os.environ['DB_NAME']
 DB_PORT = int(os.environ.get('DB_PORT', '3306'))
 
 pool = None
+db_via_proxy = False
 _analytics_cache = None
 _analytics_cache_time = 0
 
