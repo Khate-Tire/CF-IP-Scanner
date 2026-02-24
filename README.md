@@ -222,7 +222,7 @@ CF-IP-Scanner/
 │   └── screenshots/        # App screenshots
 ├── main.js                  # Electron main process
 ├── run_app.py              # One-click launcher
-├── LICENSE                  # MIT License
+├── LICENSE                  # GNU AGPLv3 License
 ├── CITATION.cff            # Citation metadata
 └── README.md               # This file
 ```
@@ -311,7 +311,7 @@ git push origin feature/amazing-feature
 
 ## 📜 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **GNU AGPLv3 License** — see the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -357,5 +357,5 @@ If you use this tool in your research, please cite it:
 
 <div align="center">
   <p><strong>🕊️ Built for a free and open internet</strong></p>
-  <p><sub>Antigravity IP Scanner v2.5 • © 2024-2026 Khate Tire • MIT License</sub></p>
+  <p><sub>Antigravity IP Scanner v2.5 • © 2024-2026 Khate Tire • GNU AGPLv3 License</sub></p>
 </div>
