@@ -261,47 +261,94 @@ async def _background_init():
     import db
     await db.init_db()
     
-    # === Smart DB Fallback Chain ===
+    # === Smart DB Fallback Chain (5 Layers) ===
+    # Layer 5 (offline) always initializes as safety net
+    db.local_db = db.LocalSQLiteDB()
+    await db.local_db.init()
+    dlog("[OK] Local SQLite offline cache initialized.")
+
     if db.pool is not None:
-        dlog("[OK] Database connected directly!")
+        db.db_mode = "direct"
+        dlog("[OK] Layer 1: Database connected directly!")
     else:
-        dlog("[!] Direct DB connection failed. Starting smart fallback chain...")
+        dlog("[!] Layer 1: Direct DB connection failed. Starting fallback chain...")
         
-        # Step 1: Try configs from VITE_AUTO_SUB_URL (subscription)
-        sub_url = os.environ.get('VITE_AUTO_SUB_URL', '')
-        if sub_url:
-            dlog("Step 1: Fetching configs from VITE_AUTO_SUB_URL...")
-            configs = await _fetch_subscription_configs(sub_url)
-            for i, cfg in enumerate(configs[:5]):
-                short = cfg[:50] + '...' if len(cfg) > 50 else cfg
-                dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
-                if await _try_tunnel_with_config(cfg, db):
-                    db.db_via_proxy = True
-                    _working_vless_config = cfg
-                    dlog(f"[OK] DB connected via subscription config #{i+1}!")
-                    break
-        else:
-            dlog("Step 1: No VITE_AUTO_SUB_URL set, skipping.")
+        # Layer 2: Cloudflare Worker proxy (HTTPS API)
+        if db.WORKER_URL:
+            dlog("Layer 2: Trying Cloudflare Worker proxy...")
+            try:
+                proxy = db.WorkerDBProxy()
+                if await proxy.health():
+                    db.worker_proxy = proxy
+                    db.db_mode = "worker"
+                    dlog("[OK] Layer 2: DB connected via Cloudflare Worker!")
+            except Exception as e:
+                dlog(f"[FAIL] Layer 2: Worker proxy failed: {e}")
+
+        # Layer 3: Worker via clean IP (domain fronting)
+        if db.db_mode == "disconnected" and db.WORKER_URL:
+            dlog("Layer 3: Trying Worker via domain fronting with clean IPs...")
+            # Read known-good IPs from local scan history
+            try:
+                good_ips = await db.local_db.get_historical_good_ips("", "", limit=10)
+                if not good_ips:
+                    # Try some well-known Cloudflare IPs as last resort
+                    good_ips = ["104.16.132.229", "104.17.209.9", "172.67.182.1", "104.21.48.1"]
+                for ip in good_ips[:5]:
+                    try:
+                        proxy = db.WorkerDBProxy(clean_ip=ip)
+                        test = await proxy._post("/api/health", {})
+                        if test:
+                            db.worker_proxy = proxy
+                            db.db_mode = "worker_fronted"
+                            dlog(f"[OK] Layer 3: DB connected via Worker + clean IP {ip}!")
+                            break
+                    except:
+                        continue
+            except Exception as e:
+                dlog(f"[FAIL] Layer 3: Domain fronting failed: {e}")
         
-        # Step 2: Try VITE_FALLBACK_CONFIG (hardcoded in build)
-        if db.pool is None:
-            fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
-            if fallback_config and fallback_config.startswith('vless://'):
-                dlog("Step 2: Trying VITE_FALLBACK_CONFIG...")
-                if await _try_tunnel_with_config(fallback_config, db):
-                    db.db_via_proxy = True
-                    _working_vless_config = fallback_config
-                    dlog("[OK] DB connected via fallback config!")
-                else:
-                    dlog("[FAIL] Fallback config did not work.")
+        # Layer 4: VLESS Tunnel (existing logic)
+        if db.db_mode == "disconnected":
+            # Step 4a: Try configs from VITE_AUTO_SUB_URL (subscription)
+            sub_url = os.environ.get('VITE_AUTO_SUB_URL', '')
+            if sub_url:
+                dlog("Layer 4a: Fetching configs from VITE_AUTO_SUB_URL...")
+                configs = await _fetch_subscription_configs(sub_url)
+                for i, cfg in enumerate(configs[:5]):
+                    short = cfg[:50] + '...' if len(cfg) > 50 else cfg
+                    dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
+                    if await _try_tunnel_with_config(cfg, db):
+                        db.db_via_proxy = True
+                        db.db_mode = "tunnel"
+                        _working_vless_config = cfg
+                        dlog(f"[OK] Layer 4a: DB connected via subscription config #{i+1}!")
+                        break
             else:
-                dlog("Step 2: No VITE_FALLBACK_CONFIG set, skipping.")
+                dlog("Layer 4a: No VITE_AUTO_SUB_URL set, skipping.")
+            
+            # Step 4b: Try VITE_FALLBACK_CONFIG (hardcoded in build)
+            if db.db_mode == "disconnected":
+                fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
+                if fallback_config and fallback_config.startswith('vless://'):
+                    dlog("Layer 4b: Trying VITE_FALLBACK_CONFIG...")
+                    if await _try_tunnel_with_config(fallback_config, db):
+                        db.db_via_proxy = True
+                        db.db_mode = "tunnel"
+                        _working_vless_config = fallback_config
+                        dlog("[OK] Layer 4b: DB connected via fallback config!")
+                    else:
+                        dlog("[FAIL] Layer 4b: Fallback config did not work.")
+                else:
+                    dlog("Layer 4b: No VITE_FALLBACK_CONFIG set, skipping.")
         
-        # Step 3: Manual fallback
-        if db.pool is None:
-            dlog("[!] All auto DB attempts failed. User must use 'Tunnel DB' button.")
+        # Layer 5: Local SQLite offline mode (already initialized)
+        if db.db_mode == "disconnected":
+            db.db_mode = "offline"
+            dlog("[!] All remote DB attempts failed. Running in OFFLINE mode (Layer 5: SQLite).")
+            dlog("    Scan results will be cached locally and synced when connection is restored.")
     
-    dlog("=== BACKGROUND INIT COMPLETE ===")
+    dlog(f"=== BACKGROUND INIT COMPLETE === (db_mode: {db.db_mode})")
 
 async def run_autopilot_scheduler():
     while True:
@@ -372,7 +419,7 @@ async def check_health():
         except Exception as e:
             internet_err = str(e)
         
-    # Check DB
+    # Check DB — considers all layers
     try:
         if db.pool:
             async with asyncio.timeout(3.0):
@@ -380,6 +427,10 @@ async def check_health():
                     async with conn.cursor() as cur:
                         await cur.execute("SELECT 1")
                     db_status = "online"
+        elif db.worker_proxy:
+            db_status = "online"
+        elif db.db_mode == "offline":
+            db_status = "offline_local"
         else:
             db_status = "offline"
             db_err = "Pool is not initialized. ISP may have blocked initial connection."
@@ -395,6 +446,27 @@ async def check_health():
         "internet_error": internet_err,
         "database": db_status,
         "database_error": db_err,
+        "via_proxy": db.db_via_proxy,
+        "db_mode": db.db_mode
+    }
+
+@app.get('/db-status')
+async def get_db_status():
+    import db
+    mode_labels = {
+        "direct": "🟢 Direct MySQL",
+        "worker": "🔵 Cloudflare Worker",
+        "worker_fronted": "🟣 Worker + Clean IP",
+        "tunnel": "🟡 VLESS Tunnel",
+        "offline": "🟠 Offline (Local SQLite)",
+        "disconnected": "🔴 Disconnected"
+    }
+    return {
+        "mode": db.db_mode,
+        "label": mode_labels.get(db.db_mode, "Unknown"),
+        "has_pool": db.pool is not None,
+        "has_worker": db.worker_proxy is not None,
+        "has_local": db.local_db is not None,
         "via_proxy": db.db_via_proxy
     }
 

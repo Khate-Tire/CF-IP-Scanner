@@ -34,8 +34,174 @@ DB_PORT = int(os.environ.get('DB_PORT', '') or '3306')
 
 pool = None
 db_via_proxy = False
+db_mode = "disconnected"  # "direct" | "worker" | "worker_fronted" | "tunnel" | "offline" | "disconnected"
 _analytics_cache = None
 _analytics_cache_time = 0
+
+# --- Layer 2-3: Cloudflare Worker DB Proxy ---
+WORKER_URL = os.environ.get('WORKER_URL', '')
+WORKER_API_KEY = os.environ.get('WORKER_API_KEY', '')
+
+class WorkerDBProxy:
+    """HTTPS REST proxy to Cloudflare Worker — Layers 2 & 3"""
+
+    def __init__(self, worker_url=None, api_key=None, clean_ip=None):
+        self.worker_url = (worker_url or WORKER_URL).rstrip('/')
+        self.api_key = api_key or WORKER_API_KEY
+        self.clean_ip = clean_ip  # For domain fronting (Layer 3)
+
+    async def _post(self, path, data=None):
+        import httpx
+        headers = {"Content-Type": "application/json", "X-API-Key": self.api_key}
+        url = f"{self.worker_url}{path}"
+
+        # Layer 3: Domain fronting — connect via clean IP, send Host header
+        transport = None
+        if self.clean_ip:
+            from urllib.parse import urlparse
+            parsed = urlparse(self.worker_url)
+            host = parsed.hostname
+            headers["Host"] = host
+            url = f"https://{self.clean_ip}{path}"
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            transport = httpx.AsyncHTTPTransport(verify=ctx)
+
+        async with httpx.AsyncClient(timeout=10, transport=transport) as client:
+            r = await client.post(url, json=data or {}, headers=headers)
+            r.raise_for_status()
+            return r.json()
+
+    async def health(self):
+        import httpx
+        headers = {"X-API-Key": self.api_key}
+        url = f"{self.worker_url}/api/health"
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(url, headers=headers)
+            return r.status_code == 200
+
+    async def save_scan_result(self, data):
+        await self._post("/api/save-scan", data)
+
+    async def get_historical_good_ips(self, isp, location, limit=100):
+        r = await self._post("/api/historical-ips", {"isp": isp, "location": location, "limit": limit})
+        return r.get("ips", [])
+
+    async def get_community_good_ips(self, country, isp, limit=50):
+        r = await self._post("/api/community-ips", {"country": country, "isp": isp, "limit": limit})
+        return r.get("ips", [])
+
+    async def get_analytics(self, provider='cloudflare'):
+        return await self._post("/api/analytics", {"provider": provider})
+
+    async def get_geo_analytics(self, provider='cloudflare'):
+        return await self._post("/api/geo-analytics", {"provider": provider})
+
+    async def log_usage_event(self, ip, location, isp, event_type, details=""):
+        await self._post("/api/log-usage", {"ip": ip, "location": location, "isp": isp, "event_type": event_type, "details": details})
+
+    async def get_country_domains(self, country):
+        r = await self._post("/api/country-domains", {"country": country})
+        return r if r.get("domains") else None
+
+    async def save_country_domains(self, country, domains):
+        await self._post("/api/save-country-domains", {"country": country, "domains": domains})
+
+worker_proxy = None  # Active WorkerDBProxy instance (set during init)
+
+# --- Layer 5: Local SQLite Offline Fallback ---
+import aiosqlite
+import json as _json
+
+SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'offline_cache.db')
+
+class LocalSQLiteDB:
+    """Local SQLite fallback — Layer 5 (offline mode)"""
+
+    def __init__(self, path=None):
+        self.path = path or SQLITE_PATH
+
+    async def init(self):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS scan_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
+                    vless_uuid TEXT, scanned_ip TEXT, ip_source TEXT,
+                    ping REAL, jitter REAL, download REAL, upload REAL,
+                    status TEXT, datacenter TEXT, asn TEXT, network_type TEXT,
+                    port INTEGER, sni TEXT, app_version TEXT, provider TEXT DEFAULT 'cloudflare',
+                    synced INTEGER DEFAULT 0
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS usage_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
+                    event_type TEXT, details TEXT, synced INTEGER DEFAULT 0
+                )
+            """)
+            await db.commit()
+
+    async def save_scan_result(self, data):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("""
+                INSERT INTO scan_results 
+                (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip,
+                 ip_source, ping, jitter, download, upload, status, datacenter, asn,
+                 network_type, port, sni, app_version, provider)
+                VALUES (datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get("user_ip", "Unknown"), data.get("user_location", "Unknown"),
+                data.get("user_isp", "Unknown"), data.get("vless_uuid", "Unknown"),
+                data.get("scanned_ip", "Unknown"), data.get("ip_source", "Unknown"),
+                data.get("ping", -1), data.get("jitter", -1),
+                data.get("download", -1), data.get("upload", -1),
+                data.get("status", "Unknown"), data.get("datacenter", "Unknown"),
+                data.get("asn", "Unknown"), data.get("network_type", "Unknown"),
+                data.get("port", -1), data.get("sni", "Unknown"),
+                data.get("app_version", "1.0.0"), data.get("provider", "cloudflare")
+            ))
+            await db.commit()
+
+    async def get_historical_good_ips(self, isp, location, limit=100):
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute("""
+                SELECT DISTINCT scanned_ip FROM scan_results
+                WHERE status = 'ok' AND ping < 300 AND download > 5
+                  AND (user_isp = ? OR user_location = ?)
+                ORDER BY timestamp DESC LIMIT ?
+            """, (isp, location, limit))
+            rows = await cursor.fetchall()
+            return [r[0] for r in rows]
+
+    async def log_usage_event(self, ip, location, isp, event_type, details=""):
+        async with aiosqlite.connect(self.path) as db:
+            await db.execute("""
+                INSERT INTO usage_logs (timestamp, user_ip, user_location, user_isp, event_type, details)
+                VALUES (datetime('now'), ?, ?, ?, ?, ?)
+            """, (ip, location, isp, event_type, details))
+            await db.commit()
+
+    async def get_unsynced_scans(self, limit=100):
+        """Get scans that haven't been synced to remote DB yet"""
+        async with aiosqlite.connect(self.path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                "SELECT * FROM scan_results WHERE synced = 0 LIMIT ?", (limit,))
+            return await cursor.fetchall()
+
+    async def mark_synced(self, ids):
+        """Mark scans as synced after successful remote upload"""
+        async with aiosqlite.connect(self.path) as db:
+            placeholders = ','.join(['?'] * len(ids))
+            await db.execute(f"UPDATE scan_results SET synced = 1 WHERE id IN ({placeholders})", ids)
+            await db.commit()
+
+local_db = None  # Active LocalSQLiteDB instance
 
 async def init_db():
     global pool
@@ -115,104 +281,128 @@ async def init_db():
         print(f"Failed to initialize database: {e}")
 
 async def save_scan_result(data: dict):
-    if not pool:
-        return
-    try:
-        # Try to get connection with brief timeout, fail gracefully if busy
-        async with asyncio.timeout(2.0):
-            async with pool.acquire() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute("""
-                        INSERT INTO scan_results 
-                        (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version, provider)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                    datetime.now(),
-                    data.get("user_ip", "Unknown"),
-                    data.get("user_location", "Unknown"),
-                    data.get("user_isp", "Unknown"),
-                    data.get("vless_uuid", "Unknown"),
-                    data.get("scanned_ip", "Unknown"),
-                    data.get("ip_source", "Unknown"),
-                    data.get("ping", -1),
-                    data.get("jitter", -1),
-                    data.get("download", -1),
-                    data.get("upload", -1),
-                    data.get("status", "Unknown"),
-                    data.get("datacenter", "Unknown"),
-                    data.get("asn", "Unknown"),
-                    data.get("network_type", "Unknown"),
-                    data.get("port", -1),
-                    data.get("sni", "Unknown"),
-                    data.get("app_version", "1.0.0"),
-                    data.get("provider", "cloudflare")
-                ))
-    except Exception as e:
-        # Avoid print blocking, but log to stderr/logfile for debugging
-        import sys
-        print(f"[DB] Save Scan Result Error: {e}", file=sys.stderr)
+    # Smart routing: try pool → worker → local SQLite
+    if pool:
+        try:
+            async with asyncio.timeout(2.0):
+                async with pool.acquire() as conn:
+                    async with conn.cursor() as cur:
+                        await cur.execute("""
+                            INSERT INTO scan_results 
+                            (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version, provider)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                        datetime.now(),
+                        data.get("user_ip", "Unknown"),
+                        data.get("user_location", "Unknown"),
+                        data.get("user_isp", "Unknown"),
+                        data.get("vless_uuid", "Unknown"),
+                        data.get("scanned_ip", "Unknown"),
+                        data.get("ip_source", "Unknown"),
+                        data.get("ping", -1),
+                        data.get("jitter", -1),
+                        data.get("download", -1),
+                        data.get("upload", -1),
+                        data.get("status", "Unknown"),
+                        data.get("datacenter", "Unknown"),
+                        data.get("asn", "Unknown"),
+                        data.get("network_type", "Unknown"),
+                        data.get("port", -1),
+                        data.get("sni", "Unknown"),
+                        data.get("app_version", "1.0.0"),
+                        data.get("provider", "cloudflare")
+                    ))
+            return
+        except Exception as e:
+            import sys
+            print(f"[DB] Direct save failed: {e}", file=sys.stderr)
+
+    # Fallback to Worker proxy
+    if worker_proxy:
+        try:
+            await worker_proxy.save_scan_result(data)
+            return
+        except Exception as e:
+            import sys
+            print(f"[DB] Worker save failed: {e}", file=sys.stderr)
+
+    # Fallback to local SQLite
+    if local_db:
+        try:
+            await local_db.save_scan_result(data)
+        except Exception as e:
+            import sys
+            print(f"[DB] Local save failed: {e}", file=sys.stderr)
 
 async def get_historical_good_ips(isp: str, location: str, limit: int = 100):
-    if not pool:
-        return []
-        
-    try:
-        async with pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                # Prioritize same ISP and location, then just same ISP, then recent good IPs generally
-                query = """
-                    SELECT scanned_ip FROM scan_results 
-                    WHERE status = 'ok' 
-                      AND ping < 300 
-                      AND download > 5
-                      AND user_isp = %s
-                      AND user_location = %s
-                    ORDER BY timestamp DESC
-                    LIMIT %s
-                """
-                await cur.execute(query, (isp, location, limit))
-                results = await cur.fetchall()
-                
-                # If too few, broaden search to same ISP only
-                if len(results) < limit / 2:
-                    query2 = """
+    # Smart routing: pool → worker → local SQLite
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    query = """
                         SELECT scanned_ip FROM scan_results 
                         WHERE status = 'ok' 
                           AND ping < 300 
                           AND download > 5
                           AND user_isp = %s
+                          AND user_location = %s
                         ORDER BY timestamp DESC
                         LIMIT %s
                     """
-                    await cur.execute(query2, (isp, limit))
-                    more_results = await cur.fetchall()
-                    results = list(results)
-                    results.extend(list(more_results))
+                    await cur.execute(query, (isp, location, limit))
+                    results = await cur.fetchall()
                     
-                # If still too few, broaden entirely (just recently successful globally)
-                if not results:
-                     query3 = """
-                        SELECT scanned_ip FROM scan_results 
-                        WHERE status = 'ok' 
-                        ORDER BY timestamp DESC
-                        LIMIT %s
-                     """
-                     await cur.execute(query3, (limit,))
-                     results = await cur.fetchall()
+                    if len(results) < limit / 2:
+                        query2 = """
+                            SELECT scanned_ip FROM scan_results 
+                            WHERE status = 'ok' 
+                              AND ping < 300 
+                              AND download > 5
+                              AND user_isp = %s
+                            ORDER BY timestamp DESC
+                            LIMIT %s
+                        """
+                        await cur.execute(query2, (isp, limit))
+                        more_results = await cur.fetchall()
+                        results = list(results)
+                        results.extend(list(more_results))
+                        
+                    if not results:
+                         query3 = """
+                            SELECT scanned_ip FROM scan_results 
+                            WHERE status = 'ok' 
+                            ORDER BY timestamp DESC
+                            LIMIT %s
+                         """
+                         await cur.execute(query3, (limit,))
+                         results = await cur.fetchall()
 
-                # Extract unique IPs ignoring duplicates
-                seen = set()
-                unique_ips = []
-                for r in results:
-                    ip = r.get("scanned_ip")
-                    if ip and ip not in seen:
-                        seen.add(ip)
-                        unique_ips.append(ip)
-                
-                return unique_ips
-    except Exception as e:
-        print(f"DB Fetch Error: {e}")
-        return []
+                    seen = set()
+                    unique_ips = []
+                    for r in results:
+                        ip = r.get("scanned_ip")
+                        if ip and ip not in seen:
+                            seen.add(ip)
+                            unique_ips.append(ip)
+                    
+                    return unique_ips
+        except Exception as e:
+            print(f"DB Fetch Error: {e}")
+
+    if worker_proxy:
+        try:
+            return await worker_proxy.get_historical_good_ips(isp, location, limit)
+        except Exception as e:
+            print(f"Worker Fetch Error: {e}")
+
+    if local_db:
+        try:
+            return await local_db.get_historical_good_ips(isp, location, limit)
+        except:
+            pass
+
+    return []
 
 async def get_country_domains(country: str):
     if not pool:
@@ -260,51 +450,58 @@ async def log_usage_event(ip: str, location: str, isp: str, event_type: str, det
         pass
 
 async def get_community_good_ips(country: str, isp: str, limit: int = 50):
-    if not pool:
-        return []
-    try:
-        async with pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cur:
-                # Top community IPs for this country or ISP
-                query = """
-                    SELECT DISTINCT scanned_ip 
-                    FROM scan_results 
-                    WHERE status = 'ok' 
-                      AND (user_location LIKE %s OR user_isp = %s)
-                      AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
-                    ORDER BY download DESC, ping ASC
-                    LIMIT %s
-                """
-                like_country = f"{country}%" if country else "%"
-                await cur.execute(query, (like_country, isp, limit))
-                results = await cur.fetchall()
-                
-                # If not enough, get global top IPs
-                if len(results) < limit / 2:
-                    query2 = """
+    # Smart routing: pool → worker
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    # Top community IPs for this country or ISP
+                    query = """
                         SELECT DISTINCT scanned_ip 
                         FROM scan_results 
                         WHERE status = 'ok' 
-                          AND timestamp > DATE_SUB(NOW(), INTERVAL 2 DAY)
-                        ORDER BY download DESC
+                          AND (user_location LIKE %s OR user_isp = %s)
+                          AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
+                        ORDER BY download DESC, ping ASC
                         LIMIT %s
                     """
-                    await cur.execute(query2, (limit,))
-                    more_results = await cur.fetchall()
-                    results = list(results)
-                    results.extend(list(more_results))
+                    like_country = f"{country}%" if country else "%"
+                    await cur.execute(query, (like_country, isp, limit))
+                    results = await cur.fetchall()
                     
-                seen = set()
-                unique_ips = []
-                for r in results:
-                    ip = r.get("scanned_ip")
-                    if ip and ip not in seen:
-                        seen.add(ip)
-                        unique_ips.append(ip)
-                return unique_ips
-    except Exception as e:
-        print(f"DB Community Fetch Error: {e}")
-        return []
+                    # If not enough, get global top IPs
+                    if len(results) < limit / 2:
+                        query2 = """
+                            SELECT DISTINCT scanned_ip 
+                            FROM scan_results 
+                            WHERE status = 'ok' 
+                              AND timestamp > DATE_SUB(NOW(), INTERVAL 2 DAY)
+                            ORDER BY download DESC
+                            LIMIT %s
+                        """
+                        await cur.execute(query2, (limit,))
+                        more_results = await cur.fetchall()
+                        results = list(results)
+                        results.extend(list(more_results))
+                        
+                    seen = set()
+                    unique_ips = []
+                    for r in results:
+                        ip = r.get("scanned_ip")
+                        if ip and ip not in seen:
+                            seen.add(ip)
+                            unique_ips.append(ip)
+                    return unique_ips
+        except Exception as e:
+            print(f"DB Community Fetch Error: {e}")
+
+    if worker_proxy:
+        try:
+            return await worker_proxy.get_community_good_ips(country, isp, limit)
+        except:
+            pass
+
+    return []
 async def get_analytics(provider='cloudflare'):
     global _analytics_cache, _analytics_cache_time
     cache_key = f"global_{provider}"
@@ -315,6 +512,12 @@ async def get_analytics(provider='cloudflare'):
         return _analytics_cache[cache_key]
 
     if not pool:
+        # Try worker proxy
+        if worker_proxy:
+            try:
+                return await worker_proxy.get_analytics(provider)
+            except:
+                pass
         return {}
     try:
         async with pool.acquire() as conn:
@@ -406,6 +609,12 @@ async def get_geo_analytics(provider='cloudflare'):
         return _geo_cache[cache_key]
 
     if not pool:
+        # Try worker proxy
+        if worker_proxy:
+            try:
+                return await worker_proxy.get_geo_analytics(provider)
+            except:
+                pass
         return []
     try:
         async with pool.acquire() as conn:

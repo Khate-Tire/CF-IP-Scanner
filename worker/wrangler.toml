@@ -1,0 +1,11 @@
+name = "cf-ip-scanner-db-proxy"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "b0c2d68b6c7f49028d683f526fa6049b"
+
+[vars]
+API_KEY = "change-me-to-a-secret-key"
