@@ -9,26 +9,46 @@ export default function AnalyticsDashboard() {
     const { t } = useTranslation();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [provider, setProvider] = useState('cloudflare');
 
     useEffect(() => {
-        getAnalytics().then(res => {
+        setLoading(true);
+        getAnalytics(provider).then(res => {
             setData(res);
             setLoading(false);
         });
-    }, []);
+    }, [provider]);
 
     if (loading) {
         return <div className="text-neon-blue text-center animate-pulse">{t('analytics.loading')}</div>;
     }
 
-    if (!data) return <div className="text-red-500 text-center">{t('analytics.failed')}</div>;
+    if (!data || data.error) return <div className="text-red-500 text-center">{data?.error || t('analytics.failed')}</div>;
 
     const { top_datacenters, top_ports, network_types, total_scans, total_good, timeline_data } = data;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* Provider Toggle */}
+            <div className="flex justify-center mb-6">
+                <div className="bg-[#1a1a24] p-1 rounded-xl flex shadow-lg">
+                    <button
+                        onClick={() => setProvider('cloudflare')}
+                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${provider === 'cloudflare' ? 'bg-[#BC13FE]/20 text-neon-purple border border-neon-purple shadow-[0_0_10px_rgba(188,19,254,0.3)]' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        Cloudflare
+                    </button>
+                    <button
+                        onClick={() => setProvider('fastly')}
+                        className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${provider === 'fastly' ? 'bg-[#BC13FE]/20 text-neon-purple border border-neon-purple shadow-[0_0_10px_rgba(188,19,254,0.3)]' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        Fastly CDN
+                    </button>
+                </div>
+            </div>
+
             {/* World Heatmap - Hero Section */}
-            <WorldHeatmap />
+            <WorldHeatmap provider={provider} />
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="glass-panel p-6 neon-border text-center">

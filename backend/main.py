@@ -100,6 +100,47 @@ try:
 except Exception:
     pass
 
+from local_queue import load_unfinished_scans, update_scan_status_db, create_scan_task
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        unfinished = await load_unfinished_scans()
+        for row in unfinished:
+            scan_id = row['scan_id']
+            # Rehydrate the in-memory state so frontend sees it immediately on reload
+            active_scans[scan_id] = {
+                'status': row['status'],
+                'total': row['total'],
+                'completed': row['completed'],
+                'found_good': row['found_good'],
+                'logs': json.loads(row['logs']) if row['logs'] else [],
+                'stats': json.loads(row['stats']) if row['stats'] else {}
+            }
+            results[scan_id] = json.loads(row['results']) if row['results'] else []
+            # Note: the actual background scan logic is complex to re-initiate because we need the raw `req` objects. 
+            # We restore the state so users can view results and see it as 'paused'. They can restart manually.
+    except Exception as e:
+        print(f"Failed to load unfinished scans: {e}")
+
+async def sync_queue_db(scan_id):
+    """Periodically takes the ultra-fast memory dictionary and persists it to SQLite queue"""
+    while scan_id in active_scans and active_scans[scan_id]['status'] in ['running', 'paused']:
+        s = active_scans[scan_id]
+        await update_scan_status_db(
+            scan_id, s['status'], s.get('total', 0), s.get('completed', 0), 
+            s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
+        )
+        await asyncio.sleep(2)
+        
+    # Final sync when finished or failed
+    if scan_id in active_scans:
+        s = active_scans[scan_id]
+        await update_scan_status_db(
+            scan_id, s['status'], s.get('total', 0), s.get('completed', 0), 
+            s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
+        )
+
 _debug_logs = deque(maxlen=200)
 
 def dlog(msg):
@@ -571,6 +612,11 @@ async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
     return {'scan_id': scan_id}
 
 async def start_scan_job_wrapper(scan_id, ips_source, vless_parts, req):
+    # Register the scan in the persistent SQLite DB
+    await create_scan_task(scan_id, req.dict(), active_scans[scan_id]['logs'], active_scans[scan_id]['stats'])
+    # Fire off the 2-second synchronizer
+    asyncio.create_task(sync_queue_db(scan_id))
+    
     user_info = await get_my_ip()
     await run_scan_job(scan_id, ips_source, vless_parts, req, user_info)
 
@@ -612,7 +658,7 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
         from db import save_scan_result
         
         custom_generator = None
-        if not ips_static and getattr(req, 'ip_source', 'official') in ['custom_url', 'auto_scrape', 'community_scrape']:
+        if not ips_static and getattr(req, 'ip_source', 'official') in ['custom_url', 'auto_scrape', 'community_scrape', 'fastly_cdn']:
             add_log(scan_id, f'Fetching IPs for source: {req.ip_source}...')
             if req.ip_source in ['community_scrape', 'custom_url']:
                 custom_ranges = await get_advanced_ips(req, getattr(req, 'use_system_proxy', False))
@@ -705,11 +751,24 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
             
             async with discovery_sem:
                 port_str = f":{t_port}" if t_port else ""
-                add_log(scan_id, f'Checking {ip}{port_str}...')
-                res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port, verify_tls=req.verify_tls, check_status_cb=lambda: active_scans[scan_id]['status'])
                 
-                if res['status'] == 'abort':
-                    return
+                # Fast TCP Pre-Filter
+                from scanner import tcp_ping
+                target_port = t_port if t_port else vless_parts.get('port', 443)
+                is_reachable = await tcp_ping(ip, target_port, timeout=1.0)
+                
+                if not is_reachable:
+                    res = {
+                        'ping': -1, 'jitter': 0, 'download': 0, 'upload': 0,
+                        'status': 'unreachable', 'datacenter': 'Unknown', 'asn': 'Unknown'
+                    }
+                else:
+                    add_log(scan_id, f'Checking {ip}{port_str}...')
+                    provider_val = "fastly" if getattr(req, 'ip_source', '') == 'fastly_cdn' else "cloudflare"
+                    res = await scan_ip(ip, vless_parts, thresholds, speed_sem, test_port=t_port, verify_tls=req.verify_tls, check_status_cb=lambda: active_scans[scan_id]['status'], provider=provider_val)
+                
+                    if res['status'] == 'abort':
+                        return
                 
                 while active_scans[scan_id]['status'] == 'paused':
                     await asyncio.sleep(0.5)
@@ -780,7 +839,8 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                     'network_type': vless_parts.get('params', {}).get('type', 'Unknown'),
                     'sni': vless_parts.get('params', {}).get('sni', 'Unknown'),
                     'port': t_port if t_port else vless_parts.get('port', -1),
-                    'app_version': '1.0.0'
+                    'app_version': '1.0.0',
+                    'provider': "fastly" if getattr(req, 'ip_source', '') == 'fastly_cdn' else "cloudflare"
                 }))
 
                 results[scan_id].append(res)
@@ -900,10 +960,20 @@ async def log_usage_endpoint(payload: UsageLogRequest):
 class ScanAdvancedRequest(BaseModel):
     vless_config: str
     target_ip: str
-    mode: str # 'fragment' or 'sni'
+    mode: str # 'fragment', 'sni', 'dns_tunnel'
     fragment_lengths: Optional[List[str]] = []
     fragment_intervals: Optional[List[str]] = []
     test_snis: Optional[List[str]] = []
+    
+    # DNS Tunnel specific
+    test_mode: Optional[str] = None
+    nameserver: Optional[str] = None
+    dns_domain: Optional[str] = None
+    fragment_size: Optional[str] = None
+    fragment_interval: Optional[str] = None
+    fragment_packets: Optional[str] = None  # 'tlshello' or '1-3'
+    utls_fingerprint: Optional[str] = None  # chrome, firefox, safari, ios, android, edge, random
+    
     concurrency: int = 5
     max_ping: int = 2000
 
@@ -925,6 +995,21 @@ def start_advanced_scan(req: ScanAdvancedRequest, background_tasks: BackgroundTa
             sni = sni.strip()
             if sni:
                 items_to_test.append({"fragment": None, "test_sni": sni, "id": f"SNI: {sni}"})
+    elif req.mode == 'dns_tunnel':
+        if req.test_mode == 'dnstt':
+            items_to_test.append({
+                "fragment": None, 
+                "test_sni": None, 
+                "dns_over_udp": {"server": req.nameserver, "domain": req.dns_domain, "utls_fingerprint": req.utls_fingerprint},
+                "id": f"DNS Override | NS: {req.nameserver or 'None'} | Domain: {req.dns_domain}"
+            })
+        elif req.test_mode == 'split':
+            items_to_test.append({
+                "fragment": {"length": req.fragment_size, "interval": req.fragment_interval, "packets": req.fragment_packets or "tlshello"},
+                "test_sni": None,
+                "dns_over_udp": {"utls_fingerprint": req.utls_fingerprint} if req.utls_fingerprint else None,
+                "id": f"TLS Split [{req.fragment_packets or 'tlshello'}] | Len: {req.fragment_size} | Int: {req.fragment_interval}"
+            })
             
     active_scans[scan_id] = {
         'status': 'running', 
@@ -940,8 +1025,14 @@ def start_advanced_scan(req: ScanAdvancedRequest, background_tasks: BackgroundTa
     }
     results[scan_id] = []
     
-    background_tasks.add_task(run_advanced_scan_job, scan_id, req.target_ip, vless_parts, req, items_to_test)
+    # Persistent SQLite Registration
+    background_tasks.add_task(create_advanced_scan_wrapper, scan_id, req.target_ip, vless_parts, req, items_to_test)
     return {'scan_id': scan_id}
+
+async def create_advanced_scan_wrapper(scan_id, target_ip, vless_parts, req, items_to_test):
+    await create_scan_task(scan_id, req.dict(), active_scans[scan_id]['logs'], active_scans[scan_id]['stats'])
+    asyncio.create_task(sync_queue_db(scan_id))
+    await run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test)
 
 async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test):
     from scanner import scan_ip
@@ -960,7 +1051,30 @@ async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_t
     async def bounded_advanced_scan(index):
         item = items_to_test[index]
         add_log(scan_id, f"Testing {item['id']}...")
-        res = await scan_ip(target_ip, vless_parts, thresholds, speed_sem, test_port=None, fragment=item['fragment'], test_sni=item['test_sni'])
+        
+        # Extract potential custom DNS payload 
+        dns_payload = item.get("dns_over_udp", None)
+        
+        from scanner import tcp_ping
+        target_port = vless_parts.get('port', 443)
+        is_reachable = await tcp_ping(target_ip, target_port, timeout=1.0)
+        
+        if not is_reachable:
+            res = {
+                'ping': -1, 'jitter': 0, 'download': 0, 'upload': 0,
+                'status': 'unreachable', 'datacenter': 'Unknown', 'asn': 'Unknown'
+            }
+        else:
+            res = await scan_ip(
+                target_ip, 
+                vless_parts, 
+                thresholds, 
+                speed_sem, 
+                test_port=None, 
+                fragment=item.get('fragment'), 
+                test_sni=item.get('test_sni'),
+                advanced_dns_config=dns_payload
+            )
         
         stat_key = res.get('fail_reason')
         if stat_key and stat_key in active_scans[scan_id]['stats']:
@@ -995,15 +1109,15 @@ async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_t
         active_scans[scan_id]['status'] = 'failed'
 
 @app.get('/analytics')
-async def get_analytics_endpoint():
+async def get_analytics_endpoint(provider: str = 'cloudflare'):
     from db import get_analytics
-    data = await get_analytics()
+    data = await get_analytics(provider)
     return data
 
 @app.get('/analytics/geo')
-async def get_geo_analytics_endpoint():
+async def get_geo_analytics_endpoint(provider: str = 'cloudflare'):
     from db import get_geo_analytics
-    data = await get_geo_analytics()
+    data = await get_geo_analytics(provider)
     return data
 
 # --- WARP SCANNER ROUTES ---

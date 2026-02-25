@@ -40,7 +40,7 @@ export default function AboutBox() {
                     </h2>
                     <p className="text-gray-400 mt-2 text-sm">{t('about.subtitle')}</p>
                     <div className="mt-3 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-neon-blue/10 border border-neon-blue/30 text-neon-blue text-xs font-mono">
-                        {t('about.version')}
+                        v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'} • {t('about.openSource', 'Open Source')}
                     </div>
                 </div>
 
@@ -99,7 +99,7 @@ export default function AboutBox() {
                     {/* Advanced Features */}
                     <CollapsibleSection title={features.title} icon="🛡️" color="text-orange-400">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {['tls', 'dpi', 'sni', 'warp', 'map', 'retry'].map((key) => (
+                            {['tcp', 'queue', 'tls', 'dpi', 'dnstt', 'dns_override', 'sni', 'fastly', 'warp', 'map', 'retry', 'macos'].map((key) => (
                                 <div key={key} className="bg-black/40 p-4 rounded-lg border border-white/5">
                                     <h4 className="font-bold text-white mb-1">{features[key].title}</h4>
                                     <p className="text-sm text-gray-400">{features[key].desc}</p>

@@ -13,6 +13,22 @@ let isQuitting = false;
 
 // ─── Log File ───
 const logPath = path.join(app.getPath('userData'), 'backend.log');
+
+// ─── Single Instance Lock ───
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, focus our window.
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
 function log(msg) {
     const ts = new Date().toISOString();
     const line = `[${ts}] ${msg}\n`;
@@ -92,8 +108,11 @@ function startPythonBackend() {
     }
 
     // In production, spawn the bundled executable
-    const executablePath = path.join(process.resourcesPath, 'backend.exe');
+    const isWin = process.platform === 'win32';
+    const backendName = isWin ? 'backend.exe' : 'backend';
+    const executablePath = path.join(process.resourcesPath, backendName);
     log(`Starting Python backend from: ${executablePath}`);
+    log(`Platform: ${process.platform}`);
     log(`File exists: ${fs.existsSync(executablePath)}`);
     log(`Resources dir: ${process.resourcesPath}`);
     log(`Resources contents: ${fs.readdirSync(process.resourcesPath).join(', ')}`);
@@ -102,12 +121,14 @@ function startPythonBackend() {
     const cwd = process.resourcesPath;
     log(`Backend CWD: ${cwd}`);
 
-    pythonProcess = spawn(executablePath, [], {
+    const spawnOpts = {
         detached: false,
-        windowsHide: true,
         cwd: cwd,
         env: { ...process.env, PYTHONUNBUFFERED: '1' }
-    });
+    };
+    if (isWin) spawnOpts.windowsHide = true;
+
+    pythonProcess = spawn(executablePath, [], spawnOpts);
 
     pythonProcess.stdout.on('data', (data) => {
         const msg = data.toString().trim();

@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
     const { t } = useTranslation();
@@ -17,7 +18,7 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!config || !targetIp) return alert('Config and Base Target IP are required!');
+        if (!config || !targetIp) return toast.error('Config and Base Target IP are required!');
 
         const payload = {
             vless_config: config,

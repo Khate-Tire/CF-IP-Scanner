@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
 
     steps:
@@ -75,12 +75,112 @@ jobs:
         run: npm run dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Upload Artifact to Release
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/*.exe
+
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller fastapi uvicorn pydantic aiohttp aiohttp-socks aiomysql mysql-connector-python python-dotenv httpx[socks] psutil websockets requests aiodns pycares certifi
+
+      - name: Create .env files from secrets
+        run: |
+          cat > backend/.env << EOF
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
+          VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
+          EOF
+          cat > frontend/.env << EOF
+          VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
+          VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
+          EOF
+
+      - name: Build Python Backend (macOS binary)
+        run: |
+          python build_backend.py
+
+      - name: Download Xray Core (macOS)
+        run: |
+          curl -L -o xray.zip "https://github.com/XTLS/Xray-core/releases/download/v26.2.6/Xray-macos-64.zip"
+          mkdir -p xray_core
+          unzip xray.zip -d xray_core
+          chmod +x xray_core/xray
+          rm xray.zip
+          ls -la xray_core
+
+      - name: Install Frontend Dependencies
+        working-directory: ./frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Build React Frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Install Root Electron Dependencies
+        run: npm install
+
+      - name: Build Electron App (DMG)
+        run: npx electron-builder --mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/*.dmg
+            dist/*.zip
+
+  release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows Build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: artifacts/windows
+
+      - name: Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: artifacts/macos
+
+      - name: Upload All Artifacts to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            dist/*.exe
-          tag_name: "v1.0.${{ github.run_number }}"
+            artifacts/windows/*.exe
+            artifacts/macos/*.dmg
+            artifacts/macos/*.zip
+          tag_name: "v2.0.${{ github.run_number }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -52,7 +52,7 @@ function getHeatOpacity(totalScans, maxScans) {
     return Math.min(0.4 + (totalScans / Math.max(maxScans, 1)) * 0.6, 1);
 }
 
-export default function WorldHeatmap() {
+export default function WorldHeatmap({ provider = 'cloudflare' }) {
     const { t } = useTranslation();
     const [geoData, setGeoData] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -60,11 +60,12 @@ export default function WorldHeatmap() {
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
     useEffect(() => {
-        getGeoAnalytics().then(data => {
+        setLoading(true);
+        getGeoAnalytics(provider).then(data => {
             setGeoData(data || []);
             setLoading(false);
         });
-    }, []);
+    }, [provider]);
 
     // Build lookup: { geoId -> countryData }
     const dataByGeoId = {};

@@ -87,6 +87,10 @@ async def init_db():
                 except: pass
                 try: await cur.execute("ALTER TABLE scan_results ADD COLUMN app_version VARCHAR(50);")
                 except: pass
+                
+                # Fastly Isolation Migration
+                try: await cur.execute("ALTER TABLE scan_results ADD COLUMN provider VARCHAR(50) DEFAULT 'cloudflare';")
+                except: pass
 
                 await cur.execute("""
                     CREATE TABLE IF NOT EXISTS country_domains (
@@ -120,8 +124,8 @@ async def save_scan_result(data: dict):
                 async with conn.cursor() as cur:
                     await cur.execute("""
                         INSERT INTO scan_results 
-                        (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version, provider)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                     datetime.now(),
                     data.get("user_ip", "Unknown"),
@@ -140,11 +144,13 @@ async def save_scan_result(data: dict):
                     data.get("network_type", "Unknown"),
                     data.get("port", -1),
                     data.get("sni", "Unknown"),
-                    data.get("app_version", "1.0.0")
+                    data.get("app_version", "1.0.0"),
+                    data.get("provider", "cloudflare")
                 ))
     except Exception as e:
-        # print("DB Save Error:", e)
-        pass # Silently fail on DB errors to not interrupt scanning
+        # Avoid print blocking, but log to stderr/logfile for debugging
+        import sys
+        print(f"[DB] Save Scan Result Error: {e}", file=sys.stderr)
 
 async def get_historical_good_ips(isp: str, location: str, limit: int = 100):
     if not pool:
@@ -299,12 +305,14 @@ async def get_community_good_ips(country: str, isp: str, limit: int = 50):
     except Exception as e:
         print(f"DB Community Fetch Error: {e}")
         return []
-
-async def get_analytics():
+async def get_analytics(provider='cloudflare'):
     global _analytics_cache, _analytics_cache_time
+    cache_key = f"global_{provider}"
+    if _analytics_cache is None: _analytics_cache = {}
+    
     # Return cache if less than 5 minutes old
-    if _analytics_cache and (time.time() - _analytics_cache_time) < 300:
-        return _analytics_cache
+    if cache_key in _analytics_cache and (time.time() - _analytics_cache_time) < 300:
+        return _analytics_cache[cache_key]
 
     if not pool:
         return {}
@@ -315,39 +323,39 @@ async def get_analytics():
                 await cur.execute("""
                     SELECT datacenter, COUNT(*) as count, ROUND(AVG(ping)) as avg_ping 
                     FROM scan_results 
-                    WHERE status = 'ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL
+                    WHERE status = 'ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider = %s
                     GROUP BY datacenter 
                     ORDER BY count DESC LIMIT 10
-                """)
+                """, (provider,))
                 top_datacenters = await cur.fetchall()
                 
                 # Top Ports
                 await cur.execute("""
                     SELECT port, COUNT(*) as count 
                     FROM scan_results 
-                    WHERE status = 'ok' AND port != -1 AND port IS NOT NULL
+                    WHERE status = 'ok' AND port != -1 AND port IS NOT NULL AND provider = %s
                     GROUP BY port 
                     ORDER BY count DESC LIMIT 5
-                """)
+                """, (provider,))
                 top_ports = await cur.fetchall()
                 
                 # Network Types
                 await cur.execute("""
                     SELECT network_type, COUNT(*) as count 
                     FROM scan_results 
-                    WHERE status = 'ok' AND network_type != 'Unknown' AND network_type IS NOT NULL
+                    WHERE status = 'ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider = %s
                     GROUP BY network_type 
                     ORDER BY count DESC
-                """)
+                """, (provider,))
                 network_types = await cur.fetchall()
                 
                 # Total Scans
-                await cur.execute("SELECT COUNT(*) as count FROM scan_results")
+                await cur.execute("SELECT COUNT(*) as count FROM scan_results WHERE provider = %s", (provider,))
                 total_scans_row = await cur.fetchone()
                 total_scans = total_scans_row["count"] if total_scans_row else 0
                 
                 # Total Good IPs found
-                await cur.execute("SELECT COUNT(*) as count FROM scan_results WHERE status = 'ok'")
+                await cur.execute("SELECT COUNT(*) as count FROM scan_results WHERE status = 'ok' AND provider = %s", (provider,))
                 total_good_row = await cur.fetchone()
                 total_good = total_good_row["count"] if total_good_row else 0
                 
@@ -357,10 +365,10 @@ async def get_analytics():
                            COUNT(*) as total_scans, 
                            SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as successful_scans 
                     FROM scan_results 
-                    WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY) AND provider = %s
                     GROUP BY DATE(timestamp)
                     ORDER BY date ASC
-                """)
+                """, (provider,))
                 timeline_rows = await cur.fetchall()
                 # Format dates to string for JSON serialization
                 timeline_data = []
@@ -371,7 +379,7 @@ async def get_analytics():
                         "successful_scans": int(row["successful_scans"]) if row["successful_scans"] is not None else 0
                     })
 
-                _analytics_cache = {
+                _analytics_cache[cache_key] = {
                     "top_datacenters": top_datacenters,
                     "top_ports": top_ports,
                     "network_types": network_types,
@@ -380,7 +388,7 @@ async def get_analytics():
                     "timeline_data": timeline_data
                 }
                 _analytics_cache_time = time.time()
-                return _analytics_cache
+                return _analytics_cache[cache_key]
     except Exception as e:
         print(f"DB Analytics Error: {e}")
         return {}
@@ -388,11 +396,14 @@ async def get_analytics():
 _geo_cache = None
 _geo_cache_time = 0
 
-async def get_geo_analytics():
+async def get_geo_analytics(provider='cloudflare'):
     """Aggregate scan results by country for the world heatmap"""
     global _geo_cache, _geo_cache_time
-    if _geo_cache and (time.time() - _geo_cache_time) < 300:
-        return _geo_cache
+    cache_key = f"geo_{provider}"
+    if _geo_cache is None: _geo_cache = {}
+    
+    if cache_key in _geo_cache and (time.time() - _geo_cache_time) < 300:
+        return _geo_cache[cache_key]
 
     if not pool:
         return []
@@ -411,11 +422,11 @@ async def get_geo_analytics():
                         ROUND(AVG(CASE WHEN jitter > 0 THEN jitter ELSE NULL END)) as avg_jitter,
                         COUNT(DISTINCT user_ip) as unique_users
                     FROM scan_results 
-                    WHERE user_location IS NOT NULL AND user_location != 'Unknown'
+                    WHERE user_location IS NOT NULL AND user_location != 'Unknown' AND provider = %s
                     GROUP BY TRIM(SUBSTRING_INDEX(user_location, ' - ', 1))
                     HAVING total_scans > 0
                     ORDER BY total_scans DESC
-                """)
+                """, (provider,))
                 country_stats = await cur.fetchall()
 
                 # Top ISP per country
@@ -427,9 +438,10 @@ async def get_geo_analytics():
                     FROM scan_results 
                     WHERE user_location IS NOT NULL AND user_location != 'Unknown'
                         AND user_isp IS NOT NULL AND user_isp != 'Unknown'
+                        AND provider = %s
                     GROUP BY country, user_isp
                     ORDER BY country, scan_count DESC
-                """)
+                """, (provider,))
                 isp_rows = await cur.fetchall()
 
                 # Top datacenter per country
@@ -442,9 +454,10 @@ async def get_geo_analytics():
                     WHERE user_location IS NOT NULL AND user_location != 'Unknown'
                         AND datacenter IS NOT NULL AND datacenter != 'Unknown'
                         AND status = 'ok'
+                        AND provider = %s
                     GROUP BY country, datacenter
                     ORDER BY country, hit_count DESC
-                """)
+                """, (provider,))
                 dc_rows = await cur.fetchall()
 
                 # Build ISP map: {country: [top 3 ISPs]}
@@ -485,7 +498,7 @@ async def get_geo_analytics():
                         'top_datacenters': dc_map.get(c, [])
                     })
 
-                _geo_cache = result
+                _geo_cache[cache_key] = result
                 _geo_cache_time = time.time()
                 return result
     except Exception as e:

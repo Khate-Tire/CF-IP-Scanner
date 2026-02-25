@@ -25,5 +25,6 @@ async def scan_warp_ip(ip, port=2408):
                             result["datacenter"] = line.split("=")[1].strip()
                     result["status"] = "ok"
     except Exception as e:
-        pass
+        import sys
+        print(f"[WARP] Scan error for {ip}:{port} -> {e}", file=sys.stderr)
     return result

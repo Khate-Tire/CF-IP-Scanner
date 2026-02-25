@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { fetchConfigFromUrl, API_URL } from '../api';
 import GeoMap from './GeoMap';
 import { useTranslation } from '../i18n/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) {
     const { t } = useTranslation();
@@ -84,9 +85,9 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
         if (res && res.configs && res.configs.length > 0) {
             const randomConfig = res.configs[Math.floor(Math.random() * res.configs.length)];
             setConfig(randomConfig);
-            alert(`Fetched ${res.configs.length} configs. Selected one randomly.`);
+            toast.success(`Fetched ${res.configs.length} configs. Selected one randomly.`);
         } else {
-            alert(res?.error || "Failed to fetch configs");
+            toast.error(res?.error || "Failed to fetch configs");
         }
     };
 
@@ -148,7 +149,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
         // If all sources failed, prompt the user
         if (!fetchedConfig) {
             setIsFetching(false);
-            alert("Could not fetch a config automatically. Please paste a VLESS config or subscription URL manually.");
+            toast.error("Could not fetch a config automatically. Please paste a VLESS config or subscription URL manually.");
             return;
         }
 
@@ -346,7 +347,16 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy }) 
                                     <input type="radio" name="ipsource" value="custom_url" checked={ipSource === 'custom_url'} onChange={() => setIpSource('custom_url')} className="accent-neon-blue" />
                                     <span>{t('config.srcCustom')}</span>
                                 </label>
+                                <label className="flex items-center space-x-2 cursor-pointer text-gray-300 text-sm mt-3">
+                                    <input type="radio" name="ipsource" value="fastly_cdn" checked={ipSource === 'fastly_cdn'} onChange={() => setIpSource('fastly_cdn')} className="accent-red-500" />
+                                    <span className="text-red-400 font-bold tracking-wide">🔥 FASTLY CDN (BETA)</span>
+                                </label>
                             </div>
+                            {ipSource === 'fastly_cdn' && (
+                                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded text-sm text-red-200">
+                                    <strong>Warning:</strong> Ensure your VLESS config actually uses a Fastly SNI/Host (e.g. fastly.net). Scanning Fastly IPs with Cloudflare configs will fail!
+                                </div>
+                            )}
                             {ipSource === 'custom_url' && (
                                 <input
                                     type="url"

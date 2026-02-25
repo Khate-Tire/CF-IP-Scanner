@@ -29,7 +29,7 @@ export const getSettings = async () => {
         const response = await fetch(`${API_URL}/settings`);
         if (response.ok) return response.json();
     } catch (e) { console.error(e); }
-    return null;
+    return { error: 'Failed to fetch settings' };
 };
 
 export const getMyIP = async (useProxy = false) => {
@@ -37,7 +37,7 @@ export const getMyIP = async (useProxy = false) => {
         const response = await fetch(`${API_URL}/my-ip?proxy=${useProxy ? '1' : '0'}`);
         if (response.ok) return response.json();
     } catch (e) { console.error(e); }
-    return null;
+    return { error: 'Failed to fetch IP details' };
 };
 
 export const saveSettings = async (settings) => {
@@ -47,8 +47,11 @@ export const saveSettings = async (settings) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(settings)
         });
-    } catch (e) { console.error(e); }
-    return { error: "Network error" };
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { error: "Network error" };
+    }
 };
 
 export const getExportLink = async (vlessConfig, ips) => {
@@ -108,29 +111,33 @@ export const proxyDatabase = async (vlessConfig) => {
     }
 };
 
-export const getAnalytics = async () => {
+export const getAnalytics = async (provider = 'cloudflare') => {
     try {
-        const response = await fetch(`${API_URL}/analytics`);
+        const response = await fetch(`${API_URL}/analytics?provider=${provider}`);
         if (response.ok) return response.json();
     } catch (e) { console.error(e); }
-    return null;
+    return { error: 'Failed to fetch analytics' };
 };
 
-export const getGeoAnalytics = async () => {
+export const getGeoAnalytics = async (provider = 'cloudflare') => {
     try {
-        const response = await fetch(`${API_URL}/analytics/geo`);
+        const response = await fetch(`${API_URL}/analytics/geo?provider=${provider}`);
         if (response.ok) return response.json();
     } catch (e) { console.error(e); }
-    return [];
+    return { error: 'Failed to fetch geo analytics' };
 };
 
 export const scanAdvancedIPs = async (payload) => {
-    const response = await fetch(`${API_URL}/scan-advanced`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    return response.json();
+    try {
+        const response = await fetch(`${API_URL}/scan-advanced`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        return response.json();
+    } catch (e) {
+        return { error: e.message };
+    }
 };
 
 export async function scanWarpIPs(data) {

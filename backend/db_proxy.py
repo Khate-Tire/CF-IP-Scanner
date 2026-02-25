@@ -20,27 +20,28 @@ if os.path.exists(_env_path):
 db_xray_process = None
 
 def generate_proxy_config(vless_data, local_port, remote_address, remote_port):
+    params = vless_data.get("params", {})
     # Prepare TLS settings
     tls_settings = None
-    if vless_data["params"].get("security") == "tls":
+    if params.get("security") == "tls":
         tls_settings = {
-            "serverName": vless_data["params"].get("sni", ""),
+            "serverName": params.get("sni", ""),
             "allowInsecure": True,
-            "fingerprint": vless_data["params"].get("fp", "")
+            "fingerprint": params.get("fp", "")
         }
-        if "alpn" in vless_data["params"]:
-            alpn_val = urllib.parse.unquote(vless_data["params"]["alpn"])
+        if "alpn" in params:
+            alpn_val = urllib.parse.unquote(params["alpn"])
             tls_settings["alpn"] = alpn_val.split(",")
 
     vless_stream_settings = {
-        "network": vless_data["params"].get("type", "tcp"),
-        "security": vless_data["params"].get("security", "none"),
+        "network": params.get("type", "tcp"),
+        "security": params.get("security", "none"),
         "wsSettings": {
-            "path": urllib.parse.unquote(vless_data["params"].get("path", "/")),
+            "path": urllib.parse.unquote(params.get("path", "/")),
             "headers": {
-                "Host": vless_data["params"].get("host", "")
+                "Host": params.get("host", "")
             }
-        } if vless_data["params"].get("type") == "ws" else None,
+        } if params.get("type") == "ws" else None,
          "tlsSettings": tls_settings
     }
 
@@ -65,11 +66,11 @@ def generate_proxy_config(vless_data, local_port, remote_address, remote_port):
                 "protocol": "vless",
                 "settings": {
                     "vnext": [{
-                        "address": vless_data["address"],
-                        "port": vless_data["port"],
+                        "address": vless_data.get("address", "127.0.0.1"),
+                        "port": vless_data.get("port", 443),
                         "users": [{
-                            "id": vless_data["uuid"],
-                            "encryption": vless_data["params"].get("encryption", "none")
+                            "id": vless_data.get("uuid", ""),
+                            "encryption": params.get("encryption", "none")
                         }]
                     }]
                 },
@@ -79,12 +80,17 @@ def generate_proxy_config(vless_data, local_port, remote_address, remote_port):
     }
     return config
 
+import psutil
+
 def stop_db_tunnel():
     global db_xray_process
     if db_xray_process:
         try:
-            db_xray_process.terminate()
-            db_xray_process.wait(timeout=2)
+            parent = psutil.Process(db_xray_process.pid)
+            for child in parent.children(recursive=True):
+                child.kill()
+            parent.kill()
+            parent.wait(timeout=2)
         except:
             pass
         db_xray_process = None

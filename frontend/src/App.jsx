@@ -12,16 +12,22 @@ import HealthWidget from './components/HealthWidget';
 import UpdateModal from './components/UpdateModal';
 import DebugConsole from './components/DebugConsole';
 import FragmentChart from './components/FragmentChart';
+import DnsScanner from './components/DnsScanner';
+import DnsScannerGuide from './components/DnsScannerGuide';
 import IranLogo from './components/IranLogo';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useTranslation } from './i18n/LanguageContext';
+import { Toaster, toast } from 'react-hot-toast';
 import logoImg from '/logo.png';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan } from './api';
+
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
 function App() {
   const [scanId, setScanId] = useState(null);
   const [results, setResults] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState(null);
   const [status, setStatus] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('scanner');
@@ -34,6 +40,8 @@ function App() {
 
   const [useSystemProxy, setUseSystemProxy] = useState(false);
   const isInitialMount = useRef(true);
+  const [latestVersion, setLatestVersion] = useState(null);
+  const [updateUrl, setUpdateUrl] = useState(null);
 
   useEffect(() => {
     import('./api').then(api => {
@@ -49,6 +57,30 @@ function App() {
     });
   }, [useSystemProxy]);
 
+  // GitHub Release Version Check — only show update if remote is NEWER
+  useEffect(() => {
+    fetch('https://api.github.com/repos/Khate-Tire/CF-IP-Scanner/releases/latest')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.tag_name) {
+          const remote = data.tag_name.replace(/^v/, '');
+          const rParts = remote.split('.').map(Number);
+          const lParts = APP_VERSION.split('.').map(Number);
+          let isNewer = false;
+          for (let i = 0; i < Math.max(rParts.length, lParts.length); i++) {
+            const r = rParts[i] || 0, l = lParts[i] || 0;
+            if (r > l) { isNewer = true; break; }
+            if (r < l) break;
+          }
+          if (isNewer) {
+            setLatestVersion(remote);
+            setUpdateUrl(data.html_url);
+          }
+        }
+      })
+      .catch(() => { });
+  }, []);
+
   const handleStartScan = async (vlessConfig, manualIps, settings, isRetry = false) => {
     setIsScanning(true);
     if (!isRetry) {
@@ -58,6 +90,8 @@ function App() {
     currentVlessConfig.current = vlessConfig;
     currentScanSettings.current = settings;
     currentManualIps.current = manualIps;
+
+    let started = false;
     try {
       const res = await scanIPs({
         vless_config: vlessConfig,
@@ -74,32 +108,39 @@ function App() {
         custom_url: settings.customUrl,
         use_system_proxy: useSystemProxy
       });
-      if (res.scan_id) {
+      if (res && res.scan_id) {
         setScanId(res.scan_id);
+        started = true;
       } else {
-        alert("Error starting scan: " + JSON.stringify(res));
-        setIsScanning(false);
+        toast.error("Error starting scan: " + (res?.error ? res.error : JSON.stringify(res)));
       }
     } catch (e) {
-      alert("Error: " + e.message);
-      setIsScanning(false);
+      toast.error("Error: " + e.message);
+    } finally {
+      if (!started) {
+        setIsScanning(false);
+      }
     }
   };
 
   const handleStartAdvanced = async (payload) => {
     setIsScanning(true);
     setResults([]);
+    let started = false;
     try {
       const res = await scanAdvancedIPs({ ...payload, use_system_proxy: useSystemProxy });
-      if (res.scan_id) {
+      if (res && res.scan_id) {
         setScanId(res.scan_id);
+        started = true;
       } else {
-        alert("Error starting advanced scan: " + JSON.stringify(res));
-        setIsScanning(false);
+        toast.error("Error starting advanced scan: " + (res?.error ? res.error : JSON.stringify(res)));
       }
     } catch (e) {
-      alert("Error: " + e.message);
-      setIsScanning(false);
+      toast.error("Error: " + e.message);
+    } finally {
+      if (!started) {
+        setIsScanning(false);
+      }
     }
   };
 
@@ -172,6 +213,20 @@ function App() {
 
   return (
     <div className="min-h-screen p-8 bg-[url('/bg-grid.svg')] bg-cover relative">
+      <Toaster
+        position="bottom-right"
+        toastOptions={{
+          style: {
+            background: '#111',
+            color: '#fff',
+            border: '1px solid #333',
+            fontFamily: 'monospace',
+            minWidth: '250px'
+          },
+          success: { iconTheme: { primary: '#39FF14', secondary: '#000' } },
+          error: { iconTheme: { primary: '#EF4444', secondary: '#fff' } }
+        }}
+      />
       <HealthWidget />
       <UpdateModal />
       <DebugConsole />
@@ -233,6 +288,16 @@ function App() {
             <p className="text-[10px] text-gray-600 font-mono tracking-wide">
               {t('app.builtBy')} <a href="https://t.me/hossein_shiravani" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-neon-blue transition-colors">@Khate-Tire</a> — {t('app.openSource')}
             </p>
+            {/* Version Badge + Update Button */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-500 font-mono">v{APP_VERSION}</span>
+              {latestVersion && (
+                <a href={updateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/40 text-green-400 text-[10px] font-bold hover:border-green-400 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all animate-pulse">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  {t('app.updateAvailable', 'Update to v{version}').replace('{version}', latestVersion)}
+                </a>
+              )}
+            </div>
           </div>
         </header>
 
@@ -260,6 +325,13 @@ function App() {
             className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'warp' ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
           >
             {t('app.tabs.warp')}
+          </button>
+          <button
+            onClick={() => setActiveTab('dns')}
+            className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${activeTab === 'dns' ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            {t('app.tabs.dns')}
           </button>
           <button
             onClick={() => setActiveTab('about')}
@@ -332,6 +404,31 @@ function App() {
             )}
 
             {results.length > 0 && <FragmentChart results={results} />}
+
+            {status && status.logs && (
+              <div className="max-w-4xl mx-auto mt-4">
+                <LogBox logs={status.logs} />
+              </div>
+            )}
+
+            <ResultsTable results={results} vlessConfig={currentVlessConfig} />
+          </>
+        ) : activeTab === 'dns' ? (
+          <>
+            <DnsScanner onStartAdvanced={handleStartAdvanced} isLoading={isScanning} />
+            <DnsScannerGuide />
+
+            {isScanning && status && (
+              <div className="mt-4 text-center text-white animate-pulse mb-6">
+                Testing DNS/Tunnel parameters... {status.completed} / {status.total} checks complete
+              </div>
+            )}
+
+            {status && status.stats && (
+              <div className="max-w-4xl mx-auto">
+                <StatsPanel stats={status.stats} />
+              </div>
+            )}
 
             {status && status.logs && (
               <div className="max-w-4xl mx-auto mt-4">

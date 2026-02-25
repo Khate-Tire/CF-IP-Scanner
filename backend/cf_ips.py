@@ -147,6 +147,9 @@ async def fetch_custom_ips(source_type="custom_url", custom_url=None):
         urls_to_fetch = COMMUNITY_SCRAPE_URLS
     elif source_type == "custom_url" and custom_url:
         urls_to_fetch = [custom_url]
+    elif source_type == "fastly_cdn":
+        from discovery import fetch_fastly_ips
+        return await fetch_fastly_ips()
     else:
         return []
 
@@ -167,6 +170,11 @@ async def fetch_custom_ips(source_type="custom_url", custom_url=None):
                             fetched_ranges.append(line)
             except Exception as e:
                 print(f"Failed to scrape from {url}: {e}")
+                
+    if not fetched_ranges:
+        print(f"Failed to fetch any custom IPs for {source_type}. Using hardcoded Cloudflare fallback ranges...")
+        fetched_ranges = CLOUDFLARE_RANGES
+        
     
     return list(set(fetched_ranges))
 

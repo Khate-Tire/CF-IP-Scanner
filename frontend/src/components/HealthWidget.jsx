@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect } from 'react';
 import { getHealth, proxyDatabase } from '../api';
+import { toast } from 'react-hot-toast';
 
 function HealthWidget() {
     const [health, setHealth] = useState({ internet: 'checking', database: 'checking', internet_error: '', database_error: '', via_proxy: false });
@@ -33,7 +34,7 @@ function HealthWidget() {
     };
 
     const handleProxySubmit = async () => {
-        if (!proxyConfig || !proxyConfig.startsWith('vless://')) return alert("Please enter a valid VLESS config.");
+        if (!proxyConfig || !proxyConfig.startsWith('vless://')) return toast.error("Please enter a valid VLESS config.");
         setIsProxying(true);
         const res = await proxyDatabase(proxyConfig);
         setIsProxying(false);
@@ -41,9 +42,9 @@ function HealthWidget() {
         if (res.status === 'ok') {
             setShowProxyModal(false);
             setHealth({ ...health, database: 'online', via_proxy: true });
-            alert(res.message);
+            toast.success(res.message);
         } else {
-            alert(res.message);
+            toast.error(res.message);
         }
     };
 

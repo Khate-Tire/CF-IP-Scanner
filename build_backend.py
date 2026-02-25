@@ -33,6 +33,8 @@ PyInstaller.__main__.run([
     f'--runtime-hook={runtime_hook_path}',
     '--hidden-import=aiohttp',
     '--hidden-import=aiohttp_socks',
+    '--hidden-import=aiodns',
+    '--hidden-import=pycares',
     '--hidden-import=urllib.parse',
     '--hidden-import=pymysql',
     '--hidden-import=cryptography',

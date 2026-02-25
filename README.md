@@ -124,25 +124,39 @@ python run_app.py
 | Feature | Description |
 |---------|-------------|
 | 🔍 **IP Scanner** | Discover clean Cloudflare Edge IPs with real ping, jitter, download & upload speed tests |
+| ⚡ **Fastly CDN** | Full native support for scanning Fastly Edge networks alongside Cloudflare |
 | 🏆 **Gold IPs** | Smart history + community-verified IPs + auto top-domain discovery |
 | 👥 **Community Gold** | IPs verified by other users in your region — shared intelligence |
 | 🧩 **DPI Fragment Analyzer** | Test every length/interval permutation to bypass Deep Packet Inspection |
+| 🛡️ **DNSTT & Split-Stream** | Dedicated beta scanner for SlowDNS encapsulation and TLS split packets |
 | 🌐 **SNI Fronting** | Scan hundreds of SNIs against a working IP to find unblocked routes |
 | 📡 **WARP Scanner** | Find functional WARP UDP endpoints for Wireguard-based VPN tunnels |
 | 🗺️ **Global Heatmap** | Interactive world map with country-level scan analytics |
 | 🔒 **TLS Verification** | Anti-MITM certificate validation for Cloudflare connections |
+| ⚡ **TCP Pre-Filter** | Blazing-fast 1000ms dead-IP drop before heavy Xray scanning begins |
+| 💾 **Persistent Queue** | Pure SQLite async queue ensures scans survive app restarts |
 | 🔄 **Smart Retry** | Auto-relaxes thresholds if strict settings find nothing |
 | 📊 **Real-time Analytics** | Live charts for datacenter latency, port success, and network protocols |
 | 🌐 **Multi-Language** | Full UI in English 🇬🇧, فارسی 🇮🇷, and Русский 🇷🇺 |
 | 📱 **Deep Links** | One-click export to V2RayNG, Hidify, V2Box, Clash Meta, Sing-box |
+| 🌐 **DNS Override** | Route DNS queries through encrypted DoH/DoT servers to bypass ISP poisoning |
+| 🍎 **macOS Support** | Native DMG installer for macOS alongside Windows EXE |
 
 ---
 
 ## 🚀 Quick Start
 
+### Supported Platforms
+
+| Platform | Status | Install |
+|----------|--------|------|
+| 🪟 **Windows 10/11** | ✅ Full Support | Download `.exe` from [Releases](https://github.com/Khate-Tire/CF-IP-Scanner/releases) |
+| 🍎 **macOS** | ✅ Full Support | Download `.dmg` from [Releases](https://github.com/Khate-Tire/CF-IP-Scanner/releases) |
+| 🐧 **Linux** | ✅ Manual Setup | See [LINUX_INSTALL.md](LINUX_INSTALL.md) |
+| 📱 **Termux (Android)** | ⚠️ Experimental | [Termux Guide](LINUX_INSTALL.md#-termux-android--experimental) |
+
 ### Prerequisites
 
-- **Windows 10/11** (64-bit)
 - **Python 3.10+**
 - **Node.js 18+** (for development)
 - Internet connection

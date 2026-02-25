@@ -1,6 +1,6 @@
 {
   "name": "cf-ip-scanner",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -38,10 +38,6 @@
     ],
     "extraResources": [
       {
-        "from": "backend/dist/backend.exe",
-        "to": "backend.exe"
-      },
-      {
         "from": "backend/.env",
         "to": ".env"
       },
@@ -52,7 +48,13 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "extraResources": [
+        {
+          "from": "backend/dist/backend.exe",
+          "to": "backend.exe"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -63,7 +65,13 @@
       "runAfterFinish": true
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "extraResources": [
+        {
+          "from": "backend/dist/backend",
+          "to": "backend"
+        }
+      ]
     }
   },
   "devDependencies": {

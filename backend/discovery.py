@@ -84,3 +84,27 @@ async def get_advanced_ips(req, use_proxy=False) -> List[str]:
             except Exception as e:
                 pass
     return manual_ips
+
+
+async def fetch_fastly_ips(use_proxy=False) -> List[str]:
+    """Fetches official Fastly IPv4 ranges from their public API."""
+    async with aiohttp.ClientSession(trust_env=use_proxy) as session:
+        try:
+            print("Fetching Fastly IP ranges...")
+            async with session.get("https://api.fastly.com/public-ip-list", timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("addresses", [])
+        except Exception as e:
+            print(f"Failed to fetch Fastly IPs: {e}")
+            
+    # Fallback to known Fastly IPv4 ranges if the API is blocked (e.g. in Iran)
+    print("Using Fastly fallback IP ranges...")
+    return [
+        "23.235.32.0/20", "43.249.72.0/22", "103.244.50.0/24", "103.245.222.0/23",
+        "103.245.224.0/24", "104.156.80.0/20", "140.248.64.0/18", "140.248.128.0/17",
+        "146.75.0.0/16", "151.101.0.0/16", "157.52.64.0/18", "167.82.0.0/17",
+        "167.82.128.0/20", "167.82.160.0/20", "167.82.224.0/20", "172.111.64.0/18",
+        "185.31.16.0/22", "199.27.72.0/21", "199.232.0.0/16"
+    ]
+

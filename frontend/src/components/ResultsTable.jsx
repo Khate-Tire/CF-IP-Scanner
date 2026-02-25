@@ -3,22 +3,49 @@ import React, { useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { exportSubscription, getExportLink } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export default function ResultsTable({ results, vlessConfig }) {
     const { t } = useTranslation();
     const [qrData, setQrData] = useState(null);
     const [exportFormat, setExportFormat] = useState('base64');
     const [isExporting, setIsExporting] = useState(false);
+    const [sortConfig, setSortConfig] = useState({ key: 'ping', direction: 'asc' });
+
+    const requestSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedResults = [...results].sort((a, b) => {
+        let valA = a[sortConfig.key];
+        let valB = b[sortConfig.key];
+
+        if (['ping', 'jitter', 'download', 'upload'].includes(sortConfig.key)) {
+            valA = parseFloat(valA) || (sortConfig.direction === 'asc' ? 9999 : -1);
+            valB = parseFloat(valB) || (sortConfig.direction === 'asc' ? 9999 : -1);
+        } else {
+            valA = valA ? String(valA).toLowerCase() : '';
+            valB = valB ? String(valB).toLowerCase() : '';
+        }
+
+        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
-        alert("Copied to clipboard!");
+        toast.success("Copied to clipboard!");
     };
 
     const handleExport = async () => {
         const ips = results.map(r => r.ip).filter(Boolean);
         if (!ips.length || !vlessConfig) {
-            alert("No results or valid config to export.");
+            toast.error("No results or valid config to export.");
             return;
         }
         setIsExporting(true);
@@ -35,10 +62,10 @@ export default function ResultsTable({ results, vlessConfig }) {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             } else {
-                alert("Export error: " + res.error);
+                toast.error("Export error: " + res.error);
             }
         } catch (e) {
-            alert("Error: " + e.message);
+            toast.error("Error: " + e.message);
         }
         setIsExporting(false);
     };
@@ -46,7 +73,7 @@ export default function ResultsTable({ results, vlessConfig }) {
     const handleDeepLink = async (appScheme) => {
         const ips = results.map(r => r.ip).filter(Boolean);
         if (!ips.length || !vlessConfig) {
-            alert("No results or valid config to link.");
+            toast.error("No results or valid config to link.");
             return;
         }
         setIsExporting(true);
@@ -66,10 +93,10 @@ export default function ResultsTable({ results, vlessConfig }) {
                 // Trigger deep link locally
                 window.location.href = intentUrl;
             } else {
-                alert("Error creating link: " + (res?.error || "Unknown error"));
+                toast.error("Error creating link: " + (res?.error || "Unknown error"));
             }
         } catch (e) {
-            alert("Error: " + e.message);
+            toast.error("Error: " + e.message);
         } finally {
             setIsExporting(false);
         }
@@ -78,13 +105,13 @@ export default function ResultsTable({ results, vlessConfig }) {
     const copyAll = () => {
         const allLinks = results.map(r => r.link).filter(Boolean).join('\n');
         if (allLinks) copyToClipboard(allLinks);
-        else alert("No valid links to copy.");
+        else toast.error("No valid links to copy.");
     };
 
     const copyAllIps = () => {
         const allIps = results.map(r => r.ip).filter(Boolean).join('\n');
         if (allIps) copyToClipboard(allIps);
-        else alert("No valid IPs to copy.");
+        else toast.error("No valid IPs to copy.");
     };
 
     return (
@@ -159,13 +186,13 @@ export default function ResultsTable({ results, vlessConfig }) {
                 <table className="w-full text-left border-collapse">
                     <thead>
                         <tr className="border-b border-gray-700 text-gray-400 text-sm uppercase tracking-wider">
-                            <th className="p-3">{t('results.ipAddress')}</th>
-                            <th className="p-3">{t('results.pingMs')}</th>
-                            <th className="p-3">{t('results.jitterMs')}</th>
-                            <th className="p-3">{t('results.downloadMbps')}</th>
-                            <th className="p-3">{t('results.uploadMbps')}</th>
-                            <th className="p-3">{t('results.locationIsp')}</th>
-                            <th className="p-3">{t('results.status')}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('ip')}>{t('results.ipAddress')} {sortConfig.key === 'ip' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('ping')}>{t('results.pingMs')} {sortConfig.key === 'ping' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('jitter')}>{t('results.jitterMs')} {sortConfig.key === 'jitter' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('download')}>{t('results.downloadMbps')} {sortConfig.key === 'download' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('upload')}>{t('results.uploadMbps')} {sortConfig.key === 'upload' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('location')}>{t('results.locationIsp')} {sortConfig.key === 'location' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
+                            <th className="p-3 cursor-pointer hover:bg-white/5 transition-colors select-none" onClick={() => requestSort('status')}>{t('results.status')} {sortConfig.key === 'status' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}</th>
                             <th className="p-3 text-right">{t('results.actions')}</th>
                         </tr>
                     </thead>
@@ -177,7 +204,7 @@ export default function ResultsTable({ results, vlessConfig }) {
                                 </td>
                             </tr>
                         ) : (
-                            results.map((res, i) => (
+                            sortedResults.map((res, i) => (
                                 <tr key={i} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
                                     <td className="p-3 font-mono font-bold text-white">{res.ip}</td>
                                     <td className={`p-3 font-mono font-bold ${res.ping < 100 ? 'text-neon-green' : 'text-yellow-400'}`}>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { scanWarpIPs, getWarpScanStatus, stopWarpScan } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';
+import { toast } from 'react-hot-toast';
 
 export default function WarpScanner() {
     const { t } = useTranslation();
@@ -23,7 +24,7 @@ export default function WarpScanner() {
 
     const handleStart = async () => {
         if (targetPorts.length === 0) {
-            alert("Please select at least one port.");
+            toast.error("Please select at least one port.");
             return;
         }
 
@@ -87,7 +88,7 @@ export default function WarpScanner() {
     const copyAllEndpoints = () => {
         const text = results.map(r => r.endpoint).join('\n');
         navigator.clipboard.writeText(text);
-        alert('Copied all endpoints to clipboard!');
+        toast.success('Copied all endpoints to clipboard!');
     };
 
     // To prevent warning

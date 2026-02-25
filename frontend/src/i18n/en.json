@@ -4,6 +4,7 @@
         "subtitle": "Cloudflare IP Optimization Tool",
         "proxyLabel": "Route Location API & Discovery through Windows System Proxy / VPN",
         "supportGithub": "⭐ Support — Star on GitHub",
+        "updateAvailable": "Update to v{version}",
         "builtBy": "Built with ❤️ by",
         "openSource": "Open Source for Internet Freedom",
         "tabs": {
@@ -11,6 +12,7 @@
             "analytics": "Global Analytics",
             "advanced": "Advanced Bypasses",
             "warp": "WARP Endpoints",
+            "dns": "Tunnel & DNS",
             "about": "About App"
         }
     },
@@ -181,6 +183,73 @@
         "logs": "Scanner Logs",
         "waiting": "Waiting to start..."
     },
+    "dnsScanner": {
+        "title": "DNS & Tunnel Scanner (BETA)",
+        "subtitle": "Test DNS resolver overrides and TLS Split-Stream fragmentation to bypass DPI censorship.",
+        "testOption": "Testing Mode",
+        "dnstt": "DNS Resolver Override",
+        "tlsSplit": "TLS Split-Stream",
+        "nameserver": "DNS Server (Encrypted or Plain)",
+        "nameserverDesc": "Supports UDP, TCP, DNS-over-HTTPS (DoH), and DNS-over-TLS (DoT) formats.",
+        "customDns": "Custom DNS Server...",
+        "testDomain": "Test Domain",
+        "testDomainDesc": "Domain to try resolving through the selected DNS server.",
+        "fragmentSize": "Fragment Size (Bytes)",
+        "fragmentSizeDesc": "Example: '10-20' segments packets between 10 and 20 bytes.",
+        "fragmentInterval": "Fragment Interval (ms)",
+        "fragmentIntervalDesc": "Delay between fragments.",
+        "ispPreset": "ISP DPI Preset",
+        "packetMode": "Packet Fragmentation Mode",
+        "packetModeDesc": "tlshello splits only the TLS handshake. 1-3 splits the first 1-3 TCP data writes.",
+        "recommended": "(Recommended)",
+        "broader": "(Broader)",
+        "fingerprint": "TLS Browser Fingerprint (uTLS)",
+        "fingerprintDesc": "Mimics real browser TLS handshakes to evade DPI fingerprint detection.",
+        "vlessConfig": "Vless / Xray Configuration",
+        "errorNoConfig": "Please paste a valid Xray/V2Ray config first.",
+        "testing": "Testing...",
+        "startScanner": "Start Scanner"
+    },
+    "dnsGuide": {
+        "showGuide": "Show Guide & More Info",
+        "hideGuide": "Hide Guide & Info",
+        "beginnerTitle": "📖 Beginner Guide — How to Use This Tab",
+        "step1Title": "Choose Your Mode",
+        "step1Desc": "Select 'DNS Resolver Override' to test if your ISP is poisoning DNS queries, or 'TLS Split-Stream' to fragment your TLS handshake and bypass DPI censorship.",
+        "step2Title": "Configure Your Settings",
+        "step2Desc": "For DNS mode: Pick a DNS server from the dropdown (DoH recommended for censored regions). For TLS Split: Select your ISP preset or manually set fragment size and interval.",
+        "step3Title": "Select Browser Fingerprint",
+        "step3Desc": "Choose a TLS fingerprint (Chrome recommended) so your traffic looks like normal browser activity to DPI systems.",
+        "step4Title": "Paste Your Config & Scan",
+        "step4Desc": "Paste a working VLESS/Trojan config (vless://... or trojan://...) into the text box, then press Start Scanner. The app will launch Xray with your settings and test connectivity.",
+        "proTip": "Pro Tip",
+        "proTipDesc": "If you're in Iran, start with the 'Iran MCI' or 'Iran Irancell' preset and Chrome fingerprint. If it fails, try DoH (Google or Cloudflare) instead of plain DNS.",
+        "tlsTitle": "🔧 How TLS Split-Stream Works",
+        "tlsP1": "When you connect to a website over HTTPS, the very first message your computer sends is called the 'TLS ClientHello'. This message contains the SNI (Server Name Indication) — the hostname you're trying to visit (e.g., youtube.com).",
+        "tlsP2": "Government firewalls read this SNI to decide whether to block your connection. TLS Split-Stream defeats this by splitting the ClientHello into tiny fragments. The firewall sees incomplete pieces and can't reconstruct the hostname.",
+        "tlsHelloDesc": "Splits ONLY the TLS ClientHello. Most effective and targeted. Use this first.",
+        "mode13Desc": "Splits the first 1-3 data writes. Broader but less targeted. Try if tlshello fails.",
+        "sizeIntervalDesc": "Size = bytes per fragment (smaller = harder to detect). Interval = delay in ms between fragments.",
+        "dnsTitle": "🌐 How DNS Resolver Override Works",
+        "dnsP1": "When your ISP censors the internet, one of the first things they do is poison DNS queries. When you try to resolve 'youtube.com', your ISP returns a fake IP address or blocks the response entirely.",
+        "dnsP2": "DNS Resolver Override routes your Xray DNS queries through a different server — bypassing your ISP's poisoned DNS. You can use encrypted protocols like DoH (DNS-over-HTTPS) so your ISP can't even see what you're resolving.",
+        "dnsFormat": "Format",
+        "dnsExample": "Example",
+        "dnsSecurity": "Security",
+        "dnsPlain": "Unencrypted",
+        "dnsEncrypted": "Encrypted",
+        "utlsTitle": "🎭 What is uTLS Browser Fingerprint?",
+        "utlsP1": "Every program creates a unique 'TLS fingerprint' when it connects to a server. Government DPI systems can detect that you're using Xray/V2Ray instead of a real browser by analyzing this fingerprint.",
+        "utlsP2": "uTLS solves this by mimicking the exact TLS handshake of real browsers. When you select 'Chrome', your Xray connection looks identical to Google Chrome to any observer.",
+        "utlsWarning": "Important for Iranian Users",
+        "utlsWarningDesc": "Iranian ISPs (especially MCI and Irancell) actively detect non-browser TLS fingerprints. Always select Chrome or Firefox to avoid detection.",
+        "ispTitle": "🇮🇷 ISP-Specific Presets Explained",
+        "ispP1": "Different ISPs use different DPI (Deep Packet Inspection) systems with varying detection capabilities. Fragment settings that work on one ISP may not work on another.",
+        "ispMci": "Most aggressive DPI in Iran. Uses ML-based analysis. Needs large fragments (100-200 bytes) with moderate delays.",
+        "ispIrancell": "Strong DPI but less aggressive than MCI. Medium fragments (50-100 bytes) usually work well.",
+        "ispShatel": "Lighter DPI. Small, fast fragments (10-30 bytes, 1-5ms delay) are very effective.",
+        "ispChina": "Advanced stateful DPI. Medium fragments with longer delays (20-50ms) to avoid detection."
+    },
     "about": {
         "title": "Antigravity IP Scanner",
         "subtitle": "Advanced Cloudflare IP Optimization & Censorship Bypass Tool",
@@ -266,6 +335,22 @@
                 "title": "🧩 DPI Fragment Analyzer",
                 "desc": "Tests various V2Ray fragment configurations on a single IP to bypass advanced deep packet inspection firewalls."
             },
+            "tcp": {
+                "title": "⚡ TCP Pre-Filter",
+                "desc": "Instantly drops dead IPs using an ultra-fast raw TCP connection test before initiating heavy Xray proxy engines."
+            },
+            "queue": {
+                "title": "💾 Persistent Background Queue",
+                "desc": "Pure SQLite asynchronous scan queue ensures your heavy scans survive application restarts and crashes."
+            },
+            "fastly": {
+                "title": "⚡ Fastly CDN Native Support",
+                "desc": "Built-in intelligence to natively discover and verify Fastly Edge Network IPs alongside Cloudflare."
+            },
+            "dnstt": {
+                "title": "🛡️ DNSTT & TLS Split-Stream",
+                "desc": "Dedicated Beta scanner for SlowDNS encapsulation and fragmented packet analysis to shatter deep DPI layers."
+            },
             "sni": {
                 "title": "🌐 SNI Fronting Scanner",
                 "desc": "Scans a working IP against hundreds of domain names to find unblocked SNIs for disguised routing."
@@ -281,6 +366,14 @@
             "retry": {
                 "title": "🔄 Smart Retry System",
                 "desc": "If strict thresholds find nothing, the scanner automatically retries with relaxed settings."
+            },
+            "dns_override": {
+                "title": "🌐 DNS Resolver Override",
+                "desc": "Routes DNS queries through encrypted DoH/DoT servers to bypass ISP DNS poisoning and censorship."
+            },
+            "macos": {
+                "title": "🍎 macOS Support",
+                "desc": "Native macOS DMG installer available. Run Antigravity Scanner on both Windows and macOS."
             }
         },
         "tips": {
@@ -365,6 +458,6 @@
         "joinTelegram": "Join our Telegram Group",
         "shareFeedback": "Share bugs, comments & feedback",
         "footer": "🕊️ Built for a free and open internet",
-        "copyright": "Antigravity IP Scanner v2.5 • © 2024-2026 Khate Tire • GNU AGPLv3 License"
+        "copyright": "Antigravity IP Scanner • © 2024-2026 Khate Tire • GNU AGPLv3 License"
     }
 }

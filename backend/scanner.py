@@ -13,55 +13,80 @@ import socket
 import ssl
 
 def parse_vless(vless_url: str):
-    protocol = "vless"
-    url_stripped = vless_url
-    if vless_url.startswith("vless://"):
-        url_stripped = vless_url.replace("vless://", "")
-    elif vless_url.startswith("trojan://"):
-        protocol = "trojan"
-        url_stripped = vless_url.replace("trojan://", "")
-    else:
-        raise ValueError("Invalid URL: Must be vless:// or trojan://")
-    
-    parts = url_stripped.split("@")
-    uuid = parts[0]
-    rest = parts[1].split("?")
-    address_port = rest[0].split(":")
-    address = address_port[0]
-    port = int(address_port[1])
-    
-    params = {}
-    if len(rest) > 1:
-        param_str = rest[1].split("#")[0]
-        for p in param_str.split("&"):
-            if "=" in p:
-                k, v = p.split("=")
-                params[k] = v
-                
-    return {
-        "protocol": protocol,
-        "uuid": uuid,
-        "address": address,
-        "port": port,
-        "params": params
-    }
+    try:
+        protocol = "vless"
+        url_stripped = vless_url.strip()
+        if url_stripped.startswith("vless://"):
+            url_stripped = url_stripped.replace("vless://", "", 1)
+        elif url_stripped.startswith("trojan://"):
+            protocol = "trojan"
+            url_stripped = url_stripped.replace("trojan://", "", 1)
+        else:
+            raise ValueError("Invalid URL: Must be vless:// or trojan://")
+        
+        parts = url_stripped.split("@")
+        if len(parts) < 2:
+            raise ValueError("Invalid format: missing '@' separator")
+            
+        uuid = parts[0]
+        rest = parts[1].split("?")
+        
+        address_port = rest[0].split(":")
+        if len(address_port) < 2:
+            raise ValueError("Invalid format: missing port suffix")
+            
+        address = address_port[0]
+        # Strip trailing slashes or weird chars from port
+        port_raw = "".join(filter(str.isdigit, address_port[1]))
+        if not port_raw:
+            port = 443 # default
+        else:
+            port = int(port_raw)
+        
+        params = {}
+        if len(rest) > 1:
+            # Handle potential #name fragment
+            param_str = rest[1].split("#")[0]
+            for p in param_str.split("&"):
+                if "=" in p:
+                    k, v = p.split("=", 1)
+                    params[k] = v
+                    
+        return {
+            "protocol": protocol,
+            "uuid": uuid,
+            "address": address,
+            "port": port,
+            "params": params
+        }
+    except Exception as e:
+        print(f"Error parsing VLESS/Trojan URI: {e}")
+        # Return a safe fallback to prevent crashes down the line
+        return {
+            "protocol": "vless",
+            "uuid": "invalid",
+            "address": "127.0.0.1",
+            "port": 443,
+            "params": {}
+        }
 
-def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None):
+def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None, advanced_dns_config=None):
+    params = vless_data.get("params", {})
     # Prepare TLS settings
     tls_settings = None
-    if vless_data["params"].get("security") == "tls":
+    if params.get("security") == "tls":
         tls_settings = {
-            "serverName": test_sni if test_sni else vless_data["params"].get("sni", ""),
+            "serverName": test_sni if test_sni else params.get("sni", ""),
             "allowInsecure": True,
-            "fingerprint": vless_data["params"].get("fp", "")
+            "fingerprint": params.get("fp", "")
         }
-        if "alpn" in vless_data["params"]:
-            alpn_val = urllib.parse.unquote(vless_data["params"]["alpn"])
+        if "alpn" in params:
+            alpn_val = urllib.parse.unquote(params["alpn"])
             tls_settings["alpn"] = alpn_val.split(",")
 
     vless_stream_settings = {
-        "network": vless_data["params"].get("type", "tcp"),
-        "security": vless_data["params"].get("security", "none"),
+        "network": params.get("type", "tcp"),
+        "security": params.get("security", "none"),
         "sockopt": {
             "tcpNoDelay": True,
             "tcpKeepAliveIdle": 30,
@@ -70,19 +95,19 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
             "tcpMaxSeg": 1440
         },
         "wsSettings": {
-            "path": urllib.parse.unquote(vless_data["params"].get("path", "/")),
+            "path": urllib.parse.unquote(params.get("path", "/")),
             "headers": {
-                "Host": test_sni if test_sni else vless_data["params"].get("host", "")
+                "Host": test_sni if test_sni else params.get("host", "")
             }
-        } if vless_data["params"].get("type") == "ws" else None,
+        } if params.get("type") == "ws" else None,
         "tlsSettings": tls_settings,
         "realitySettings": {
-            "serverName": test_sni if test_sni else vless_data["params"].get("sni", ""),
-            "fingerprint": vless_data["params"].get("fp", "chrome"),
-            "publicKey": vless_data["params"].get("pbk", ""),
-            "shortId": vless_data["params"].get("sid", ""),
-            "spiderX": vless_data["params"].get("spx", "/")
-        } if vless_data["params"].get("security") == "reality" else None
+            "serverName": test_sni if test_sni else params.get("sni", ""),
+            "fingerprint": params.get("fp", "chrome"),
+            "publicKey": params.get("pbk", ""),
+            "shortId": params.get("sid", ""),
+            "spiderX": params.get("spx", "/")
+        } if params.get("security") == "reality" else None
     }
 
     outbounds = [{
@@ -90,13 +115,13 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
         "settings": {
             "vnext": [{
                 "address": target_ip,
-                "port": test_port if test_port is not None else vless_data["port"],
+                "port": test_port if test_port is not None else vless_data.get("port", 443),
                 "users": [{
-                    "id": vless_data["uuid"],
-                    "encryption": vless_data["params"].get("encryption", "none"),
-                    "flow": vless_data["params"].get("flow", "")
+                    "id": vless_data.get("uuid", ""),
+                    "encryption": params.get("encryption", "none"),
+                    "flow": params.get("flow", "")
                 }] if vless_data.get("protocol", "vless") == "vless" else [{
-                    "password": vless_data["uuid"]
+                    "password": vless_data.get("uuid", "")
                 }]
             }]
         },
@@ -119,7 +144,7 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
             },
             "settings": {
                 "fragment": {
-                    "packets": "tlshello",
+                    "packets": fragment.get("packets", "tlshello"),
                     "length": fragment.get("length", "10-20"),
                     "interval": fragment.get("interval", "10-20")
                 }
@@ -142,7 +167,45 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
         }],
         "outbounds": outbounds
     }
+
+    if advanced_dns_config:
+        dns_server = advanced_dns_config.get("server") or "8.8.8.8"
+        config["dns"] = {
+            "servers": [dns_server],
+            "queryStrategy": "UseIP"
+        }
+        config["routing"] = {
+            "domainStrategy": "AsIs",
+            "rules": [
+                {"type": "field", "port": 53, "outboundTag": "dns-out"},
+            ]
+        }
+        config["outbounds"].append({
+            "protocol": "dns",
+            "tag": "dns-out"
+        })
+        
+        # Apply uTLS fingerprint override if provided
+        utls_fp = advanced_dns_config.get("utls_fingerprint")
+        if utls_fp:
+            for ob in config["outbounds"]:
+                ss = ob.get("streamSettings", {})
+                if ss.get("tlsSettings"):
+                    ss["tlsSettings"]["fingerprint"] = utls_fp
+                if ss.get("realitySettings"):
+                    ss["realitySettings"]["fingerprint"] = utls_fp
+
     return config
+
+async def tcp_ping(ip: str, port: int = 443, timeout: float = 2.0) -> bool:
+    try:
+        fut = asyncio.open_connection(ip, port)
+        reader, writer = await asyncio.wait_for(fut, timeout=timeout)
+        writer.close()
+        await writer.wait_closed()
+        return True
+    except Exception:
+        return False
 
 async def measure_ping(session, url, check_status_cb=None):
     if check_status_cb:
@@ -228,7 +291,7 @@ def reconstruct_vless(parts, new_ip):
     url = f"{base}?{query}#IP-{new_ip}"
     return url
 
-async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None):
+async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None):
     ip = ip.strip()
     if not ip: return {"status": "error"}
     
@@ -239,7 +302,7 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
             return {"status": "abort"}
     
     local_port = random.randint(10000, 20000)
-    config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni)
+    config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni, advanced_dns_config=advanced_dns_config)
     
     safe_ip = ip.replace(":", "_")
     config_path = os.path.join(APP_DIR, f"config_{safe_ip}_{local_port}.json")
@@ -335,16 +398,34 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
             result["jitter"] = round(jitter, 2)
             
             # Extract Datacenter Colo
-            try:
-                async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=5) as t_resp:
-                    if t_resp.status == 200:
-                        trace_text = await t_resp.text()
-                        for line in trace_text.splitlines():
-                            if line.startswith("colo="):
-                                result["datacenter"] = line.split("=")[1].strip()
-                                break
-            except:
-                pass
+            if provider == 'fastly':
+                 # Fastly POP check
+                 try:
+                     async with session.get("http://www.fastly.com", timeout=5) as t_resp:
+                         if 'x-served-by' in t_resp.headers:
+                             served_by = t_resp.headers['x-served-by']
+                             # extract POP, e.g. cache-iad-kiad7000185-IAD -> IAD
+                             parts = served_by.split('-')
+                             if len(parts) >= 2:
+                                  result["datacenter"] = "Fastly-" + parts[-1].upper()
+                             else:
+                                  result["datacenter"] = "Fastly-Edge"
+                         else:
+                             result["datacenter"] = "Fastly-Edge"
+                 except:
+                     result["datacenter"] = "Fastly-Edge"
+            else:
+                 # Default Cloudflare Colo Check
+                 try:
+                     async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=5) as t_resp:
+                         if t_resp.status == 200:
+                             trace_text = await t_resp.text()
+                             for line in trace_text.splitlines():
+                                 if line.startswith("colo="):
+                                     result["datacenter"] = line.split("=")[1].strip()
+                                     break
+                 except:
+                     pass
             
             # FIX #4: Borderline retry - 10% grace margin
             max_ping_threshold = thresholds.get("max_ping", 1000)
@@ -418,17 +499,21 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         # print(f"Scan fatal error {ip}: {e}")
         pass
     finally:
+        import psutil
         try:
-             process.terminate()
-             outs, errs = process.communicate(timeout=1)
-        except subprocess.TimeoutExpired:
-             process.kill()
-             try:
-                 outs, errs = process.communicate(timeout=1)
-             except:
+            parent = psutil.Process(process.pid)
+            for child in parent.children(recursive=True):
+                child.kill()
+            parent.kill()
+            parent.wait(timeout=2)
+        except psutil.NoSuchProcess:
+            pass
+        except Exception:
+            try:
+                 process.terminate()
+                 process.wait(timeout=1)
+            except:
                  pass
-        except Exception as e:
-             pass
 
         try:
             os.remove(config_path)
