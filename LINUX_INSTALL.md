@@ -12,7 +12,31 @@
 
 ---
 
-## 🚀 Ubuntu / Debian — Full Setup
+## ⚡ One-Command Install (Ubuntu/Debian)
+
+The fastest way — uses the included `install.sh` script:
+
+```bash
+git clone https://github.com/Khate-Tire/CF-IP-Scanner.git
+cd CF-IP-Scanner
+sudo bash install.sh
+```
+
+This installs everything automatically (Python, Node.js, dependencies, Xray-core, frontend build). After it finishes:
+
+```bash
+cd /opt/CF-IP-Scanner
+source backend/venv/bin/activate
+python3 run_app.py
+```
+
+Open **http://localhost:5173** in your browser 🎉
+
+> Prefer manual control? Follow the step-by-step guide below.
+
+---
+
+## 🚀 Ubuntu / Debian — Manual Setup
 
 ### 1. Install System Dependencies
 
