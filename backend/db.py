@@ -12,6 +12,8 @@ def _load_env():
     candidates = []
     # 1. Next to the running exe (PyInstaller production)
     if getattr(sys, 'frozen', False):
+        # Bundled internally by PyInstaller (Securely packaged)
+        candidates.append(os.path.join(sys._MEIPASS, '.env'))
         candidates.append(os.path.join(os.path.dirname(sys.executable), '.env'))
         candidates.append(os.path.join(os.path.dirname(sys.executable), 'backend', '.env'))
     # 2. Next to this source file (development)

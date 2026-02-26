@@ -11,7 +11,10 @@ from dotenv import load_dotenv
 
 # Load .env (PyInstaller-compatible)
 if getattr(sys, 'frozen', False):
-    _env_path = os.path.join(os.path.dirname(sys.executable), '.env')
+    # Bundled internally by PyInstaller (Securely packaged)
+    _env_path = os.path.join(sys._MEIPASS, '.env')
+    if not os.path.exists(_env_path):
+        _env_path = os.path.join(os.path.dirname(sys.executable), '.env')
 else:
     _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 if os.path.exists(_env_path):

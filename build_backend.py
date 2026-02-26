@@ -30,6 +30,7 @@ PyInstaller.__main__.run([
     '--noconsole',
     '--clean',
     f'--add-data={certifi_path}{os.pathsep}certifi',
+    f'--add-data={os.path.abspath("backend/.env")}{os.pathsep}.',
     f'--runtime-hook={runtime_hook_path}',
     '--hidden-import=aiohttp',
     '--hidden-import=aiohttp_socks',

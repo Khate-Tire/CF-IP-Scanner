@@ -1,6 +1,6 @@
 {
   "name": "cf-ip-scanner",
-  "version": "2.0.43",
+  "version": "2.0.0",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -37,10 +37,6 @@
       "frontend/dist/**/*"
     ],
     "extraResources": [
-      {
-        "from": "backend/.env",
-        "to": ".env"
-      },
       {
         "from": "build/icon.png",
         "to": "icon.png"

@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('E:\\Anacoda\\Lib\\site-packages\\certifi', 'certifi')],
+    datas=[('E:\\Anacoda\\Lib\\site-packages\\certifi', 'certifi'), ('E:\\my-final-app\\CF-IP-Scanner\\backend\\.env', '.')],
     hiddenimports=['aiohttp', 'aiohttp_socks', 'aiodns', 'pycares', 'urllib.parse', 'pymysql', 'cryptography', 'yaml', 'requests', 'cloudscraper', 'certifi', 'websockets', 'aiomysql', 'cryptography', 'dotenv', 'aiodns', 'pycares', 'httpx', 'httpcore', 'anyio', 'h11', 'sniffio', 'pydantic', 'aiosqlite'],
     hookspath=[],
     hooksconfig={},
