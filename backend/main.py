@@ -470,6 +470,96 @@ async def get_db_status():
         "via_proxy": db.db_via_proxy
     }
 
+@app.get('/db-test-all')
+async def test_all_db_layers():
+    import db
+    import time
+    import asyncio
+    import aiomysql
+    
+    results = {
+        "layer1_direct": {"status": "testing", "time": 0},
+        "layer2_worker": {"status": "testing", "time": 0},
+        "layer3_fronted": {"status": "testing", "time": 0},
+        "layer4_tunnel": {"status": "standby", "time": 0},
+        "layer5_local": {"status": "testing", "time": 0},
+        "active_mode": db.db_mode
+    }
+    
+    # Layer 1: Direct MySQL
+    start = time.time()
+    try:
+        async with asyncio.timeout(3.0):
+            conn = await aiomysql.connect(host=db.DB_HOST, port=db.DB_PORT, user=db.DB_USER, password=db.DB_PASSWORD, db=db.DB_NAME)
+            await conn.ping()
+            conn.close()
+            results["layer1_direct"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+    except Exception:
+        results["layer1_direct"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+
+    # Layer 2: Cloudflare Worker
+    start = time.time()
+    if db.WORKER_URL:
+        try:
+            proxy = db.WorkerDBProxy()
+            if await proxy.health():
+                results["layer2_worker"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+            else:
+                results["layer2_worker"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+        except Exception:
+            results["layer2_worker"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+    else:
+        results["layer2_worker"] = {"status": "skipped", "time": 0}
+
+    # Layer 3: Worker Domain Fronting (using a common clean IP)
+    start = time.time()
+    if db.WORKER_URL:
+        try:
+            proxy = db.WorkerDBProxy(clean_ip="104.16.132.229")
+            # For testing domain fronting, directly use health endpoint but via _post style or custom if health fails
+            import httpx
+            from urllib.parse import urlparse
+            import ssl
+            url = f"https://104.16.132.229/api/health"
+            parsed = urlparse(db.WORKER_URL.rstrip('/'))
+            headers = {"Host": parsed.hostname, "X-API-Key": db.WORKER_API_KEY}
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            transport = httpx.AsyncHTTPTransport(verify=ctx)
+            async with httpx.AsyncClient(timeout=4.0, transport=transport) as client:
+                r = await client.get(url, headers=headers)
+                if r.status_code == 200:
+                    results["layer3_fronted"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+                else:
+                    results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+        except Exception:
+            results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+    else:
+        results["layer3_fronted"] = {"status": "skipped", "time": 0}
+
+    # Layer 4: VLESS Tunnel (If current active mode is tunnel, we know it's online)
+    if db.db_mode == "tunnel" and db.pool:
+        results["layer4_tunnel"] = {"status": "online", "time": 0, "active": True}
+    elif db.db_via_proxy:
+         results["layer4_tunnel"] = {"status": "online", "time": 0, "active": True}
+    else:
+        results["layer4_tunnel"] = {"status": "standby", "time": 0}
+
+    # Layer 5: Local SQLite
+    start = time.time()
+    if db.local_db:
+        # Check if file exists and is accessible
+        import os
+        if os.path.exists(db.local_db.path):
+            results["layer5_local"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+        else:
+            results["layer5_local"] = {"status": "offline", "time": 0}
+    else:
+        results["layer5_local"] = {"status": "offline", "time": 0}
+
+    return results
+
 class ProxyDbRequest(BaseModel):
     vless_config: str
 

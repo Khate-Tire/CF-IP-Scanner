@@ -15,6 +15,7 @@ import FragmentChart from './components/FragmentChart';
 import DnsScanner from './components/DnsScanner';
 import DnsScannerGuide from './components/DnsScannerGuide';
 import IranLogo from './components/IranLogo';
+import DBStatusBar from './components/DBStatusBar';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useTranslation } from './i18n/LanguageContext';
 import { Toaster, toast } from 'react-hot-toast';
@@ -228,6 +229,7 @@ function App() {
         }}
       />
       <HealthWidget />
+      <DBStatusBar />
       <UpdateModal />
       <DebugConsole />
       <div className="max-w-4xl mx-auto relative z-10">
