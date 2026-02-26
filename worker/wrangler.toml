@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "b0c2d68b6c7f49028d683f526fa6049b"
+id = "97a2e51e170141bc9771ec5f6dc6147a"
 
 [vars]
-API_KEY = "change-me-to-a-secret-key"
+API_KEY = "antigravity-secret-key-12345"
