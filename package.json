@@ -49,6 +49,10 @@
         {
           "from": "backend/dist/backend.exe",
           "to": "backend.exe"
+        },
+        {
+          "from": "xray_core/",
+          "to": "xray_core/"
         }
       ]
     },
@@ -66,6 +70,10 @@
         {
           "from": "backend/dist/backend",
           "to": "backend"
+        },
+        {
+          "from": "xray_core/",
+          "to": "xray_core/"
         }
       ]
     }
