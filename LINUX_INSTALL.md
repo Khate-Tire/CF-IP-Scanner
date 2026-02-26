@@ -135,7 +135,7 @@ This is normal for local development. The app works without a database — just 
 
 ## 📱 Termux (Android) — Experimental
 
-> ⚠️ **This works but takes 10-15 minutes** because `pydantic-core` must be compiled from source with Rust on ARM devices.
+> ⚠️ **First install takes 10-15 minutes** because `pydantic-core` must be compiled from source with Rust on ARM devices.
 
 ### 1. Install Required Packages
 
@@ -177,10 +177,13 @@ chmod +x xray_core/xray
 rm Xray-android-arm64-v8a.zip
 ```
 
-### 6. Run the App
+### 6. Run the App (Use Termux Launcher!)
+
+> ⚠️ **Do NOT use `python run_app.py`** — it will fail because Vite's default SWC compiler has no Android ARM binary. Use the Termux-specific launcher instead:
 
 ```bash
-python run_app.py
+chmod +x run_termux.sh
+bash run_termux.sh
 ```
 
 Open your Android browser (Chrome) at **http://localhost:5173** 🎉
