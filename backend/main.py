@@ -310,37 +310,59 @@ async def _background_init():
         
         # Layer 4: VLESS Tunnel (existing logic)
         if db.db_mode == "disconnected":
-            # Step 4a: Try configs from VITE_AUTO_SUB_URL (subscription)
-            sub_url = os.environ.get('VITE_AUTO_SUB_URL', '')
-            if sub_url:
-                dlog("Layer 4a: Fetching configs from VITE_AUTO_SUB_URL...")
-                configs = await _fetch_subscription_configs(sub_url)
-                for i, cfg in enumerate(configs[:5]):
-                    short = cfg[:50] + '...' if len(cfg) > 50 else cfg
-                    dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
-                    if await _try_tunnel_with_config(cfg, db):
-                        db.db_via_proxy = True
-                        db.db_mode = "tunnel"
-                        _working_vless_config = cfg
-                        dlog(f"[OK] Layer 4a: DB connected via subscription config #{i+1}!")
-                        break
+            # Step 4a: Try locally saved recent working configs
+            history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+            if os.path.exists(history_file):
+                dlog("Layer 4a: Trying previously successful configs from recent scans...")
+                try:
+                    with open(history_file, 'r') as f:
+                        history = json.load(f)
+                    for i, cfg in enumerate(history):
+                        short = cfg[:50] + '...' if len(cfg) > 50 else cfg
+                        dlog(f"  Testing past config {i+1}/{len(history)}: {short}")
+                        if await _try_tunnel_with_config(cfg, db):
+                            db.db_via_proxy = True
+                            db.db_mode = "tunnel"
+                            _working_vless_config = cfg
+                            dlog("[OK] Layer 4a: DB connected via previously successful scan config!")
+                            break
+                except Exception as e:
+                    dlog(f"Layer 4a Error: {e}")
             else:
-                dlog("Layer 4a: No VITE_AUTO_SUB_URL set, skipping.")
+                dlog("Layer 4a: No recent working configs found, skipping.")
             
-            # Step 4b: Try VITE_FALLBACK_CONFIG (hardcoded in build)
+            # Step 4b: Try configs from VITE_AUTO_SUB_URL (subscription)
+            if db.db_mode == "disconnected":
+                sub_url = os.environ.get('VITE_AUTO_SUB_URL', '')
+                if sub_url:
+                    dlog("Layer 4b: Fetching configs from VITE_AUTO_SUB_URL...")
+                    configs = await _fetch_subscription_configs(sub_url)
+                    for i, cfg in enumerate(configs[:5]):
+                        short = cfg[:50] + '...' if len(cfg) > 50 else cfg
+                        dlog(f"  Testing config {i+1}/{min(len(configs), 5)}: {short}")
+                        if await _try_tunnel_with_config(cfg, db):
+                            db.db_via_proxy = True
+                            db.db_mode = "tunnel"
+                            _working_vless_config = cfg
+                            dlog(f"[OK] Layer 4b: DB connected via subscription config #{i+1}!")
+                            break
+                else:
+                    dlog("Layer 4b: No VITE_AUTO_SUB_URL set, skipping.")
+                
+            # Step 4c: Try VITE_FALLBACK_CONFIG (hardcoded in build)
             if db.db_mode == "disconnected":
                 fallback_config = os.environ.get('VITE_FALLBACK_CONFIG', '')
                 if fallback_config and fallback_config.startswith('vless://'):
-                    dlog("Layer 4b: Trying VITE_FALLBACK_CONFIG...")
+                    dlog("Layer 4c: Trying VITE_FALLBACK_CONFIG...")
                     if await _try_tunnel_with_config(fallback_config, db):
                         db.db_via_proxy = True
                         db.db_mode = "tunnel"
                         _working_vless_config = fallback_config
-                        dlog("[OK] Layer 4b: DB connected via fallback config!")
+                        dlog("[OK] Layer 4c: DB connected via fallback config!")
                     else:
-                        dlog("[FAIL] Layer 4b: Fallback config did not work.")
+                        dlog("[FAIL] Layer 4c: Fallback config did not work.")
                 else:
-                    dlog("Layer 4b: No VITE_FALLBACK_CONFIG set, skipping.")
+                    dlog("Layer 4c: No VITE_FALLBACK_CONFIG set, skipping.")
         
         # Layer 5: Local SQLite offline mode (already initialized)
         if db.db_mode == "disconnected":
@@ -976,6 +998,34 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                             custom_generator.report_success(ip)
                         else:
                             report_good_ip(ip)
+                            
+                        # Save to working configs history
+                        try:
+                            protocol = vless_parts.get("protocol", "vless")
+                            params = vless_parts.get('params', {}).copy()
+                            param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+                            port = t_port if t_port else vless_parts.get('port', 443)
+                            
+                            # Determine the Sni to put in the VLESS string
+                            sni_val = test_sni if 'test_sni' in locals() and test_sni else params.get('sni', '')
+                            if sni_val:
+                                params['sni'] = sni_val
+                            param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+                            
+                            working_link = f"{protocol}://{vless_parts.get('uuid', 'none')}@{ip}:{port}?{param_str}#{ip}"
+                            
+                            history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+                            history = []
+                            if os.path.exists(history_file):
+                                with open(history_file, 'r') as f:
+                                    history = json.load(f)
+                            if working_link not in history:
+                                history.insert(0, working_link)
+                                history = history[:20]  # Keep latest 20
+                                with open(history_file, 'w') as f:
+                                    json.dump(history, f)
+                        except Exception as e:
+                            add_log(scan_id, f"Error saving working config: {e}")
                         
                         res['location'] = enriched['location']
                         res['asn'] = enriched['asn']
