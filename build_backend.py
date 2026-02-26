@@ -61,4 +61,5 @@ PyInstaller.__main__.run([
     '--hidden-import=h11',
     '--hidden-import=sniffio',
     '--hidden-import=pydantic',
+    '--hidden-import=aiosqlite',
 ])
