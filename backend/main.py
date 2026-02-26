@@ -564,12 +564,75 @@ async def test_all_db_layers():
         results["layer3_fronted"] = {"status": "skipped", "time": 0}
 
     # Layer 4: VLESS Tunnel (If current active mode is tunnel, we know it's online)
+    start = time.time()
     if db.db_mode == "tunnel" and db.pool:
         results["layer4_tunnel"] = {"status": "online", "time": 0, "active": True}
     elif db.db_via_proxy:
          results["layer4_tunnel"] = {"status": "online", "time": 0, "active": True}
     else:
-        results["layer4_tunnel"] = {"status": "standby", "time": 0}
+        # Instead of standby, let's actively test if a proxy tunnel can be established
+        from core_manager import APP_DIR
+        import os
+        import json
+        config_to_test = None
+        
+        # 1. Try to find recent auto-pilot scan config
+        history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+        if os.path.exists(history_file):
+            try:
+                with open(history_file, 'r') as f:
+                    history = json.load(f)
+                    if history: config_to_test = history[0]
+            except: pass
+            
+        # 2. Try the built-in fallback
+        if not config_to_test:
+            fallback = os.environ.get('VITE_FALLBACK_CONFIG', '')
+            if fallback and fallback.startswith('vless://'):
+                config_to_test = fallback
+                
+        if config_to_test:
+            from db_proxy import generate_proxy_config
+            from core_manager import get_xray_path
+            from scanner import parse_vless
+            import tempfile
+            import subprocess
+            
+            proc = None
+            try:
+                vless_parts = parse_vless(config_to_test)
+                # Listen on a unique test port to avoid disrupting port 33060 if it's reserved
+                test_port = 33061 
+                xray_config = generate_proxy_config(vless_parts, test_port, db.DB_HOST, db.DB_PORT)
+                
+                tmp_path = os.path.join(APP_DIR, "test_proxy_config.json")
+                with open(tmp_path, "w") as f:
+                    json.dump(xray_config, f)
+                
+                creationflags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                proc = subprocess.Popen([get_xray_path(), "-c", tmp_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=creationflags)
+                
+                # Give Xray 1.5 seconds to open the port
+                await asyncio.sleep(1.5)
+                
+                # Test MySQL through the tunnel
+                async with asyncio.timeout(3.0):
+                    conn = await aiomysql.connect(host='127.0.0.1', port=test_port, user=db.DB_USER, password=db.DB_PASSWORD, db=db.DB_NAME)
+                    await conn.ping()
+                    conn.close()
+                    
+                results["layer4_tunnel"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+            except Exception as e:
+                # Tunnel failed to connect to DB
+                results["layer4_tunnel"] = {"status": "offline", "time": round((time.time() - start) * 1000), "reason": "Tunnel connection timed out"}
+            finally:
+                if proc:
+                    try:
+                        proc.kill()
+                        proc.wait(timeout=1)
+                    except: pass
+        else:
+            results["layer4_tunnel"] = {"status": "skipped", "time": 0, "reason": "No VLESS configs available"}
 
     # Layer 5: Local SQLite
     start = time.time()
