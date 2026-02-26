@@ -61,7 +61,11 @@ const DBStatusBar = () => {
                             }
                             if (res.status === 'offline') { icon = '❌'; color = 'text-red-500'; }
                             if (res.status === 'skipped') { icon = '⏭️'; color = 'text-gray-500'; }
-                            if (res.status === 'standby') { icon = '⏸️'; color = 'text-yellow-500'; }
+                            if (res.status === 'standby') {
+                                icon = '⏸️';
+                                color = 'text-yellow-500';
+                                layer.label = layer.label.replace('Tunnel', 'Tunnel (Ready)');
+                            }
 
                             return (
                                 <div key={layer.key} className="flex items-center justify-between text-xs group">
@@ -69,7 +73,7 @@ const DBStatusBar = () => {
                                         <span className="w-5 text-center text-sm">{icon}</span>
                                         <div className="flex flex-col">
                                             <span className={`font-mono font-bold ${color} ${glow}`}>{layer.label}</span>
-                                            <span className="text-[10px] text-gray-500 group-hover:text-gray-400 transition-colors">{layer.desc}</span>
+                                            <span className="text-[10px] text-gray-500 group-hover:text-gray-400 transition-colors">{res.reason || layer.desc}</span>
                                         </div>
                                     </div>
                                     <span className="text-gray-500 text-[10px] font-mono">{res.time > 0 ? `${res.time}ms` : ''}</span>

@@ -32,7 +32,7 @@ export default {
             if (path === "/api/health") {
                 // Quick health check — try a simple query
                 const conn = await getConn(env);
-                await conn.execute("SELECT 1");
+                await conn.query("SELECT 1");
                 conn.end();
                 return cors(json({ status: "ok", worker: "cf-ip-scanner-db-proxy", hyperdrive: true }));
             }
@@ -86,7 +86,10 @@ export default {
 };
 
 async function getConn(env) {
-    return mysql.createConnection(env.HYPERDRIVE.connectionString);
+    return mysql.createConnection({
+        uri: env.HYPERDRIVE.connectionString,
+        disableEval: true
+    });
 }
 
 function json(data, status = 200) {
@@ -106,7 +109,7 @@ function cors(response) {
 // --- Handlers ---
 
 async function handleSaveScan(conn, body) {
-    await conn.execute(
+    await conn.query(
         `INSERT INTO scan_results 
      (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, 
       ip_source, ping, jitter, download, upload, status, datacenter, asn, 
@@ -129,7 +132,7 @@ async function handleSaveScan(conn, body) {
 
 async function handleHistoricalIPs(conn, body) {
     const { isp, location, limit = 100 } = body;
-    const [rows] = await conn.execute(
+    const [rows] = await conn.query(
         `SELECT DISTINCT scanned_ip FROM scan_results 
      WHERE status = 'ok' AND ping < 300 AND download > 5
        AND (user_isp = ? OR user_location = ?)
@@ -142,7 +145,7 @@ async function handleHistoricalIPs(conn, body) {
 async function handleCommunityIPs(conn, body) {
     const { country, isp, limit = 50 } = body;
     const like = country ? `${country}%` : "%";
-    const [rows] = await conn.execute(
+    const [rows] = await conn.query(
         `SELECT DISTINCT scanned_ip FROM scan_results 
      WHERE status = 'ok' 
        AND (user_location LIKE ? OR user_isp = ?)
@@ -158,21 +161,21 @@ async function handleAnalytics(conn, body) {
 
     const [[datacenters], [ports], [networks], [totalRow], [goodRow], [timeline]] =
         await Promise.all([
-            conn.execute(
+            conn.query(
                 `SELECT datacenter, COUNT(*) as count, ROUND(AVG(ping)) as avg_ping 
          FROM scan_results WHERE status='ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider=?
          GROUP BY datacenter ORDER BY count DESC LIMIT 10`, [p]),
-            conn.execute(
+            conn.query(
                 `SELECT port, COUNT(*) as count FROM scan_results 
          WHERE status='ok' AND port != -1 AND port IS NOT NULL AND provider=?
          GROUP BY port ORDER BY count DESC LIMIT 5`, [p]),
-            conn.execute(
+            conn.query(
                 `SELECT network_type, COUNT(*) as count FROM scan_results 
          WHERE status='ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider=?
          GROUP BY network_type ORDER BY count DESC`, [p]),
-            conn.execute(`SELECT COUNT(*) as count FROM scan_results WHERE provider=?`, [p]),
-            conn.execute(`SELECT COUNT(*) as count FROM scan_results WHERE status='ok' AND provider=?`, [p]),
-            conn.execute(
+            conn.query(`SELECT COUNT(*) as count FROM scan_results WHERE provider=?`, [p]),
+            conn.query(`SELECT COUNT(*) as count FROM scan_results WHERE status='ok' AND provider=?`, [p]),
+            conn.query(
                 `SELECT DATE(timestamp) as date, COUNT(*) as total_scans,
                 SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as successful_scans
          FROM scan_results WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY) AND provider=?
@@ -195,7 +198,7 @@ async function handleAnalytics(conn, body) {
 
 async function handleGeoAnalytics(conn, body) {
     const p = body.provider || "cloudflare";
-    const [rows] = await conn.execute(
+    const [rows] = await conn.query(
         `SELECT 
        TRIM(SUBSTRING_INDEX(user_location, ' - ', 1)) as country,
        COUNT(*) as total_scans,
@@ -222,7 +225,7 @@ async function handleGeoAnalytics(conn, body) {
 }
 
 async function handleLogUsage(conn, body) {
-    await conn.execute(
+    await conn.query(
         `INSERT INTO app_usage_logs (timestamp, user_ip, user_location, user_isp, event_type, details)
      VALUES (NOW(), ?, ?, ?, ?, ?)`,
         [body.ip || "Unknown", body.location || "Unknown", body.isp || "Unknown",
@@ -232,7 +235,7 @@ async function handleLogUsage(conn, body) {
 }
 
 async function handleCountryDomains(conn, body) {
-    const [rows] = await conn.execute(
+    const [rows] = await conn.query(
         `SELECT domains, last_updated FROM country_domains WHERE country = ?`,
         [body.country || ""]
     );
@@ -247,7 +250,7 @@ async function handleCountryDomains(conn, body) {
 
 async function handleSaveCountryDomains(conn, body) {
     const domains = (body.domains || []).join(",");
-    await conn.execute(
+    await conn.query(
         `INSERT INTO country_domains (country, domains, last_updated)
      VALUES (?, ?, NOW())
      ON DUPLICATE KEY UPDATE domains=?, last_updated=NOW()`,

@@ -536,27 +536,30 @@ async def test_all_db_layers():
     # Layer 3: Worker Domain Fronting (using a common clean IP)
     start = time.time()
     if db.WORKER_URL:
-        try:
-            proxy = db.WorkerDBProxy(clean_ip="104.16.132.229")
-            # For testing domain fronting, directly use health endpoint but via _post style or custom if health fails
-            import httpx
-            from urllib.parse import urlparse
-            import ssl
-            url = f"https://104.16.132.229/api/health"
-            parsed = urlparse(db.WORKER_URL.rstrip('/'))
-            headers = {"Host": parsed.hostname, "X-API-Key": db.WORKER_API_KEY}
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-            transport = httpx.AsyncHTTPTransport(verify=ctx)
-            async with httpx.AsyncClient(timeout=4.0, transport=transport) as client:
-                r = await client.get(url, headers=headers)
-                if r.status_code == 200:
-                    results["layer3_fronted"] = {"status": "online", "time": round((time.time() - start) * 1000)}
-                else:
-                    results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
-        except Exception:
-            results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+        if "workers.dev" in db.WORKER_URL:
+            results["layer3_fronted"] = {"status": "skipped", "time": 0, "reason": "Requires custom domain"}
+        else:
+            try:
+                proxy = db.WorkerDBProxy(clean_ip="104.16.132.229")
+                # For testing domain fronting, directly use health endpoint but via _post style or custom if health fails
+                import httpx
+                from urllib.parse import urlparse
+                import ssl
+                url = f"https://104.16.132.229/api/health"
+                parsed = urlparse(db.WORKER_URL.rstrip('/'))
+                headers = {"Host": parsed.hostname, "X-API-Key": db.WORKER_API_KEY}
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                transport = httpx.AsyncHTTPTransport(verify=ctx)
+                async with httpx.AsyncClient(timeout=4.0, transport=transport) as client:
+                    r = await client.get(url, headers=headers)
+                    if r.status_code == 200:
+                        results["layer3_fronted"] = {"status": "online", "time": round((time.time() - start) * 1000)}
+                    else:
+                        results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
+            except Exception:
+                results["layer3_fronted"] = {"status": "offline", "time": round((time.time() - start) * 1000)}
     else:
         results["layer3_fronted"] = {"status": "skipped", "time": 0}
 
