@@ -13,7 +13,7 @@
 import mysql from "mysql2/promise";
 
 export default {
-    async fetch(request, env) {
+    async fetch(request, env, ctx) {
         // CORS preflight
         if (request.method === "OPTIONS") {
             return cors(new Response(null, { status: 204 }));
@@ -41,7 +41,31 @@ export default {
                 return cors(json({ error: "Method not allowed" }, 405));
             }
 
-            const body = await request.json();
+            const body = await request.json().catch(() => ({}));
+
+            if (path === "/api/analytics") {
+                const cacheUrl = new URL(request.url);
+                cacheUrl.searchParams.set("provider", body.provider || "cloudflare");
+                const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
+                const cache = caches.default;
+
+                let response = await cache.match(cacheKey);
+                if (response) {
+                    return cors(response);
+                }
+
+                const conn = await getConn(env);
+                try {
+                    const result = await handleAnalytics(conn, body);
+                    response = json(result);
+                    response.headers.set("Cache-Control", "public, s-maxage=900");
+                    ctx.waitUntil(cache.put(cacheKey, response.clone()));
+                    return cors(response);
+                } finally {
+                    conn.end();
+                }
+            }
+
             const conn = await getConn(env);
 
             try {
@@ -275,7 +299,7 @@ async function handleSmartRecommend(conn, body) {
 async function handleAnalytics(conn, body) {
     const p = body.provider || "cloudflare";
 
-    const [[datacenters], [ports], [networks], [totalRow], [goodRow], [timeline]] =
+    const [[datacenters], [ports], [networks], [totalRow], [goodRow], [timeline], [asns], [isps], [fails]] =
         await Promise.all([
             conn.query(
                 `SELECT datacenter, COUNT(*) as count, ROUND(AVG(ping)) as avg_ping 
@@ -296,12 +320,27 @@ async function handleAnalytics(conn, body) {
                 SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as successful_scans
          FROM scan_results WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY) AND provider=?
          GROUP BY DATE(timestamp) ORDER BY date ASC`, [p]),
+            conn.query(
+                `SELECT asn, COUNT(*) as count FROM scan_results 
+         WHERE status='ok' AND asn != 'Unknown' AND asn IS NOT NULL AND provider=?
+         GROUP BY asn ORDER BY count DESC LIMIT 5`, [p]),
+            conn.query(
+                `SELECT user_isp as isp, COUNT(*) as count FROM scan_results 
+         WHERE status='ok' AND user_isp != 'Unknown' AND user_isp IS NOT NULL AND provider=?
+         GROUP BY user_isp ORDER BY count DESC LIMIT 5`, [p]),
+            conn.query(
+                `SELECT status as fail_reason, COUNT(*) as count FROM scan_results 
+         WHERE status != 'ok' AND provider=?
+         GROUP BY status`, [p])
         ]);
 
     return {
         top_datacenters: datacenters,
         top_ports: ports,
         network_types: networks,
+        top_asns: asns,
+        top_isps: isps,
+        fail_reasons: fails,
         total_scans: totalRow[0]?.count || 0,
         total_good: goodRow[0]?.count || 0,
         timeline_data: timeline.map((r) => ({

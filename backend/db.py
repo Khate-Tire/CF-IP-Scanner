@@ -260,6 +260,19 @@ async def init_db():
                 try: await cur.execute("ALTER TABLE scan_results ADD COLUMN provider VARCHAR(50) DEFAULT 'cloudflare';")
                 except: pass
 
+                # Analytics Indexes
+                try: await cur.execute("CREATE INDEX idx_analytics_dc ON scan_results(provider, status, datacenter);")
+                except: pass
+                try: await cur.execute("CREATE INDEX idx_analytics_port ON scan_results(provider, status, port);")
+                except: pass
+                try: await cur.execute("CREATE INDEX idx_analytics_time ON scan_results(provider, timestamp, status);")
+                except: pass
+                try: await cur.execute("CREATE INDEX idx_analytics_asn ON scan_results(provider, status, asn);")
+                except: pass
+                try: await cur.execute("CREATE INDEX idx_analytics_isp ON scan_results(provider, status, user_isp);")
+                except: pass
+
+
                 await cur.execute("""
                     CREATE TABLE IF NOT EXISTS country_domains (
                         country VARCHAR(100) PRIMARY KEY,
@@ -681,8 +694,8 @@ async def get_analytics(provider='cloudflare'):
     cache_key = f"global_{provider}"
     if _analytics_cache is None: _analytics_cache = {}
     
-    # Return cache if less than 5 minutes old
-    if cache_key in _analytics_cache and (time.time() - _analytics_cache_time) < 300:
+    # Return cache if less than 15 minutes old
+    if cache_key in _analytics_cache and (time.time() - _analytics_cache_time) < 900:
         return _analytics_cache[cache_key]
 
     if not pool:
@@ -756,10 +769,42 @@ async def get_analytics(provider='cloudflare'):
                         "successful_scans": int(row["successful_scans"]) if row["successful_scans"] is not None else 0
                     })
 
+                # Top ASNs
+                await cur.execute("""
+                    SELECT asn, COUNT(*) as count 
+                    FROM scan_results 
+                    WHERE status = 'ok' AND asn != 'Unknown' AND asn IS NOT NULL AND provider = %s 
+                    GROUP BY asn 
+                    ORDER BY count DESC LIMIT 5
+                """, (provider,))
+                top_asns = await cur.fetchall()
+
+                # Top ISPs
+                await cur.execute("""
+                    SELECT user_isp as isp, COUNT(*) as count 
+                    FROM scan_results 
+                    WHERE status = 'ok' AND user_isp != 'Unknown' AND user_isp IS NOT NULL AND provider = %s 
+                    GROUP BY user_isp 
+                    ORDER BY count DESC LIMIT 5
+                """, (provider,))
+                top_isps = await cur.fetchall()
+
+                # Fail Reasons
+                await cur.execute("""
+                    SELECT status as fail_reason, COUNT(*) as count 
+                    FROM scan_results 
+                    WHERE status != 'ok' AND provider = %s 
+                    GROUP BY status
+                """, (provider,))
+                fail_reasons = await cur.fetchall()
+
                 _analytics_cache[cache_key] = {
                     "top_datacenters": top_datacenters,
                     "top_ports": top_ports,
                     "network_types": network_types,
+                    "top_asns": top_asns,
+                    "top_isps": top_isps,
+                    "fail_reasons": fail_reasons,
                     "total_scans": total_scans,
                     "total_good": total_good,
                     "timeline_data": timeline_data
