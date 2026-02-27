@@ -713,7 +713,8 @@ async def get_analytics(provider='cloudflare'):
                 await cur.execute("""
                     SELECT datacenter, COUNT(*) as count, ROUND(AVG(ping)) as avg_ping 
                     FROM scan_results 
-                    WHERE status = 'ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider = %s
+                    WHERE status = 'ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY datacenter 
                     ORDER BY count DESC LIMIT 10
                 """, (provider,))
@@ -723,7 +724,8 @@ async def get_analytics(provider='cloudflare'):
                 await cur.execute("""
                     SELECT port, COUNT(*) as count 
                     FROM scan_results 
-                    WHERE status = 'ok' AND port != -1 AND port IS NOT NULL AND provider = %s
+                    WHERE status = 'ok' AND port != -1 AND port IS NOT NULL AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY port 
                     ORDER BY count DESC LIMIT 5
                 """, (provider,))
@@ -733,7 +735,8 @@ async def get_analytics(provider='cloudflare'):
                 await cur.execute("""
                     SELECT network_type, COUNT(*) as count 
                     FROM scan_results 
-                    WHERE status = 'ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider = %s
+                    WHERE status = 'ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY network_type 
                     ORDER BY count DESC
                 """, (provider,))
@@ -774,6 +777,7 @@ async def get_analytics(provider='cloudflare'):
                     SELECT asn, COUNT(*) as count 
                     FROM scan_results 
                     WHERE status = 'ok' AND asn != 'Unknown' AND asn IS NOT NULL AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY asn 
                     ORDER BY count DESC LIMIT 5
                 """, (provider,))
@@ -784,6 +788,7 @@ async def get_analytics(provider='cloudflare'):
                     SELECT user_isp as isp, COUNT(*) as count 
                     FROM scan_results 
                     WHERE status = 'ok' AND user_isp != 'Unknown' AND user_isp IS NOT NULL AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY user_isp 
                     ORDER BY count DESC LIMIT 5
                 """, (provider,))
@@ -794,6 +799,7 @@ async def get_analytics(provider='cloudflare'):
                     SELECT status as fail_reason, COUNT(*) as count 
                     FROM scan_results 
                     WHERE status != 'ok' AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
                     GROUP BY status
                 """, (provider,))
                 fail_reasons = await cur.fetchall()
@@ -846,12 +852,14 @@ async def get_geo_analytics(provider='cloudflare'):
                         SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as good_ips,
                         ROUND(AVG(CASE WHEN ping > 0 THEN ping ELSE NULL END)) as avg_ping,
                         ROUND(AVG(CASE WHEN download > 0 THEN download ELSE NULL END), 1) as avg_download,
+                        SUM(CASE WHEN ping > 0 AND download > 0 AND jitter > 0 THEN jitter ELSE NULL END) / 
+                        NULLIF(SUM(CASE WHEN ping > 0 AND download > 0 AND jitter > 0 THEN 1 ELSE 0 END), 0) as avg_jitter,
                         ROUND(AVG(CASE WHEN upload > 0 THEN upload ELSE NULL END), 1) as avg_upload,
-                        ROUND(AVG(CASE WHEN jitter > 0 THEN jitter ELSE NULL END)) as avg_jitter,
                         COUNT(DISTINCT user_ip) as unique_users
                     FROM scan_results 
-                    WHERE user_location IS NOT NULL AND user_location != 'Unknown' AND provider = %s
-                    GROUP BY TRIM(SUBSTRING_INDEX(user_location, ' - ', 1))
+                    WHERE user_location IS NOT NULL AND user_location != 'Unknown' AND provider = %s 
+                    AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    GROUP BY country
                     HAVING total_scans > 0
                     ORDER BY total_scans DESC
                 """, (provider,))

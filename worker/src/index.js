@@ -12,6 +12,8 @@
 
 import mysql from "mysql2/promise";
 
+const analyticsCache = new Map();
+
 export default {
     async fetch(request, env, ctx) {
         // CORS preflight
@@ -44,23 +46,19 @@ export default {
             const body = await request.json().catch(() => ({}));
 
             if (path === "/api/analytics") {
-                const cacheUrl = new URL(request.url);
-                cacheUrl.searchParams.set("provider", body.provider || "cloudflare");
-                const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
-                const cache = caches.default;
+                const provider = body.provider || "cloudflare";
+                const now = Date.now();
+                const cached = analyticsCache.get(provider);
 
-                let response = await cache.match(cacheKey);
-                if (response) {
-                    return cors(response);
+                if (cached && now - cached.time < 15 * 60 * 1000) { // 15 mins
+                    return cors(json(cached.data));
                 }
 
                 const conn = await getConn(env);
                 try {
                     const result = await handleAnalytics(conn, body);
-                    response = json(result);
-                    response.headers.set("Cache-Control", "public, s-maxage=900");
-                    ctx.waitUntil(cache.put(cacheKey, response.clone()));
-                    return cors(response);
+                    analyticsCache.set(provider, { time: now, data: result });
+                    return cors(json(result));
                 } finally {
                     conn.end();
                 }
@@ -303,15 +301,15 @@ async function handleAnalytics(conn, body) {
         await Promise.all([
             conn.query(
                 `SELECT datacenter, COUNT(*) as count, ROUND(AVG(ping)) as avg_ping 
-         FROM scan_results WHERE status='ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider=?
+         FROM scan_results WHERE status='ok' AND datacenter != 'Unknown' AND datacenter IS NOT NULL AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY datacenter ORDER BY count DESC LIMIT 10`, [p]),
             conn.query(
                 `SELECT port, COUNT(*) as count FROM scan_results 
-         WHERE status='ok' AND port != -1 AND port IS NOT NULL AND provider=?
+         WHERE status='ok' AND port != -1 AND port IS NOT NULL AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY port ORDER BY count DESC LIMIT 5`, [p]),
             conn.query(
                 `SELECT network_type, COUNT(*) as count FROM scan_results 
-         WHERE status='ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider=?
+         WHERE status='ok' AND network_type != 'Unknown' AND network_type IS NOT NULL AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY network_type ORDER BY count DESC`, [p]),
             conn.query(`SELECT COUNT(*) as count FROM scan_results WHERE provider=?`, [p]),
             conn.query(`SELECT COUNT(*) as count FROM scan_results WHERE status='ok' AND provider=?`, [p]),
@@ -322,15 +320,15 @@ async function handleAnalytics(conn, body) {
          GROUP BY DATE(timestamp) ORDER BY date ASC`, [p]),
             conn.query(
                 `SELECT asn, COUNT(*) as count FROM scan_results 
-         WHERE status='ok' AND asn != 'Unknown' AND asn IS NOT NULL AND provider=?
+         WHERE status='ok' AND asn != 'Unknown' AND asn IS NOT NULL AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY asn ORDER BY count DESC LIMIT 5`, [p]),
             conn.query(
                 `SELECT user_isp as isp, COUNT(*) as count FROM scan_results 
-         WHERE status='ok' AND user_isp != 'Unknown' AND user_isp IS NOT NULL AND provider=?
+         WHERE status='ok' AND user_isp != 'Unknown' AND user_isp IS NOT NULL AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY user_isp ORDER BY count DESC LIMIT 5`, [p]),
             conn.query(
                 `SELECT status as fail_reason, COUNT(*) as count FROM scan_results 
-         WHERE status != 'ok' AND provider=?
+         WHERE status != 'ok' AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
          GROUP BY status`, [p])
         ]);
 
@@ -362,7 +360,7 @@ async function handleGeoAnalytics(conn, body) {
        ROUND(AVG(CASE WHEN download > 0 THEN download ELSE NULL END), 1) as avg_download,
        COUNT(DISTINCT user_ip) as unique_users
      FROM scan_results 
-     WHERE user_location IS NOT NULL AND user_location != 'Unknown' AND provider=?
+     WHERE user_location IS NOT NULL AND user_location != 'Unknown' AND provider=? AND timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
      GROUP BY country HAVING total_scans > 0
      ORDER BY total_scans DESC`,
         [p]

@@ -175,9 +175,18 @@ export default function AnalyticsDashboard() {
                     {top_isps && top_isps.length > 0 ? (
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={top_isps} margin={{ top: 10, right: 10, bottom: 35, left: 0 }}>
+                                <ComposedChart data={top_isps} margin={{ top: 10, right: 10, bottom: 45, left: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-                                    <XAxis dataKey="isp" stroke="#888" fontSize={10} angle={-35} textAnchor="end" tickMargin={5} height={40} />
+                                    <XAxis
+                                        dataKey="isp"
+                                        stroke="#888"
+                                        fontSize={10}
+                                        angle={-40}
+                                        textAnchor="end"
+                                        tickMargin={8}
+                                        height={55}
+                                        tickFormatter={(isp) => isp.length > 15 ? `${isp.substring(0, 15)}...` : isp}
+                                    />
                                     <YAxis stroke="#666" fontSize={12} />
                                     <Tooltip cursor={{ fill: 'rgba(188,19,254,0.05)' }} contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#BC13FE', color: '#fff', borderRadius: '8px' }} />
                                     <Area type="monotone" dataKey="count" fill="url(#purpleArea)" stroke="#BC13FE" strokeWidth={2} />
