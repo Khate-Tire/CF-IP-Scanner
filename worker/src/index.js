@@ -74,6 +74,12 @@ export default {
                     case "/api/smart-recommend":
                         result = await handleSmartRecommend(conn, body);
                         break;
+                    case "/api/log-bypass":
+                        result = await handleLogBypass(conn, body);
+                        break;
+                    case "/api/best-bypasses":
+                        result = await handleBestBypasses(conn, body);
+                        break;
                     default:
                         return cors(json({ error: "Not found" }, 404));
                 }
@@ -87,6 +93,49 @@ export default {
         }
     },
 };
+
+async function handleLogBypass(conn, body) {
+    if (!body || !body.isp) return { error: "Missing isp" };
+    const res = await conn.execute(
+        `INSERT INTO advanced_bypass_logs (timestamp, user_isp, bypass_mode, fragment_length, fragment_interval, test_sni, ping)
+         VALUES (NOW(), ?, ?, ?, ?, ?, ?)`,
+        [body.isp, body.mode, body.length || '', body.interval || '', body.sni || '', body.ping || 0]
+    );
+    return { status: "ok" };
+}
+
+async function handleBestBypasses(conn, body) {
+    if (!body || !body.isp || !body.mode) return { error: "Missing isp or mode" };
+    let rows;
+    if (body.mode === 'fragment') {
+        rows = await conn.execute(
+            `SELECT fragment_length as length, fragment_interval as \`interval\`, 
+                    COUNT(*) as success_count, ROUND(AVG(ping), 1) as avg_ping
+             FROM advanced_bypass_logs 
+             WHERE bypass_mode = 'fragment' AND user_isp = ?
+               AND fragment_length IS NOT NULL AND fragment_interval IS NOT NULL
+               AND fragment_length != 'Unknown' AND fragment_interval != 'Unknown'
+             GROUP BY fragment_length, fragment_interval
+             ORDER BY success_count DESC, avg_ping ASC
+             LIMIT ?`,
+            [body.isp, body.limit || 5]
+        );
+    } else if (body.mode === 'sni') {
+        rows = await conn.execute(
+            `SELECT test_sni as sni, COUNT(*) as success_count, ROUND(AVG(ping), 1) as avg_ping
+             FROM advanced_bypass_logs
+             WHERE bypass_mode = 'sni' AND user_isp = ?
+               AND test_sni IS NOT NULL AND test_sni != 'Unknown'
+             GROUP BY test_sni
+             ORDER BY success_count DESC, avg_ping ASC
+             LIMIT ?`,
+            [body.isp, body.limit || 5]
+        );
+    } else {
+        return { error: "Invalid mode" };
+    }
+    return { results: rows.rows };
+}
 
 async function getConn(env) {
     return mysql.createConnection({

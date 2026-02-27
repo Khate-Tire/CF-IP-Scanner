@@ -1279,6 +1279,7 @@ class ScanAdvancedRequest(BaseModel):
     vless_config: str
     target_ip: str
     mode: str # 'fragment', 'sni', 'dns_tunnel'
+    rare_mode: bool = False
     fragment_lengths: Optional[List[str]] = []
     fragment_intervals: Optional[List[str]] = []
     test_snis: Optional[List[str]] = []
@@ -1305,9 +1306,25 @@ def start_advanced_scan(req: ScanAdvancedRequest, background_tasks: BackgroundTa
     
     items_to_test = []
     if req.mode == 'fragment':
-        for flen in req.fragment_lengths:
-            for fint in req.fragment_intervals:
-                items_to_test.append({"fragment": {"length": flen, "interval": fint}, "test_sni": None, "id": f"Frag: {flen} / {fint}"})
+        if getattr(req, 'rare_mode', False):
+            # Generate 15 highly randomized, asymmetric boundaries to evade heuristic blocks
+            for _ in range(15):
+                len_start = random.randint(3, 40)
+                len_end = len_start + random.randint(10, 80)
+                int_start = random.randint(5, 70)
+                int_end = int_start + random.randint(20, 150)
+                
+                flen = f"{len_start}-{len_end}"
+                fint = f"{int_start}-{int_end}"
+                items_to_test.append({
+                    "fragment": {"length": flen, "interval": fint}, 
+                    "test_sni": None, 
+                    "id": f"Gen: {flen} / {fint}"
+                })
+        else:
+            for flen in req.fragment_lengths:
+                for fint in req.fragment_intervals:
+                    items_to_test.append({"fragment": {"length": flen, "interval": fint}, "test_sni": None, "id": f"Frag: {flen} / {fint}"})
     elif req.mode == 'sni':
         for sni in req.test_snis:
             sni = sni.strip()
@@ -1348,11 +1365,15 @@ def start_advanced_scan(req: ScanAdvancedRequest, background_tasks: BackgroundTa
     return {'scan_id': scan_id}
 
 async def create_advanced_scan_wrapper(scan_id, target_ip, vless_parts, req, items_to_test):
+    from main import get_my_ip
+    user_info = await get_my_ip()
+    user_isp = user_info.get('isp', '')
+    
     await create_scan_task(scan_id, req.dict(), active_scans[scan_id]['logs'], active_scans[scan_id]['stats'])
     asyncio.create_task(sync_queue_db(scan_id))
-    await run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test)
+    await run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test, user_isp)
 
-async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test):
+async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_test, user_isp):
     from scanner import scan_ip
     thresholds = {
         'max_ping': req.max_ping,
@@ -1404,6 +1425,23 @@ async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_t
             active_scans[scan_id]['found_good'] += 1
             add_log(scan_id, f"✅ SUCCESS => {item['id']} | Ping: {res['ping']}ms")
             
+            # Log successful bypass profile to crowdsourced DB
+            if user_isp:
+                try:
+                    from db import log_bypass_result
+                    frag = item.get('fragment') or {}
+                    sni = item.get('test_sni') or ''
+                    asyncio.create_task(log_bypass_result(
+                        isp=user_isp,
+                        mode=req.mode,
+                        length=frag.get('length', ''),
+                        interval=frag.get('interval', ''),
+                        sni=sni,
+                        ping=res['ping']
+                    ))
+                except Exception as e:
+                    print(f"Failed to log bypass: {e}")
+            
         res['tested_config'] = item['id']
         results[scan_id].append(res)
         active_scans[scan_id]['completed'] += 1
@@ -1425,6 +1463,36 @@ async def run_advanced_scan_job(scan_id, target_ip, vless_parts, req, items_to_t
     except Exception as e:
         add_log(scan_id, f"CRITICAL ERROR: {str(e)}")
         active_scans[scan_id]['status'] = 'failed'
+
+from pydantic import BaseModel
+class LogBypassRequest(BaseModel):
+    isp: str
+    mode: str
+    length: str = ''
+    interval: str = ''
+    sni: str = ''
+    ping: float
+
+@app.post('/api/log-bypass')
+async def handle_log_bypass(payload: LogBypassRequest):
+    try:
+        from db import log_bypass_result
+        await log_bypass_result(
+            payload.isp, payload.mode, payload.length, 
+            payload.interval, payload.sni, payload.ping
+        )
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get('/api/best-bypasses')
+async def handle_best_bypasses(isp: str, mode: str, limit: int = 5):
+    try:
+        from db import get_best_community_bypasses
+        results = await get_best_community_bypasses(isp, mode, limit)
+        return {"results": results}
+    except Exception as e:
+        return {"results": [], "error": str(e)}
 
 @app.get('/analytics')
 async def get_analytics_endpoint(provider: str = 'cloudflare'):

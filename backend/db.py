@@ -279,6 +279,19 @@ async def init_db():
                     );
                 """)
                 
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS advanced_bypass_logs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        timestamp DATETIME,
+                        user_isp VARCHAR(255),
+                        bypass_mode VARCHAR(50),
+                        fragment_length VARCHAR(50),
+                        fragment_interval VARCHAR(50),
+                        test_sni VARCHAR(255),
+                        ping FLOAT
+                    );
+                """)
+                
                 # Smart Recommendation Engine: Performance Indexes
                 index_stmts = [
                     "CREATE INDEX idx_scan_isp_status ON scan_results(user_isp, status)",
@@ -609,12 +622,59 @@ async def get_smart_recommendations(isp: str, location: str, country: str, limit
     
     return []
 
+async def log_bypass_result(isp: str, mode: str, length: str, interval: str, sni: str, ping: float):
+    if not pool:
+        return
+    try:
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("""
+                    INSERT INTO advanced_bypass_logs (timestamp, user_isp, bypass_mode, fragment_length, fragment_interval, test_sni, ping)
+                    VALUES (NOW(), %s, %s, %s, %s, %s, %s)
+                """, (isp, mode, length, interval, sni, ping))
+    except Exception as e:
+        print(f"Log Bypass Error: {e}")
+
+async def get_best_community_bypasses(isp: str, mode: str, limit: int = 5):
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    if mode == 'fragment':
+                        query = """
+                            SELECT fragment_length as length, fragment_interval as `interval`, 
+                                   COUNT(*) as success_count, ROUND(AVG(ping), 1) as avg_ping
+                            FROM advanced_bypass_logs 
+                            WHERE bypass_mode = 'fragment' AND user_isp = %s
+                              AND fragment_length IS NOT NULL AND fragment_interval IS NOT NULL
+                              AND fragment_length != 'Unknown' AND fragment_interval != 'Unknown'
+                            GROUP BY fragment_length, fragment_interval
+                            ORDER BY success_count DESC, avg_ping ASC
+                            LIMIT %s
+                        """
+                        await cur.execute(query, (isp, limit))
+                        return list(await cur.fetchall())
+                    elif mode == 'sni':
+                        query = """
+                            SELECT test_sni as sni, COUNT(*) as success_count, ROUND(AVG(ping), 1) as avg_ping
+                            FROM advanced_bypass_logs
+                            WHERE bypass_mode = 'sni' AND user_isp = %s
+                              AND test_sni IS NOT NULL AND test_sni != 'Unknown'
+                            GROUP BY test_sni
+                            ORDER BY success_count DESC, avg_ping ASC
+                            LIMIT %s
+                        """
+                        await cur.execute(query, (isp, limit))
+                        return list(await cur.fetchall())
+        except Exception as e:
+            print(f"Get Best Bypasses Error: {e}")
+            
     if worker_proxy:
         try:
-            return await worker_proxy.get_community_good_ips(country, isp, limit)
-        except:
-            pass
-
+            r = await worker_proxy._post("/api/best-bypasses", {"isp": isp, "mode": mode, "limit": limit})
+            return r.get("results", [])
+        except Exception as e:
+            print(f"Worker Best Bypasses Error: {e}")
     return []
 async def get_analytics(provider='cloudflare'):
     global _analytics_cache, _analytics_cache_time

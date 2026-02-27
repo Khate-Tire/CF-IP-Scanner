@@ -52,6 +52,14 @@ export const getSmartRecommendations = async (isp = '', location = '', country =
     return { results: [], total: 0 };
 };
 
+export const getBestCommunityBypasses = async (isp, mode = 'fragment', limit = 5) => {
+    try {
+        const response = await fetch(`${API_URL}/api/best-bypasses?isp=${encodeURIComponent(isp)}&mode=${mode}&limit=${limit}`);
+        if (response.ok) return response.json();
+    } catch (e) { console.error(e); }
+    return { results: [] };
+};
+
 export const saveSettings = async (settings) => {
     try {
         await fetch(`${API_URL}/settings`, {
