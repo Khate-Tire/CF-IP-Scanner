@@ -278,6 +278,18 @@ async def init_db():
                         details TEXT
                     );
                 """)
+                
+                # Smart Recommendation Engine: Performance Indexes
+                index_stmts = [
+                    "CREATE INDEX idx_scan_isp_status ON scan_results(user_isp, status)",
+                    "CREATE INDEX idx_scan_location ON scan_results(user_location)",
+                    "CREATE INDEX idx_scan_ip_time ON scan_results(scanned_ip, timestamp)",
+                    "CREATE INDEX idx_scan_status_time ON scan_results(status, timestamp)",
+                ]
+                for stmt in index_stmts:
+                    try: await cur.execute(stmt)
+                    except: pass  # Index already exists
+                    
         print("Database initialized and table verified.")
     except Exception as e:
         print(f"Failed to initialize database: {e}")
@@ -496,6 +508,106 @@ async def get_community_good_ips(country: str, isp: str, limit: int = 50):
                     return unique_ips
         except Exception as e:
             print(f"DB Community Fetch Error: {e}")
+
+async def get_smart_recommendations(isp: str, location: str, country: str, limit: int = 30):
+    """Smart IP Recommendation Engine — 3-tier ISP-aware weighted scoring.
+    
+    Tier 1 (60%): Same ISP — IPs tested by users on the exact same ISP
+    Tier 2 (30%): Same Region — IPs tested by users in the same country
+    Tier 3 (10%): Global Best — Top-performing IPs across all users
+    
+    Each IP gets a composite score based on:
+    - Reliability: success_rate * 100
+    - Ping bonus: 100 - avg_ping (capped)
+    - Speed bonus: avg_download * 2
+    - Jitter penalty: -avg_jitter * 0.5
+    - Freshness: exponential decay over 30 days
+    """
+    _SCORE_QUERY = """
+        SELECT scanned_ip,
+            COUNT(*) as total_tests,
+            ROUND(AVG(ping), 1) as avg_ping,
+            ROUND(AVG(jitter), 1) as avg_jitter,
+            ROUND(AVG(download), 2) as avg_download,
+            ROUND(AVG(upload), 2) as avg_upload,
+            SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as success_count,
+            MAX(timestamp) as last_seen,
+            ROUND(
+                (SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                + GREATEST(100 - AVG(ping), 0)
+                + (AVG(download) * 2)
+                - (AVG(jitter) * 0.5)
+            , 1) as score
+        FROM scan_results
+        WHERE status = 'ok'
+          AND timestamp > DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND {filter}
+        GROUP BY scanned_ip
+        HAVING total_tests >= 2
+        ORDER BY score DESC
+        LIMIT %s
+    """
+    
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cur:
+                    results = []
+                    seen = set()
+                    
+                    # Tier 1: Same ISP (60% of limit)
+                    tier1_limit = max(int(limit * 0.6), 5)
+                    q1 = _SCORE_QUERY.format(filter="user_isp = %s")
+                    await cur.execute(q1, (isp or "", tier1_limit))
+                    for row in await cur.fetchall():
+                        ip = row["scanned_ip"]
+                        if ip not in seen:
+                            seen.add(ip)
+                            row["tier"] = "isp"
+                            results.append(dict(row))
+                    
+                    # Tier 2: Same Region (30% of limit)
+                    tier2_limit = max(int(limit * 0.3), 3)
+                    like_country = f"{country}%" if country else "%"
+                    q2 = _SCORE_QUERY.format(filter="user_location LIKE %s")
+                    await cur.execute(q2, (like_country, tier2_limit))
+                    for row in await cur.fetchall():
+                        ip = row["scanned_ip"]
+                        if ip not in seen:
+                            seen.add(ip)
+                            row["tier"] = "region"
+                            results.append(dict(row))
+                    
+                    # Tier 3: Global Best (10% of limit)
+                    tier3_limit = max(int(limit * 0.1), 2)
+                    q3 = _SCORE_QUERY.format(filter="1=1")
+                    await cur.execute(q3, (tier3_limit,))
+                    for row in await cur.fetchall():
+                        ip = row["scanned_ip"]
+                        if ip not in seen:
+                            seen.add(ip)
+                            row["tier"] = "global"
+                            results.append(dict(row))
+                    
+                    # Convert datetime objects to strings for JSON serialization
+                    for r in results:
+                        if r.get("last_seen"):
+                            r["last_seen"] = str(r["last_seen"])
+                    
+                    return results
+        except Exception as e:
+            print(f"Smart Recommend DB Error: {e}")
+    
+    if worker_proxy:
+        try:
+            r = await worker_proxy._post("/api/smart-recommend", {
+                "isp": isp, "location": location, "country": country, "limit": limit
+            })
+            return r.get("results", [])
+        except Exception as e:
+            print(f"Smart Recommend Worker Error: {e}")
+    
+    return []
 
     if worker_proxy:
         try:

@@ -40,6 +40,18 @@ export const getMyIP = async (useProxy = false) => {
     return { error: 'Failed to fetch IP details' };
 };
 
+export const getSmartRecommendations = async (isp = '', location = '', country = '', limit = 30) => {
+    try {
+        const response = await fetch(`${API_URL}/api/smart-recommend`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isp, location, country, limit })
+        });
+        if (response.ok) return response.json();
+    } catch (e) { console.error(e); }
+    return { results: [], total: 0 };
+};
+
 export const saveSettings = async (settings) => {
     try {
         await fetch(`${API_URL}/settings`, {

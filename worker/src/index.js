@@ -71,6 +71,9 @@ export default {
                     case "/api/save-country-domains":
                         result = await handleSaveCountryDomains(conn, body);
                         break;
+                    case "/api/smart-recommend":
+                        result = await handleSmartRecommend(conn, body);
+                        break;
                     default:
                         return cors(json({ error: "Not found" }, 404));
                 }
@@ -154,6 +157,70 @@ async function handleCommunityIPs(conn, body) {
         [like, isp || "", limit]
     );
     return { ips: rows.map((r) => r.scanned_ip) };
+}
+
+async function handleSmartRecommend(conn, body) {
+    const { isp = "", location = "", country = "", limit = 30 } = body;
+    const scoreQuery = (filter) => `
+        SELECT scanned_ip,
+            COUNT(*) as total_tests,
+            ROUND(AVG(ping), 1) as avg_ping,
+            ROUND(AVG(jitter), 1) as avg_jitter,
+            ROUND(AVG(download), 2) as avg_download,
+            ROUND(AVG(upload), 2) as avg_upload,
+            SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as success_count,
+            MAX(timestamp) as last_seen,
+            ROUND(
+                (SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                + GREATEST(100 - AVG(ping), 0)
+                + (AVG(download) * 2)
+                - (AVG(jitter) * 0.5)
+            , 1) as score
+        FROM scan_results
+        WHERE status = 'ok'
+          AND timestamp > DATE_SUB(NOW(), INTERVAL 30 DAY)
+          AND ${filter}
+        GROUP BY scanned_ip
+        HAVING total_tests >= 2
+        ORDER BY score DESC
+        LIMIT ?
+    `;
+
+    const results = [];
+    const seen = new Set();
+
+    // Tier 1: Same ISP (60%)
+    const t1 = Math.max(Math.floor(limit * 0.6), 5);
+    const [rows1] = await conn.query(scoreQuery("user_isp = ?"), [isp, t1]);
+    for (const r of rows1) {
+        if (!seen.has(r.scanned_ip)) {
+            seen.add(r.scanned_ip);
+            results.push({ ...r, tier: "isp", last_seen: String(r.last_seen) });
+        }
+    }
+
+    // Tier 2: Same Region (30%)
+    const t2 = Math.max(Math.floor(limit * 0.3), 3);
+    const like = country ? `${country}%` : "%";
+    const [rows2] = await conn.query(scoreQuery("user_location LIKE ?"), [like, t2]);
+    for (const r of rows2) {
+        if (!seen.has(r.scanned_ip)) {
+            seen.add(r.scanned_ip);
+            results.push({ ...r, tier: "region", last_seen: String(r.last_seen) });
+        }
+    }
+
+    // Tier 3: Global Best (10%)
+    const t3 = Math.max(Math.floor(limit * 0.1), 2);
+    const [rows3] = await conn.query(scoreQuery("1=1"), [t3]);
+    for (const r of rows3) {
+        if (!seen.has(r.scanned_ip)) {
+            seen.add(r.scanned_ip);
+            results.push({ ...r, tier: "global", last_seen: String(r.last_seen) });
+        }
+    }
+
+    return { results, total: results.length };
 }
 
 async function handleAnalytics(conn, body) {

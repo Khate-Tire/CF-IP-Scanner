@@ -23,29 +23,56 @@ COMMUNITY_SCRAPE_URLS = [
 ]
 
 def update_cf_ranges():
+    """Fetch Cloudflare IP ranges. Priority: BGP.he.net > Cloudflare Official > Hardcoded fallback."""
     global CLOUDFLARE_RANGES
     new_ranges = []
     
-    urls = [
-        "https://www.cloudflare.com/ips-v4",
-        "https://www.cloudflare.com/ips-v6"
-    ]
+    # Priority 1: BGP.he.net AS13335 (most complete — real BGP routing table)
+    try:
+        print("Fetching CF ranges from BGP.he.net AS13335 (primary)...")
+        req = urllib.request.Request(
+            "https://bgp.he.net/AS13335#_prefixes",
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                html = resp.read().decode('utf-8', errors='ignore')
+                # Extract all IPv4 CIDR prefixes from the BGP page links
+                cidrs = re.findall(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})', html)
+                # Validate each CIDR
+                for cidr in cidrs:
+                    try:
+                        ipaddress.ip_network(cidr, strict=False)
+                        new_ranges.append(cidr)
+                    except ValueError:
+                        pass
+                if new_ranges:
+                    new_ranges = list(set(new_ranges))
+                    print(f"[BGP.he.net] Got {len(new_ranges)} IPv4 prefixes from AS13335")
+    except Exception as e:
+        print(f"BGP.he.net fetch failed: {e}")
     
-    for url in urls:
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                if resp.status == 200:
-                    text = resp.read().decode('utf-8')
-                    lines = text.strip().split('\n')
-                    valid = [line.strip() for line in lines if line.strip()]
-                    new_ranges.extend(valid)
-        except Exception as e:
-            print(f"Failed to update CF ranges from {url}: {e}")
-            
+    # Priority 2: Cloudflare Official API (aggregated, fewer ranges)
+    if len(new_ranges) < 10:
+        print("Falling back to Cloudflare official IP list...")
+        for url in ["https://www.cloudflare.com/ips-v4", "https://www.cloudflare.com/ips-v6"]:
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if resp.status == 200:
+                        text = resp.read().decode('utf-8')
+                        lines = text.strip().split('\n')
+                        valid = [line.strip() for line in lines if line.strip()]
+                        new_ranges.extend(valid)
+            except Exception as e:
+                print(f"Failed to fetch from {url}: {e}")
+    
+    # Priority 3: Hardcoded fallback (last resort)
     if new_ranges:
-        CLOUDFLARE_RANGES = list(set(new_ranges)) # Unique
-        print(f"Updated CF Ranges: {len(CLOUDFLARE_RANGES)} subnets")
+        CLOUDFLARE_RANGES = list(set(new_ranges))
+        print(f"Updated CF Ranges: {len(CLOUDFLARE_RANGES)} total subnets")
+    else:
+        print("All fetch sources failed. Using hardcoded fallback ranges.")
 
 def D(x):
     y = 0
@@ -183,6 +210,28 @@ class SmartIPGenerator:
         self.priority_subnets = set()
         self.tried_count = 0
         self.ranges = custom_ranges if custom_ranges else CLOUDFLARE_RANGES
+    
+    def preseed_from_db(self, recommended_ips):
+        """Pre-seed the scanner with historically successful subnets from the DB.
+        This biases early scans toward IP neighborhoods that have proven reliable."""
+        seeded = 0
+        for entry in recommended_ips:
+            ip = entry if isinstance(entry, str) else entry.get("scanned_ip", "")
+            if not ip:
+                continue
+            try:
+                if "." in ip:
+                    network = ipaddress.ip_network(f"{ip}/24", strict=False)
+                    self.priority_subnets.add(str(network))
+                    seeded += 1
+                elif ":" in ip:
+                    network = ipaddress.ip_network(f"{ip}/120", strict=False)
+                    self.priority_subnets.add(str(network))
+                    seeded += 1
+            except:
+                pass
+        if seeded:
+            print(f"[SmartIP] Pre-seeded {seeded} subnets from DB recommendations")
         
     def get_next_ip(self, ip_version="all"):
         self.tried_count += 1

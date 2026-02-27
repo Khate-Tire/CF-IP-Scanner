@@ -673,6 +673,28 @@ async def proxy_db(req: ProxyDbRequest):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+class SmartRecommendRequest(BaseModel):
+    isp: Optional[str] = ""
+    location: Optional[str] = ""
+    country: Optional[str] = ""
+    limit: int = 30
+
+@app.post('/api/smart-recommend')
+async def smart_recommend(req: SmartRecommendRequest):
+    """Smart IP Recommendation Engine — returns scored, tiered IP recommendations."""
+    try:
+        import db
+        results = await db.get_smart_recommendations(
+            isp=req.isp or "",
+            location=req.location or "",
+            country=req.country or "",
+            limit=req.limit
+        )
+        return {"results": results, "total": len(results)}
+    except Exception as e:
+        dlog(f"Smart Recommend Error: {e}")
+        return {"results": [], "total": 0, "error": str(e)}
+
 @app.get('/my-ip')
 async def get_my_ip(proxy: str = '0'):
     use_proxy = proxy == '1'
@@ -986,6 +1008,24 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
         else:
             target_count = 100000
             mode_name = 'Smart Discovery'
+            
+            # Pre-seed the scanner with historically successful subnets from DB
+            try:
+                from db import get_smart_recommendations
+                from cf_ips import smart_generator
+                loc_str = user_info.get('location', 'Unknown')
+                country = loc_str.split('-')[0].strip() if '-' in loc_str else ''
+                recs = await get_smart_recommendations(
+                    isp=user_info.get('isp', ''),
+                    location=loc_str,
+                    country=country,
+                    limit=30
+                )
+                if recs:
+                    smart_generator.preseed_from_db(recs)
+                    add_log(scan_id, f'🧠 Pre-seeded {len(recs)} proven subnets from community DB for your ISP')
+            except Exception as e:
+                dlog(f"Pre-seed failed (non-fatal): {e}")
         
         add_log(scan_id, f'Started scan. Goal: Find {req.stop_after} Good IPs. Threads: {req.concurrency}. Mode: {mode_name}')
         
