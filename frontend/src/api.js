@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-export const API_URL = "http://127.0.0.1:8055";
+export const API_URL = "http://127.0.0.1:8000";
 
 export const scanIPs = async (config) => {
     let cid = localStorage.getItem('app_client_id') || '';

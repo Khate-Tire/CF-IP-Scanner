@@ -125,7 +125,7 @@ export default function ResultsTable({ results, vlessConfig }) {
             const res = await getExportLink(vlessConfig, ips);
 
             if (res && res.link_id) {
-                const subUrl = `http://127.0.0.1:8055/sub/${res.link_id}`;
+                const subUrl = `http://127.0.0.1:8000/sub/${res.link_id}`;
                 let intentUrl = "";
                 if (appScheme === 'hidify') {
                     intentUrl = `hidify://import/${subUrl}`;
