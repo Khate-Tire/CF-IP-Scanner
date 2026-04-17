@@ -14,6 +14,7 @@ export default function FreeVpnDashboard({ onStartContribution }) {
     const [authCode, setAuthCode] = useState(null);
     const [isPolling, setIsPolling] = useState(false);
     const [telegramInfo, setTelegramInfo] = useState(null);
+    const [joinedChannel, setJoinedChannel] = useState(false);
 
     // Gamification State
     const [scansCount, setScansCount] = useState(0);
@@ -254,6 +255,24 @@ export default function FreeVpnDashboard({ onStartContribution }) {
                                     <RefreshCw className="w-3 h-3 animate-spin text-[#2AABEE]" /> Waiting for you...
                                 </div>
                             </div>
+                        ) : !joinedChannel ? (
+                            <div className="flex flex-col items-end gap-2">
+                                <a 
+                                    href="https://t.me/ANTIGRAVITY_IP"
+                                    target="_blank" rel="noreferrer"
+                                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#2AABEE] hover:bg-[#229ED9] text-white font-bold transition-all shadow-[0_0_15px_rgba(42,171,238,0.3)] text-sm"
+                                >
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" /></svg>
+                                    {t('freevpn.joinChannel', 'Join @ANTIGRAVITY_IP')}
+                                </a>
+                                <button
+                                    onClick={() => setJoinedChannel(true)}
+                                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-green-400 transition-colors"
+                                >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    {t('freevpn.iJoined', "I've joined the channel")}
+                                </button>
+                            </div>
                         ) : (
                             <button
                                 onClick={startTelegramLogin}
@@ -295,9 +314,39 @@ export default function FreeVpnDashboard({ onStartContribution }) {
                 <div className="glass-panel p-10 text-center flex flex-col items-center justify-center min-h-[300px]">
                     <Lock className="w-16 h-16 text-gray-600 mb-4" />
                     <h3 className="text-xl font-bold text-gray-300 mb-2">{t('freevpn.authRequired', 'Authentication Required')}</h3>
-                    <p className="text-gray-500 max-w-md mb-6">
-                        {t('freevpn.authDesc', 'You must link your Telegram account and join our community channels to access the free VPN ecosystem.')}
+                    <p className="text-gray-500 max-w-md mb-4">
+                        {t('freevpn.authDesc', 'You must join our Telegram community and authenticate via the bot to access the free VPN ecosystem.')}
                     </p>
+
+                    {/* Step 1: Join Channel (mandatory) */}
+                    <div className="max-w-md w-full bg-[#2AABEE]/5 border border-[#2AABEE]/20 rounded-xl p-5 mb-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#2AABEE]/20 flex items-center justify-center text-[#2AABEE] font-black text-sm">1</div>
+                            <div className="text-left flex-1">
+                                <h4 className="text-sm font-bold text-[#2AABEE] mb-1">{t('freevpn.joinChannelTitle', 'Join Our Telegram Community')}</h4>
+                                <p className="text-xs text-gray-400 mb-3">{t('freevpn.joinChannelDesc', 'Membership is required. The bot will verify your subscription before authenticating.')}</p>
+                                <a 
+                                    href="https://t.me/ANTIGRAVITY_IP"
+                                    target="_blank" rel="noreferrer"
+                                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#2AABEE] hover:bg-[#229ED9] text-white text-sm font-bold transition-all shadow-[0_0_15px_rgba(42,171,238,0.3)] hover:shadow-[0_0_20px_rgba(42,171,238,0.5)]"
+                                >
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" /></svg>
+                                    {t('freevpn.joinChannel', 'Join @ANTIGRAVITY_IP')}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Step 2: Login with Bot */}
+                    <div className="max-w-md w-full bg-white/[0.02] border border-white/[0.06] rounded-xl p-5 mb-6">
+                        <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-gray-400 font-black text-sm">2</div>
+                            <div className="text-left flex-1">
+                                <h4 className="text-sm font-bold text-gray-300 mb-1">{t('freevpn.loginStepTitle', 'Authenticate via Bot')}</h4>
+                                <p className="text-xs text-gray-500">{t('freevpn.loginStepDesc', 'After joining, click "Login with Telegram" above to get a 6-digit code and send it to the bot.')}</p>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Show contribution progress even before login */}
                     {(scansCount > 0 || recentScans > 0) && (
