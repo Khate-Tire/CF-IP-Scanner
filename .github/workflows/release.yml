@@ -24,6 +24,10 @@ jobs:
         working-directory: ./worker
         run: npm install
 
+      - name: Inject Hyperdrive ID
+        working-directory: ./worker
+        run: sed -i 's/YOUR_HYPERDRIVE_ID/${{ secrets.HYPERDRIVE_ID }}/' wrangler.toml
+
       - name: Deploy Cloudflare Worker
         working-directory: ./worker
         run: npx wrangler deploy
@@ -60,12 +64,16 @@ jobs:
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_PORT=${{ secrets.DB_PORT }}
+          ADMIN_API_URL=${{ secrets.ADMIN_API_URL }}
+          WORKER_URL=${{ secrets.WORKER_URL }}
+          WORKER_API_KEY=${{ secrets.WORKER_API_KEY }}
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
           "@ | Out-File -FilePath backend/.env -Encoding utf8
           @"
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
+          VITE_ADMIN_PANEL_URL=${{ secrets.ADMIN_API_URL }}
           "@ | Out-File -FilePath frontend/.env -Encoding utf8
         shell: pwsh
           
@@ -133,12 +141,16 @@ jobs:
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           DB_NAME=${{ secrets.DB_NAME }}
           DB_PORT=${{ secrets.DB_PORT }}
+          ADMIN_API_URL=${{ secrets.ADMIN_API_URL }}
+          WORKER_URL=${{ secrets.WORKER_URL }}
+          WORKER_API_KEY=${{ secrets.WORKER_API_KEY }}
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
           EOF
           cat > frontend/.env << EOF
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
+          VITE_ADMIN_PANEL_URL=${{ secrets.ADMIN_API_URL }}
           EOF
 
       - name: Build Python Backend (macOS binary)

@@ -14,6 +14,8 @@
             "warp": "WARP Endpoints",
             "dns": "Tunnel & DNS",
             "freevpn": "Free VPN",
+            "data": "Data Sync",
+            "freedom": "Play Freedom",
             "about": "About App"
         }
     },

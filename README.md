@@ -30,7 +30,14 @@
 - 📡 تست پینگ، جیتر و سرعت دانلود/آپلود واقعی
 - 🧩 آنالیز فرگمنت DPI و SNI فرانتینگ
 - 📡 اسکنر نقاط WARP (وایرگارد/UDP)
-- 🌍 نقشه حرارتی جهانی با آمار لحظه‌ای
+- � موتور Play Freedom — کشف خودکار کانفیگ‌های VPN بدون دخالت کاربر
+- 📱 داشبورد VPN رایگان با احراز هویت تلگرام
+- 🧠 پیشنهادات هوشمند تنظیمات اسکن بر اساس پروفایل شبکه شما
+- 💾 پشتیبان‌گیری و بازیابی کامل با رمزنگاری AES-256 (فرمت .agdb)
+- 📴 حالت آفلاین — آنالیتیکس، جغرافیا و کانفیگ‌ها بدون اینترنت
+- 🔗 پایگاه داده ۵ لایه‌ای مقاوم (MySQL → Worker → SQLite)
+- 🔄 تست مجدد آی‌پی‌های ناموفق با یک کلیک
+- �🌍 نقشه حرارتی جهانی با آمار لحظه‌ای
 - 🔒 تأیید TLS سخت (ضد حمله وسط)
 - 🏆 سیستم آی‌پی طلایی هوشمند
 - 🌐 پشتیبانی چندزبانه (انگلیسی، فارسی، روسی)
@@ -61,7 +68,14 @@ python run_app.py
 - 📡 Тестирование пинга, джиттера и реальной скорости загрузки/выгрузки
 - 🧩 Анализатор DPI-фрагментации и SNI-фронтинг
 - 📡 Сканер точек WARP (Wireguard/UDP)
-- 🌍 Глобальная тепловая карта со статистикой в реальном времени
+- � Движок Play Freedom — автоматический поиск рабочих VPN-конфигов без участия пользователя
+- 📱 Панель бесплатного VPN с Telegram-авторизацией
+- 🧠 Умные рекомендации настроек сканирования на основе профиля вашей сети
+- 💾 Полное резервное копирование и импорт с AES-256 шифрованием (формат .agdb)
+- 📴 Офлайн-режим — аналитика, гео-данные и конфиги без интернета
+- 🔗 5-уровневая устойчивая БД (MySQL → Worker → SQLite)
+- 🔄 Повторный тест неудачных IP одним кликом
+- �🌍 Глобальная тепловая карта со статистикой в реальном времени
 - 🔒 Строгая проверка TLS (защита от MITM)
 - 🏆 Умная система золотых IP
 - 🌐 Мультиязычная поддержка (EN, FA, RU)
@@ -131,6 +145,13 @@ python run_app.py
 | 🛡️ **DNSTT & Split-Stream** | Dedicated beta scanner for SlowDNS encapsulation and TLS split packets |
 | 🌐 **SNI Fronting** | Scan hundreds of SNIs against a working IP to find unblocked routes |
 | 📡 **WARP Scanner** | Find functional WARP UDP endpoints for Wireguard-based VPN tunnels |
+| 🎯 **Play Freedom** | Autonomous 4-phase engine that discovers working VPN configs without user intervention |
+| 📱 **Free VPN Dashboard** | Telegram-authenticated dashboard for free community VPN configs |
+| 🧠 **Smart Recommendations** | Intelligent panel suggesting optimal scan settings based on your network profile |
+| 💾 **Data Transfer** | Full backup & import with 10 data categories in AES-256 encrypted `.agdb` format |
+| 📴 **Offline Mode** | Analytics, geo data, configs, and bypass profiles all work offline via local cache |
+| 🔗 **5-Layer DB Resilience** | Direct MySQL → Worker proxy → Worker+fronting → VLESS tunnel → Local SQLite |
+| 🔄 **Dropped IP Re-test** | Failed IPs shown in results table with one-click re-test button (no thresholds) |
 | 🗺️ **Global Heatmap** | Interactive world map with country-level scan analytics |
 | 🔒 **TLS Verification** | Anti-MITM certificate validation for Cloudflare connections |
 | ⚡ **TCP Pre-Filter** | Blazing-fast 1000ms dead-IP drop before heavy Xray scanning begins |
@@ -205,26 +226,45 @@ npm run dist
 ```
 CF-IP-Scanner/
 ├── backend/                 # Python FastAPI backend
-│   ├── main.py             # API server & routes
-│   ├── scanner.py          # Core IP scanning engine
-│   ├── advanced_scanner.py # DPI fragment & SNI scanner
-│   ├── warp_scanner.py     # WARP endpoint scanner
-│   ├── db.py               # MySQL/MariaDB connection
-│   ├── analytics.py        # Global analytics aggregation
+│   ├── main.py             # API server & all routes
+│   ├── scanner.py          # Core IP scanning engine (VLESS/VMess/Trojan)
+│   ├── warp_scanner.py     # WARP endpoint scanner (UDP/TCP)
+│   ├── freedom_engine.py   # Play Freedom autonomous config engine
+│   ├── db.py               # 5-layer DB fallback (MySQL → Worker → SQLite)
+│   ├── db_proxy.py         # Cloudflare Worker DB proxy client
+│   ├── offline_db.py       # Encrypted .agdb backup/restore (AES-256)
+│   ├── discovery.py        # Auto-scrape top domains per country
+│   ├── export.py           # Config export (V2RayNG, Clash, Sing-box)
+│   ├── cf_ips.py           # Cloudflare & Fastly IP range manager
+│   ├── core_manager.py     # Xray-core process lifecycle
+│   ├── local_queue.py      # Persistent SQLite async scan queue
 │   └── xray_core/          # Bundled Xray-core binary
-├── frontend/                # React + Vite frontend
+├── frontend/                # React + Vite + Tailwind CSS
 │   ├── src/
-│   │   ├── App.jsx         # Main application
-│   │   ├── components/     # UI components
-│   │   │   ├── ConfigInput.jsx
-│   │   │   ├── ResultsTable.jsx
-│   │   │   ├── AnalyticsDashboard.jsx
-│   │   │   ├── WorldHeatmap.jsx
-│   │   │   ├── AdvancedScanners.jsx
-│   │   │   ├── WarpScanner.jsx
-│   │   │   ├── HealthWidget.jsx
-│   │   │   ├── AboutBox.jsx
-│   │   │   └── LanguageSwitcher.jsx
+│   │   ├── App.jsx         # Main application (10 tabs)
+│   │   ├── api.js          # Backend API client
+│   │   ├── components/
+│   │   │   ├── ConfigInput.jsx          # Config + scan settings
+│   │   │   ├── ResultsTable.jsx         # Results with dropped IP re-test
+│   │   │   ├── AnalyticsDashboard.jsx   # Charts & datacenter stats
+│   │   │   ├── WorldHeatmap.jsx         # Interactive global heatmap
+│   │   │   ├── GeoMap.jsx               # Country-level geo analytics
+│   │   │   ├── AdvancedScanners.jsx     # DPI fragment & SNI fronting
+│   │   │   ├── FragmentChart.jsx        # Fragment analysis visualization
+│   │   │   ├── WarpScanner.jsx          # WARP endpoint scanner
+│   │   │   ├── DnsScanner.jsx           # DNSTT & split-stream scanner
+│   │   │   ├── DnsScannerGuide.jsx      # DNS scanner guide
+│   │   │   ├── FreeVpnDashboard.jsx     # Free VPN with Telegram auth
+│   │   │   ├── FreedomWidget.jsx        # Play Freedom status & controls
+│   │   │   ├── DataTransferPanel.jsx    # Full backup/import (.agdb)
+│   │   │   ├── SmartRecommendationPanel.jsx # Smart scan recommendations
+│   │   │   ├── HealthWidget.jsx         # Backend health monitor
+│   │   │   ├── DBStatusBar.jsx          # DB connection status bar
+│   │   │   ├── StatsPanel.jsx           # Live scan statistics
+│   │   │   ├── LogBox.jsx               # Real-time scan logs
+│   │   │   ├── AboutBox.jsx             # Documentation & FAQ
+│   │   │   ├── LanguageSwitcher.jsx     # EN/FA/RU language picker
+│   │   │   └── UpdateModal.jsx          # Auto-update notification
 │   │   └── i18n/           # Internationalization
 │   │       ├── LanguageContext.jsx
 │   │       ├── en.json     # English
@@ -232,6 +272,9 @@ CF-IP-Scanner/
 │   │       └── ru.json     # Русский (Russian)
 │   └── public/
 │       └── logo.png
+├── worker/                  # Cloudflare Worker DB proxy
+│   ├── src/index.js        # Worker entry point
+│   └── wrangler.toml       # Worker configuration
 ├── docs/
 │   └── screenshots/        # App screenshots
 ├── main.js                  # Electron main process
@@ -339,7 +382,7 @@ If you use this tool in your research, please cite it:
   title = {Antigravity IP Scanner: Advanced Cloudflare IP Optimization \& Censorship Bypass Tool},
   year = {2024},
   url = {https://github.com/Khate-Tire/CF-IP-Scanner},
-  license = {MIT}
+  license = {AGPL-3.0}
 }
 ```
 
@@ -371,5 +414,5 @@ If you use this tool in your research, please cite it:
 
 <div align="center">
   <p><strong>🕊️ Built for a free and open internet</strong></p>
-  <p><sub>Antigravity IP Scanner v2.5 • © 2024-2026 Khate Tire • GNU AGPLv3 License</sub></p>
+  <p><sub>Antigravity IP Scanner v3.0.1 • © 2024-2025 Khate Tire • GNU AGPLv3 License</sub></p>
 </div>

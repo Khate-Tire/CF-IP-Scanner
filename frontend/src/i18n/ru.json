@@ -13,6 +13,9 @@
             "advanced": "Продвинутый обход",
             "warp": "Точки WARP",
             "dns": "Туннель и DNS",
+            "freevpn": "Бесплатный VPN",
+            "data": "Синхронизация",
+            "freedom": "Play Freedom",
             "about": "О приложении"
         }
     },

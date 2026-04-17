@@ -374,7 +374,7 @@ function App() {
               className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'data' ? 'nav-tab-active text-pink-400 bg-pink-500/10 shadow-[0_0_20px_rgba(236,72,153,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-              Data Sync
+              {t('app.tabs.data')}
             </button>
 
             {/* Play Freedom */}
@@ -383,7 +383,7 @@ function App() {
               className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'freedom' ? 'nav-tab-active text-teal-400 bg-teal-500/10 shadow-[0_0_20px_rgba(20,184,166,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-              Play Freedom
+              {t('app.tabs.freedom')}
             </button>
 
             {/* About */}
