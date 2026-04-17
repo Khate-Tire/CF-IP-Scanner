@@ -2,7 +2,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const http = require('http');
 
@@ -99,6 +99,20 @@ function waitForBackend(maxRetries = 30, interval = 1000) {
     });
 }
 
+function killOrphanBackends() {
+    try {
+        if (process.platform === 'win32') {
+            execSync('taskkill /F /IM backend.exe /T', { stdio: 'ignore' });
+            log('Killed orphan backend.exe processes');
+        } else {
+            execSync('pkill -f backend', { stdio: 'ignore' });
+            log('Killed orphan backend processes');
+        }
+    } catch (e) {
+        // No orphan processes found — this is normal
+    }
+}
+
 function startPythonBackend() {
     const isDev = !app.isPackaged;
 
@@ -106,6 +120,9 @@ function startPythonBackend() {
         log("Running in dev mode. Ensure python backend is running manually.");
         return;
     }
+
+    // Kill any leftover backend from a previous session
+    killOrphanBackends();
 
     // In production, spawn the bundled executable
     const isWin = process.platform === 'win32';
@@ -214,6 +231,13 @@ app.on('window-all-closed', function () {
 app.on('will-quit', () => {
     if (pythonProcess) {
         log("Killing python backend process...");
-        pythonProcess.kill('SIGINT');
+        if (process.platform === 'win32') {
+            try {
+                execSync(`taskkill /F /T /PID ${pythonProcess.pid}`, { stdio: 'ignore' });
+            } catch (e) { }
+        } else {
+            pythonProcess.kill('SIGTERM');
+        }
+        pythonProcess = null;
     }
 });
