@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
@@ -39,15 +39,15 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           
@@ -67,6 +67,7 @@ jobs:
           ADMIN_API_URL=${{ secrets.ADMIN_API_URL }}
           WORKER_URL=${{ secrets.WORKER_URL }}
           WORKER_API_KEY=${{ secrets.WORKER_API_KEY }}
+          AGDB_SECRET_KEY=${{ secrets.AGDB_SECRET_KEY }}
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
           "@ | Out-File -FilePath backend/.env -Encoding utf8
@@ -116,15 +117,15 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -144,6 +145,7 @@ jobs:
           ADMIN_API_URL=${{ secrets.ADMIN_API_URL }}
           WORKER_URL=${{ secrets.WORKER_URL }}
           WORKER_API_KEY=${{ secrets.WORKER_API_KEY }}
+          AGDB_SECRET_KEY=${{ secrets.AGDB_SECRET_KEY }}
           VITE_FALLBACK_CONFIG=${{ secrets.VITE_FALLBACK_CONFIG }}
           VITE_AUTO_SUB_URL=${{ secrets.VITE_AUTO_SUB_URL }}
           EOF
