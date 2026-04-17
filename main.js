@@ -99,21 +99,44 @@ function waitForBackend(maxRetries = 30, interval = 1000) {
     });
 }
 
-function killOrphanBackends() {
-    try {
-        if (process.platform === 'win32') {
-            execSync('taskkill /F /IM backend.exe /T', { stdio: 'ignore' });
-            log('Killed orphan backend.exe processes');
-        } else {
-            execSync('pkill -f backend', { stdio: 'ignore' });
-            log('Killed orphan backend processes');
-        }
-    } catch (e) {
-        // No orphan processes found — this is normal
+function checkBackendHealth() {
+    return new Promise((resolve) => {
+        const req = http.get('http://127.0.0.1:8000/', (res) => {
+            resolve(res.statusCode === 200);
+        });
+        req.on('error', () => resolve(false));
+        req.setTimeout(1500, () => { req.destroy(); resolve(false); });
+    });
+}
+
+function killProcessOnPort(port) {
+    if (process.platform === 'win32') {
+        try {
+            const result = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8' });
+            const lines = result.trim().split('\n');
+            for (const line of lines) {
+                const parts = line.trim().split(/\s+/);
+                const pid = parts[parts.length - 1];
+                if (pid && pid !== '0') {
+                    execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
+                    log(`Killed stale process PID ${pid} on port ${port}`);
+                }
+            }
+        } catch (e) { /* no process on port — normal */ }
+    } else {
+        try {
+            const result = execSync(`lsof -ti :${port}`, { encoding: 'utf8' });
+            for (const pid of result.trim().split('\n')) {
+                if (pid) {
+                    execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
+                    log(`Killed stale process PID ${pid} on port ${port}`);
+                }
+            }
+        } catch (e) { /* no process on port — normal */ }
     }
 }
 
-function startPythonBackend() {
+async function startPythonBackend() {
     const isDev = !app.isPackaged;
 
     if (isDev) {
@@ -121,8 +144,15 @@ function startPythonBackend() {
         return;
     }
 
-    // Kill any leftover backend from a previous session
-    killOrphanBackends();
+    // Check if an existing backend on port 8000 is already healthy
+    const alive = await checkBackendHealth();
+    if (alive) {
+        log("Existing backend on port 8000 is healthy. Reusing it.");
+        return;
+    }
+
+    // Port 8000 is not responding — kill only the specific stale process on that port
+    killProcessOnPort(8000);
 
     // In production, spawn the bundled executable
     const isWin = process.platform === 'win32';
@@ -179,11 +209,11 @@ app.on('ready', async () => {
     log(`Is packaged: ${app.isPackaged}`);
     log(`User data: ${app.getPath('userData')}`);
 
-    startPythonBackend();
+    await startPythonBackend();
 
-    // Wait for the backend to actually be ready (up to 30 seconds)
+    // Wait for the backend to actually be ready (up to 60 seconds for cold PyInstaller starts)
     log('Waiting for backend to be ready...');
-    await waitForBackend(30, 1000);
+    await waitForBackend(60, 1000);
 
     createWindow();
 
