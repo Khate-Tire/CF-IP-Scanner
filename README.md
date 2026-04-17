@@ -414,5 +414,5 @@ If you use this tool in your research, please cite it:
 
 <div align="center">
   <p><strong>🕊️ Built for a free and open internet</strong></p>
-  <p><sub>Antigravity IP Scanner v3.0.1 • © 2024-2025 Khate Tire • GNU AGPLv3 License</sub></p>
+  <p><sub>Antigravity IP Scanner v2.0.61 • © 2024-2025 Khate Tire • GNU AGPLv3 License</sub></p>
 </div>
