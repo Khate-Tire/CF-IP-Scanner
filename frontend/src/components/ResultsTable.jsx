@@ -1,9 +1,22 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { exportSubscription, getExportLink } from '../api';
+import { exportSubscription, getExportLink, rescanIP } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';
 import { toast } from 'react-hot-toast';
+
+// Statuses that should be hidden from the results table
+const HIDDEN_STATUSES = ['timeout', 'unreachable', 'error', 'abort', 'compromised', 'wrong_geo'];
+// Statuses that are "dropped" and can be re-tested
+const DROPPED_STATUSES = ['high_ping', 'high_jitter', 'low_download', 'low_upload'];
+
+const STATUS_LABELS = {
+    'ok': 'OK',
+    'high_ping': 'High Ping',
+    'high_jitter': 'High Jitter',
+    'low_download': 'Low DL',
+    'low_upload': 'Low UL',
+};
 
 export default function ResultsTable({ results, vlessConfig }) {
     const { t } = useTranslation();
@@ -11,6 +24,19 @@ export default function ResultsTable({ results, vlessConfig }) {
     const [exportFormat, setExportFormat] = useState('base64');
     const [isExporting, setIsExporting] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: 'ping', direction: 'asc' });
+    const [retesting, setRetesting] = useState({});  // { ip: true/false }
+    const [retestResults, setRetestResults] = useState({}); // { ip: result }
+
+    // Filter out timeout, unreachable, etc.
+    const visibleResults = results.filter(r => !HIDDEN_STATUSES.includes(r.status));
+
+    // Merge re-test results into visible results
+    const mergedResults = visibleResults.map(r => {
+        if (retestResults[r.ip]) {
+            return { ...r, ...retestResults[r.ip] };
+        }
+        return r;
+    });
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -20,7 +46,7 @@ export default function ResultsTable({ results, vlessConfig }) {
         setSortConfig({ key, direction });
     };
 
-    const sortedResults = [...results].sort((a, b) => {
+    const sortedResults = [...mergedResults].sort((a, b) => {
         let valA = a[sortConfig.key];
         let valB = b[sortConfig.key];
 
@@ -42,8 +68,26 @@ export default function ResultsTable({ results, vlessConfig }) {
         toast.success("Copied to clipboard!");
     };
 
+    const handleRetest = async (ip) => {
+        if (!vlessConfig) { toast.error("No config available for re-test"); return; }
+        setRetesting(prev => ({ ...prev, [ip]: true }));
+        try {
+            const data = await rescanIP(vlessConfig, ip);
+            if (data.error) {
+                toast.error(`Re-test failed: ${data.error}`);
+            } else if (data.result) {
+                setRetestResults(prev => ({ ...prev, [ip]: data.result }));
+                toast.success(`Re-test complete for ${ip}`);
+            }
+        } catch (e) {
+            toast.error(`Re-test error: ${e.message}`);
+        } finally {
+            setRetesting(prev => ({ ...prev, [ip]: false }));
+        }
+    };
+
     const handleExport = async () => {
-        const ips = results.map(r => r.ip).filter(Boolean);
+        const ips = mergedResults.filter(r => r.status === 'ok').map(r => r.ip).filter(Boolean);
         if (!ips.length || !vlessConfig) {
             toast.error("No results or valid config to export.");
             return;
@@ -71,7 +115,7 @@ export default function ResultsTable({ results, vlessConfig }) {
     };
 
     const handleDeepLink = async (appScheme) => {
-        const ips = results.map(r => r.ip).filter(Boolean);
+        const ips = mergedResults.filter(r => r.status === 'ok').map(r => r.ip).filter(Boolean);
         if (!ips.length || !vlessConfig) {
             toast.error("No results or valid config to link.");
             return;
@@ -81,7 +125,7 @@ export default function ResultsTable({ results, vlessConfig }) {
             const res = await getExportLink(vlessConfig, ips);
 
             if (res && res.link_id) {
-                const subUrl = `http://127.0.0.1:8000/sub/${res.link_id}`;
+                const subUrl = `http://127.0.0.1:8055/sub/${res.link_id}`;
                 let intentUrl = "";
                 if (appScheme === 'hidify') {
                     intentUrl = `hidify://import/${subUrl}`;
@@ -103,13 +147,13 @@ export default function ResultsTable({ results, vlessConfig }) {
     };
 
     const copyAll = () => {
-        const allLinks = results.map(r => r.link).filter(Boolean).join('\n');
+        const allLinks = mergedResults.filter(r => r.status === 'ok').map(r => r.link).filter(Boolean).join('\n');
         if (allLinks) copyToClipboard(allLinks);
         else toast.error("No valid links to copy.");
     };
 
     const copyAllIps = () => {
-        const allIps = results.map(r => r.ip).filter(Boolean).join('\n');
+        const allIps = mergedResults.filter(r => r.status === 'ok').map(r => r.ip).filter(Boolean).join('\n');
         if (allIps) copyToClipboard(allIps);
         else toast.error("No valid IPs to copy.");
     };
@@ -168,15 +212,14 @@ export default function ResultsTable({ results, vlessConfig }) {
                         </button>
                     </div>
 
-                    <div className="flex items-center bg-[#0a0a0a] border border-gray-700/60 rounded-xl p-1 shadow-inner">
-                        <button onClick={copyAllIps} className="text-xs px-3 py-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            {t('results.copyIps')}
+                    <div className="flex items-center gap-2">
+                        <button onClick={copyAllIps} className="text-xs px-4 py-2 bg-[#1a1a1a] text-neon-blue border border-neon-blue/50 hover:bg-neon-blue hover:text-black rounded-xl transition-all font-bold flex items-center gap-2 shadow-[0_0_10px_rgba(0,243,255,0.15)] hover:shadow-[0_0_15px_rgba(0,243,255,0.4)]">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            {t('results.copyIps', 'COPY ALL IPs')}
                         </button>
-                        <div className="w-[1px] h-4 bg-gray-700/70 mx-1"></div>
-                        <button onClick={copyAll} className="text-xs px-3 py-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all font-medium flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            {t('results.copyConfigs')}
+                        <button onClick={copyAll} className="text-xs px-4 py-2 bg-[#1a1a1a] text-neon-purple border border-neon-purple/50 hover:bg-neon-purple hover:text-black rounded-xl transition-all font-bold flex items-center gap-2 shadow-[0_0_10px_rgba(188,19,254,0.15)] hover:shadow-[0_0_15px_rgba(188,19,254,0.4)]">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            {t('results.copyConfigs', 'COPY CONFIGS')}
                         </button>
                     </div>
                 </div>
@@ -197,7 +240,7 @@ export default function ResultsTable({ results, vlessConfig }) {
                         </tr>
                     </thead>
                     <tbody className="text-sm">
-                        {results.length === 0 ? (
+                        {visibleResults.length === 0 ? (
                             <tr>
                                 <td colSpan="8" className="p-8 text-center text-gray-500 italic">
                                     {t('results.noGoodIps')}
@@ -207,22 +250,32 @@ export default function ResultsTable({ results, vlessConfig }) {
                             sortedResults.map((res, i) => (
                                 <tr key={i} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
                                     <td className="p-3 font-mono font-bold text-white">{res.ip}</td>
-                                    <td className={`p-3 font-mono font-bold ${res.ping < 100 ? 'text-neon-green' : 'text-yellow-400'}`}>
-                                        {res.ping}
+                                    <td className={`p-3 font-mono font-bold ${res.status !== 'ok' ? 'text-red-400' : res.ping < 100 ? 'text-neon-green' : 'text-yellow-400'}`}>
+                                        {res.ping > 0 ? res.ping : '—'}
                                     </td>
-                                    <td className="p-3 font-mono text-gray-300">{res.jitter}</td>
-                                    <td className="p-3 font-mono text-neon-blue">{res.download || '-'}</td>
-                                    <td className="p-3 font-mono text-neon-purple">{res.upload || '-'}</td>
+                                    <td className="p-3 font-mono text-gray-300">{res.jitter > 0 ? res.jitter : '—'}</td>
+                                    <td className="p-3 font-mono text-neon-blue">{res.download > 0 ? res.download : '—'}</td>
+                                    <td className="p-3 font-mono text-neon-purple">{res.upload > 0 ? res.upload : '—'}</td>
                                     <td className="p-3 text-gray-400 text-xs max-w-[200px] truncate" title={res.location}>
                                         {res.location}
                                     </td>
                                     <td className="p-3">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${res.status === 'ok' ? 'bg-neon-green/20 text-neon-green' : 'bg-red-500/20 text-red-500'
+                                        <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${res.status === 'ok' ? 'bg-neon-green/20 text-neon-green' : 'bg-yellow-500/20 text-yellow-400'
                                             }`}>
-                                            {res.status}
+                                            {STATUS_LABELS[res.status] || res.status}
                                         </span>
                                     </td>
-                                    <td className="p-3 text-right space-x-2">
+                                    <td className="p-3 text-right space-x-2 whitespace-nowrap">
+                                        {DROPPED_STATUSES.includes(res.status) && (
+                                            <button
+                                                onClick={() => handleRetest(res.ip)}
+                                                disabled={retesting[res.ip]}
+                                                className={`px-2 py-1 rounded text-xs font-bold transition-colors ${retesting[res.ip] ? 'bg-gray-600 text-gray-400 cursor-wait' : 'bg-neon-blue/20 text-neon-blue hover:bg-neon-blue/40'}`}
+                                                title="Re-test this IP"
+                                            >
+                                                {retesting[res.ip] ? '⏳' : '🔄'} Re-test
+                                            </button>
+                                        )}
                                         {res.link && (
                                             <>
                                                 <button

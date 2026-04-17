@@ -63,6 +63,35 @@ body {
   background: #00f3ff;
 }
 
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Nav edge fade masks */
+.nav-scroll-container {
+  mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black calc(100% - 20px), transparent);
+}
+
+/* Nav tab active indicator */
+.nav-tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  right: 25%;
+  height: 2px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.8;
+  box-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+}
+
 /* Logo float animation */
 @keyframes float {
 

@@ -102,6 +102,12 @@ export default {
                     case "/api/best-bypasses":
                         result = await handleBestBypasses(conn, body);
                         break;
+                    case "/api/user-contributions":
+                        result = await handleUserContributions(conn, body);
+                        break;
+                    case "/api/user-recent-contributions":
+                        result = await handleUserRecentContributions(conn, body);
+                        break;
                     default:
                         return cors(json({ error: "Not found" }, 404));
                 }
@@ -157,6 +163,34 @@ async function handleBestBypasses(conn, body) {
         return { error: "Invalid mode" };
     }
     return { results: rows.rows };
+}
+
+async function handleUserContributions(conn, body) {
+    if (!body || !body.user_ip || !body.isp) return { error: "Missing user_ip or isp" };
+
+    const [rows] = await conn.execute(
+        `SELECT COUNT(*) as total_scans 
+         FROM scan_results 
+         WHERE status = 'ok' AND user_ip = ? AND user_isp = ?`,
+        [body.user_ip, body.isp]
+    );
+    return { total_scans: rows[0].total_scans || 0 };
+}
+
+async function handleUserRecentContributions(conn, body) {
+    if (!body || !body.user_ip || !body.isp) return { error: "Missing user_ip or isp" };
+
+    // Check if user has scanned successfully in the last 3 days
+    const [rows] = await conn.execute(
+        `SELECT COUNT(*) as recent_scans 
+         FROM scan_results 
+         WHERE status = 'ok' 
+           AND user_ip = ? 
+           AND user_isp = ? 
+           AND timestamp >= DATE_SUB(NOW(), INTERVAL 3 DAY)`,
+        [body.user_ip, body.isp]
+    );
+    return { recent_scans: rows[0].recent_scans || 0 };
 }
 
 async function getConn(env) {

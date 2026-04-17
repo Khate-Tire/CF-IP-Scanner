@@ -7,11 +7,35 @@ def export_base64(ips, vless_parts):
     lines = []
     protocol = vless_parts.get("protocol", "vless")
     for ip in ips:
-        params = vless_parts.get('params', {})
-        param_str = "&".join([f"{k}={v}" for k, v in params.items()])
-        port = vless_parts.get('port', 443)
-        url = f"{protocol}://{vless_parts['uuid']}@{ip}:{port}?{param_str}#{ip}"
-        lines.append(url)
+        if protocol == "vmess":
+            # VMess uses base64-encoded JSON
+            params = vless_parts.get('params', {})
+            data = {
+                "v": "2",
+                "ps": ip,
+                "add": ip,
+                "port": str(vless_parts.get('port', 443)),
+                "id": vless_parts['uuid'],
+                "aid": params.get("alterId", "0"),
+                "scy": params.get("encryption", "auto"),
+                "net": params.get("type", "tcp"),
+                "type": "none",
+                "host": params.get("host", ""),
+                "path": params.get("path", "/"),
+                "tls": "tls" if params.get("security") == "tls" else "",
+                "sni": params.get("sni", ""),
+                "alpn": params.get("alpn", ""),
+                "fp": params.get("fp", "")
+            }
+            encoded = base64.b64encode(json.dumps(data).encode()).decode()
+            lines.append(f"vmess://{encoded}")
+        else:
+            # VLESS/Trojan use URI format
+            params = vless_parts.get('params', {})
+            param_str = "&".join([f"{k}={v}" for k, v in params.items()])
+            port = vless_parts.get('port', 443)
+            url = f"{protocol}://{vless_parts['uuid']}@{ip}:{port}?{param_str}#{ip}"
+            lines.append(url)
     raw = "\n".join(lines)
     return base64.b64encode(raw.encode('utf-8')).decode('utf-8')
 
@@ -32,6 +56,10 @@ def export_clash(ips, vless_parts):
         }
         if protocol == "vless":
             proxy["uuid"] = vless_parts['uuid']
+        elif protocol == "vmess":
+            proxy["uuid"] = vless_parts['uuid']
+            proxy["alterId"] = int(params.get("alterId", "0"))
+            proxy["cipher"] = params.get("encryption", "auto")
         else:
             proxy["password"] = vless_parts['uuid']
             
@@ -61,6 +89,19 @@ def export_clash(ips, vless_parts):
         elif proxy["network"] == "grpc":
             proxy["grpc-opts"] = {
                 "grpc-service-name": params.get("serviceName", "")
+            }
+        elif proxy["network"] == "h2" or proxy["network"] == "http":
+            proxy["h2-opts"] = {
+                "path": params.get("path", "/"),
+                "host": [params.get("host", params.get("sni", ""))]
+            }
+        elif proxy["network"] == "httpupgrade":
+            proxy["ws-opts"] = {
+                "path": params.get("path", "/"),
+                "headers": {
+                    "Host": params.get("host", params.get("sni", ""))
+                },
+                "v2ray-http-upgrade": True
             }
             
         proxies.append(proxy)
@@ -94,6 +135,10 @@ def export_singbox(ips, vless_parts):
         }
         if protocol == "vless":
             outbound["uuid"] = vless_parts['uuid']
+        elif protocol == "vmess":
+            outbound["uuid"] = vless_parts['uuid']
+            outbound["alter_id"] = int(params.get("alterId", "0"))
+            outbound["security"] = params.get("encryption", "auto")
         else:
             outbound["password"] = vless_parts['uuid']
         if params.get("security") == "tls":
@@ -130,6 +175,24 @@ def export_singbox(ips, vless_parts):
             outbound["transport"] = {
                 "type": "grpc",
                 "service_name": params.get("serviceName", "")
+            }
+        elif params.get("type") in ("h2", "http"):
+            outbound["transport"] = {
+                "type": "http",
+                "path": params.get("path", "/"),
+                "host": [params.get("host", params.get("sni", ""))]
+            }
+        elif params.get("type") == "httpupgrade":
+            outbound["transport"] = {
+                "type": "httpupgrade",
+                "path": params.get("path", "/"),
+                "host": params.get("host", params.get("sni", ""))
+            }
+        elif params.get("type") in ("xhttp", "splithttp"):
+            outbound["transport"] = {
+                "type": "http",
+                "path": params.get("path", "/"),
+                "host": [params.get("host", params.get("sni", ""))]
             }
             
         outbounds.append(outbound)

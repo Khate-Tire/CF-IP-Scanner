@@ -11,3 +11,4 @@ python-dotenv
 aiodns
 pycares
 aiosqlite
+cryptography

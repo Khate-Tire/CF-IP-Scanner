@@ -7,7 +7,7 @@ import sys
 def start_backend():
     print("Starting Backend...")
     # Using specific python executable if needed, otherwise 'python'
-    return subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"], cwd="backend")
+    return subprocess.Popen([sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8055", "--reload"], cwd="backend")
 
 def start_frontend():
     print("Starting Frontend (Vite)...")
@@ -20,7 +20,7 @@ if __name__ == "__main__":
         frontend_proc = start_frontend()
         
         print("\nApp is running!")
-        print("Backend: http://127.0.0.1:8000")
+        print("Backend: http://127.0.0.1:8055")
         print("Frontend: http://localhost:5173") 
         print("\nPress Ctrl+C to stop.")
         

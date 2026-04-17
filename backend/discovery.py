@@ -2,6 +2,7 @@
 import asyncio
 import aiohttp
 import aiodns
+import json
 import os
 import random
 from typing import List
@@ -37,6 +38,18 @@ async def batch_resolve_domains(domains: List[str]) -> List[str]:
 async def scrape_builtwith_domains(country_code="US"):
     import db
     db_domains_res = await db.get_country_domains(country_code)
+    
+    # Offline fallback for country domains
+    if not db_domains_res or not db_domains_res.get('domains'):
+        try:
+            cache_path = os.path.join(APP_DIR, 'offline_country_domains.json')
+            if os.path.exists(cache_path):
+                with open(cache_path, 'r') as f:
+                    all_cached = json.load(f)
+                if country_code in all_cached:
+                    db_domains_res = {'domains': all_cached[country_code]}
+        except Exception:
+            pass
     
     # Load custom domains from list.txt if available
     custom_domains = []

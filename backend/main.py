@@ -1,5 +1,5 @@
 # Copyright (c) 2026 Taher AkbariSaeed
-from fastapi import FastAPI, BackgroundTasks, WebSocket
+from fastapi import FastAPI, BackgroundTasks, WebSocket, Request, Response, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -10,12 +10,15 @@ import json
 import os
 import time
 import random
+from datetime import datetime
 
-from scanner import scan_ip, parse_vless
+from scanner import scan_ip, parse_vless, parse_config, test_config, quick_test_ip, speed_test_ip, reconstruct_config
 from cf_ips import update_cf_ranges
 from core_manager import download_xray, APP_DIR
 import aiohttp
 import socket
+
+from freedom_engine import run_play_freedom_loop, state as freedom_state
 
 app = FastAPI()
 
@@ -102,8 +105,7 @@ except Exception:
 
 from local_queue import load_unfinished_scans, update_scan_status_db, create_scan_task
 
-@app.on_event("startup")
-async def startup_event():
+async def _load_unfinished_scans_on_startup():
     try:
         unfinished = await load_unfinished_scans()
         for row in unfinished:
@@ -167,13 +169,431 @@ _working_vless_config = None
 def get_working_config():
     return {"config": _working_vless_config or ""}
 
+@app.get('/api/gamification/status')
+async def get_gamification_status(request: Request):
+    """Returns the user's progress towards unlocking VIP and Free Configs"""
+    try:
+        import httpx
+        ip = "unknown"
+        isp = "Unknown ISP"
+        client_id = request.headers.get('x-client-id', 'unknown')
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get('http://ip-api.com/json?fields=query,isp')
+                if res.status_code == 200:
+                    data = res.json()
+                    ip = data.get('query', 'unknown')
+                    isp = data.get('isp', 'Unknown ISP')
+        except Exception as e:
+            pass
+        
+        # Call db.py functions mapped to the worker
+        import db
+        total_scans = await db.get_user_contributions(ip, isp, client_id)
+        recent_scans = await db.get_recent_contributions(ip, isp, client_id)
+        
+        return {
+            "success": True,
+            "total_scans": total_scans,
+            "recent_scans": recent_scans,
+            "has_scanned_recently": recent_scans >= 10,  # 10 scans required in last 3 days
+            "vip_unlocked": total_scans >= 10000
+        }
+    except Exception as e:
+        dlog(f"Error fetching gamification status: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.get('/api/free-configs')
+async def get_free_configs():
+    """Fetches free configs from Admin Panel and injects user's best IPs"""
+    import httpx
+    try:
+        ip = "unknown"
+        isp = "Unknown ISP"
+        location = "Unknown"
+        try:
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                res = await client.get('http://ip-api.com/json?fields=query,isp,country')
+                if res.status_code == 200:
+                    data = res.json()
+                    ip = data.get('query', 'unknown')
+                    isp = data.get('isp', 'Unknown ISP')
+                    location = data.get('country', 'Unknown')
+        except:
+            pass
+
+        # Import the correct function from db module
+        import db as db_module
+        get_best_ips = db_module.get_historical_good_ips
+            
+        # 1. Fetch raw community configs
+        admin_api = os.environ.get('ADMIN_API_URL', '')
+        lines = []
+        try:
+            if not admin_api:
+                raise ValueError("ADMIN_API_URL not configured")
+            async with httpx.AsyncClient(timeout=10, verify=False) as client:
+                resp = await client.get(f"{admin_api}/sub/cf")
+                if resp.status_code == 200:
+                    import base64
+                    text = resp.text.strip()
+                    try:
+                        decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
+                    except:
+                        decoded = text
+                    lines = [l.strip() for l in decoded.split('\n') if l.strip().startswith(('vless://', 'vmess://', 'trojan://', 'ss://'))]
+        except Exception as e:
+            pass
+            
+        # Fallback to imported offline cache
+        if not lines:
+            admin_cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
+            if os.path.exists(admin_cache_file):
+                import json
+                with open(admin_cache_file, 'r') as f:
+                    lines = json.load(f)
+                    
+        if not lines:
+            return {"success": False, "error": "Admin server unreachable and no offline cache available."}
+            
+        raw_configs = [{"id": i, "config_string": l, "source": "Community"} for i, l in enumerate(lines)]
+        
+        # 2. Fetch User's personal best historical Cloudflare IPs
+        try:
+            best_ips = await get_best_ips(isp, location, limit=len(raw_configs))
+        except Exception as e:
+            dlog(f"Error fetching best historical IPs: {e}")
+            best_ips = []
+        
+        if not best_ips:
+            # Fallback to standard Cloudflare IPs if user has no scan history
+            best_ips = ["engage.cloudflareclient.com", "icook.tw", "zula.ir", "varzesh3.com", "104.17.3.81"]
+            
+        # 3. Dynamic Injection Engine
+        injected_configs = []
+        
+        for i, row in enumerate(raw_configs):
+            config_str = row['config_string']
+            if config_str.startswith('vless://') or config_str.startswith('vmess://') or config_str.startswith('trojan://'):
+                # Pick an IP from the user's best pool (round robin)
+                clean_ip = best_ips[i % len(best_ips)]
+                
+                # Simple string replacement for the primary address field (before the port)
+                # Proper parsing is better, but this works for standard share links
+                try:
+                    parts = config_str.split('@')
+                    if len(parts) == 2:
+                        domain_port_rest = parts[1]
+                        domain_end = domain_port_rest.find(':')
+                        if domain_end != -1:
+                            original_domain = domain_port_rest[:domain_end]
+                            new_config = config_str.replace(f"@{original_domain}:", f"@{clean_ip}:")
+                            
+                            # Append 'Cleaned by Antigravity' to the remark name
+                            import urllib.parse
+                            if '#' in new_config:
+                                name_parts = new_config.split('#')
+                                new_name = urllib.parse.unquote(name_parts[1]) + f" ⚡ [{clean_ip}]"
+                                new_config = name_parts[0] + '#' + urllib.parse.quote(new_name)
+                            else:
+                                new_config += f"#Community ⚡ [{clean_ip}]"
+                                
+                            injected_configs.append({
+                                "id": row['id'],
+                                "original": config_str,
+                                "injected": new_config,
+                                "source": row['source'],
+                                "clean_ip": clean_ip
+                            })
+                            continue
+                except:
+                    pass
+            # Fallback if injection parsing fails
+            injected_configs.append({"id": row['id'], "original": config_str, "injected": config_str, "source": row['source'], "clean_ip": "Original"})
+
+        return {"success": True, "configs": injected_configs}
+        
+    except Exception as e:
+        dlog(f"Error fetching/injecting free configs: {e}")
+        return {"success": False, "error": str(e)}
+
+# ─── Mix & Test: Community Configs × User IPs ───────────────────────────────
+mix_test_jobs = {}
+
+@app.post('/api/community/mix-and-test')
+async def start_mix_test(background_tasks: BackgroundTasks):
+    """Start a mix-and-test job: fetch CF configs, combine with user's found IPs, test all, rank top 10."""
+    job_id = str(uuid.uuid4())
+    mix_test_jobs[job_id] = {
+        "status": "starting",
+        "phase": "fetching",
+        "progress": 0,
+        "total": 0,
+        "tested": 0,
+        "results": [],
+        "top10": [],
+        "done": False,
+        "error": None,
+        "config_count": 0,
+        "ip_count": 0
+    }
+    background_tasks.add_task(_run_mix_test_job, job_id)
+    return {"success": True, "job_id": job_id}
+
+@app.get('/api/community/mix-status/{job_id}')
+async def get_mix_status(job_id: str):
+    """Poll mix-and-test job progress."""
+    if job_id not in mix_test_jobs:
+        return {"success": False, "error": "Job not found"}
+    return {"success": True, **mix_test_jobs[job_id]}
+
+
+async def _run_mix_test_job(job_id: str):
+    """Background task: fetch configs, fetch user IPs, mix, test in 2 phases, rank top 10."""
+    import httpx
+    job = mix_test_jobs[job_id]
+    try:
+        job["phase"] = "fetching"
+        job["status"] = "running"
+
+        # ── Step 1: Fetch top 5 CF configs by speed from admin panel ──
+        admin_api = os.environ.get('ADMIN_API_URL', '')
+        config_lines = []
+        total_cf_configs = 0
+        try:
+            if not admin_api:
+                raise ValueError("ADMIN_API_URL not configured")
+            async with httpx.AsyncClient(timeout=10, verify=False) as client:
+                # Fetch full config details with speed info
+                resp = await client.get(f"{admin_api}/api/configs/free", params={"status": "working", "is_cf": "1", "limit": 200})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    configs_with_speed = data.get("configs", [])
+                    total_cf_configs = data.get("total", len(configs_with_speed))
+                    # Sort by download_speed descending, take top 5
+                    configs_with_speed.sort(key=lambda c: c.get("download_speed", 0), reverse=True)
+                    top5 = configs_with_speed[:5]
+                    config_lines = [c["config_string"] for c in top5 if c.get("config_string")]
+                    dlog(f"[MixTest] {total_cf_configs} total CF configs, picked top {len(config_lines)} by speed")
+        except Exception as e:
+            dlog(f"[MixTest] Admin API fetch failed: {e}")
+
+        # Fallback: try /sub/cf base64 endpoint
+        if not config_lines:
+            try:
+                async with httpx.AsyncClient(timeout=10, verify=False) as client:
+                    resp = await client.get(f"{admin_api}/sub/cf")
+                    if resp.status_code == 200:
+                        import base64
+                        text = resp.text.strip()
+                        try:
+                            decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
+                        except:
+                            decoded = text
+                        all_lines = [l.strip() for l in decoded.split('\n')
+                                        if l.strip().startswith(('vless://', 'vmess://', 'trojan://'))]
+                        total_cf_configs = len(all_lines)
+                        config_lines = all_lines[:5]
+            except Exception as e:
+                dlog(f"[MixTest] Sub/cf fallback failed: {e}")
+
+        # Fallback to offline cache
+        if not config_lines:
+            admin_cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
+            if os.path.exists(admin_cache_file):
+                with open(admin_cache_file, 'r') as f:
+                    cached = json.load(f)
+                    total_cf_configs = len(cached)
+                    config_lines = cached[:5]
+
+        if not config_lines:
+            job["error"] = "No community configs available from admin panel."
+            job["done"] = True
+            job["status"] = "error"
+            return
+
+        job["config_count"] = total_cf_configs
+
+        # ── Step 2: Get user's best found IPs ──
+        import db as db_module
+        user_ips = []
+        try:
+            ip_info = {"isp": "Unknown", "location": "Unknown"}
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    res = await client.get('http://ip-api.com/json?fields=isp,country')
+                    if res.status_code == 200:
+                        data = res.json()
+                        ip_info["isp"] = data.get('isp', 'Unknown')
+                        ip_info["location"] = data.get('country', 'Unknown')
+            except:
+                pass
+            user_ips = await db_module.get_historical_good_ips(ip_info["isp"], ip_info["location"], limit=15)
+        except Exception as e:
+            dlog(f"[MixTest] DB fetch failed: {e}")
+
+        # Also extract original IPs from the config templates
+        original_ips = []
+        parsed_configs = []
+        for cfg_str in config_lines:
+            try:
+                parts = parse_config(cfg_str)
+                parsed_configs.append((cfg_str, parts))
+                orig_ip = parts.get("address", "")
+                if orig_ip and orig_ip not in ("127.0.0.1", "invalid", ""):
+                    original_ips.append(orig_ip)
+            except:
+                pass
+
+        if not parsed_configs:
+            job["error"] = "Failed to parse any community configs."
+            job["done"] = True
+            job["status"] = "error"
+            return
+
+        # Combine: user IPs + original IPs (deduplicated), take top 3
+        all_ips = list(dict.fromkeys(user_ips + original_ips))  # preserve order, dedup
+        if not all_ips:
+            # Fallback defaults
+            all_ips = ["engage.cloudflareclient.com", "icook.tw", "104.17.3.81"]
+
+        # Top 3 IPs only
+        all_ips = all_ips[:3]
+        job["ip_count"] = len(all_ips)
+
+        # ── Step 3: Create all combos ──
+        combos = []
+        for cfg_str, parts in parsed_configs:
+            for ip in all_ips:
+                combos.append((cfg_str, parts, ip))
+
+        total_combos = len(combos)
+        job["total"] = total_combos
+        job["phase"] = "quick_test"
+        dlog(f"[MixTest] {len(parsed_configs)} configs × {len(all_ips)} IPs = {total_combos} combos")
+
+        # ── Phase 1: Quick ping test (8 concurrent, ~10s each) ──
+        quick_results = []
+        sem = asyncio.Semaphore(8)
+
+        async def run_quick(combo_idx, cfg_str, parts, ip):
+            async with sem:
+                try:
+                    r = await asyncio.wait_for(
+                        quick_test_ip(parts, ip),
+                        timeout=15
+                    )
+                    r["config_str"] = cfg_str
+                    r["combo_idx"] = combo_idx
+                    return r
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                    return {"ip": ip, "ping": -1, "jitter": -1, "connected": False,
+                            "config_str": cfg_str, "combo_idx": combo_idx}
+
+        tasks = [run_quick(i, cfg, parts, ip) for i, (cfg, parts, ip) in enumerate(combos)]
+
+        for coro in asyncio.as_completed(tasks):
+            r = await coro
+            quick_results.append(r)
+            job["tested"] = len(quick_results)
+            job["progress"] = round(len(quick_results) / total_combos * 50)  # 0-50%
+
+        # Filter to connected, sort by ping
+        connected = [r for r in quick_results if r.get("connected") and r.get("ping", -1) > 0]
+        connected.sort(key=lambda x: x["ping"])
+
+        if not connected:
+            job["error"] = "No configs could connect. Check your internet or try again."
+            job["done"] = True
+            job["status"] = "error"
+            return
+
+        dlog(f"[MixTest] Phase 1 done: {len(connected)}/{total_combos} connected")
+
+        # ── Phase 2: Speed test top 15 candidates (4 concurrent) ──
+        job["phase"] = "speed_test"
+        top_candidates = connected[:15]
+        speed_results = []
+        speed_sem = asyncio.Semaphore(4)
+
+        async def run_speed(candidate):
+            async with speed_sem:
+                cfg_str = candidate["config_str"]
+                ip = candidate["ip"]
+                try:
+                    parts = parse_config(cfg_str)
+                    r = await asyncio.wait_for(
+                        speed_test_ip(parts, ip),
+                        timeout=45
+                    )
+                    r["config_str"] = cfg_str
+                    r["config_link"] = reconstruct_config(parts, ip)
+                    return r
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception) as e:
+                    dlog(f"[MixTest] Speed test error for {ip}: {type(e).__name__}")
+                    return {"ip": ip, "ping": candidate.get("ping", -1),
+                            "jitter": candidate.get("jitter", -1),
+                            "download": 0, "upload": 0, "connected": False,
+                            "config_str": cfg_str, "config_link": reconstruct_config(parse_config(cfg_str), ip) if cfg_str else ""}
+
+        speed_tasks = [run_speed(c) for c in top_candidates]
+        for coro in asyncio.as_completed(speed_tasks):
+            r = await coro
+            speed_results.append(r)
+            done_count = len(quick_results) + len(speed_results)
+            total_work = total_combos + len(top_candidates)
+            job["progress"] = 50 + round(len(speed_results) / len(top_candidates) * 50)  # 50-100%
+
+        # ── Step 4: Rank and pick top 10 ──
+        scored = []
+        for r in speed_results:
+            if not r.get("connected") or r.get("download", 0) <= 0:
+                continue
+            # Quality score: higher is better
+            dl = r.get("download", 0)
+            ul = r.get("upload", 0)
+            ping = r.get("ping", 999)
+            jitter = r.get("jitter", 999)
+            score = (dl * 3) + (ul * 1) - (ping * 0.3) - (jitter * 0.5)
+            scored.append({
+                "ip": r["ip"],
+                "ping": r.get("ping", -1),
+                "jitter": r.get("jitter", -1),
+                "download": r.get("download", 0),
+                "upload": r.get("upload", 0),
+                "datacenter": r.get("datacenter", "Unknown"),
+                "config_link": r.get("config_link", ""),
+                "config_str": r.get("config_str", ""),
+                "score": round(score, 2)
+            })
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        top10 = scored[:10]
+
+        job["top10"] = top10
+        job["results"] = scored
+        job["phase"] = "done"
+        job["progress"] = 100
+        job["done"] = True
+        job["status"] = "completed"
+        dlog(f"[MixTest] Complete: {len(scored)} scored, top10 ready")
+
+    except Exception as e:
+        dlog(f"[MixTest] Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        job["error"] = str(e)
+        job["done"] = True
+        job["status"] = "error"
+
+
 async def _try_tunnel_with_config(vless_config, db_module):
     """Try to tunnel DB through a single VLESS config. Returns True if DB connected."""
     from db_proxy import start_db_tunnel, stop_db_tunnel
-    from scanner import parse_vless
+    from scanner import parse_config
     try:
         stop_db_tunnel()  # Kill any existing tunnel
-        vless_parts = parse_vless(vless_config)
+        vless_parts = parse_config(vless_config)
         start_db_tunnel(vless_parts)
         await asyncio.sleep(3)
         success = await db_module.reconnect_db('127.0.0.1', 33060)
@@ -217,6 +637,9 @@ async def startup_event():
     dlog(f"CWD: {os.getcwd()}")
     
     download_xray()
+    
+    # Load unfinished scans from queue
+    await _load_unfinished_scans_on_startup()
     
     # Launch heavy DB/network work as background task so server starts immediately
     asyncio.create_task(_background_init())
@@ -594,13 +1017,13 @@ async def test_all_db_layers():
         if config_to_test:
             from db_proxy import generate_proxy_config
             from core_manager import get_xray_path
-            from scanner import parse_vless
+            from scanner import parse_config
             import tempfile
             import subprocess
             
             proc = None
             try:
-                vless_parts = parse_vless(config_to_test)
+                vless_parts = parse_config(config_to_test)
                 # Listen on a unique test port to avoid disrupting port 33060 if it's reserved
                 test_port = 33061 
                 xray_config = generate_proxy_config(vless_parts, test_port, db.DB_HOST, db.DB_PORT)
@@ -656,9 +1079,9 @@ async def proxy_db(req: ProxyDbRequest):
     global _working_vless_config
     import db
     from db_proxy import start_db_tunnel
-    from scanner import parse_vless
+    from scanner import parse_config
     try:
-        vless_parts = parse_vless(req.vless_config)
+        vless_parts = parse_config(req.vless_config)
         start_db_tunnel(vless_parts)
         await asyncio.sleep(2)
         
@@ -690,6 +1113,15 @@ async def smart_recommend(req: SmartRecommendRequest):
             country=req.country or "",
             limit=req.limit
         )
+        if not results:
+            # Fallback to offline cache
+            recs_cache_file = os.path.join(APP_DIR, 'offline_smart_recs.json')
+            if os.path.exists(recs_cache_file):
+                import json
+                with open(recs_cache_file, 'r') as f:
+                    results = json.load(f)
+                    results = results[:req.limit]
+                    
         return {"results": results, "total": len(results)}
     except Exception as e:
         dlog(f"Smart Recommend Error: {e}")
@@ -767,7 +1199,7 @@ async def fetch_config(req: FetchConfigRequest, proxy: str = '0'):
 async def handle_export(req: ExportRequest):
     from export import export_base64, export_clash, export_singbox
     try:
-        vless_parts = parse_vless(req.vless_config)
+        vless_parts = parse_config(req.vless_config)
     except Exception as e:
         return {'error': f'Invalid config: {str(e)}'}
 
@@ -790,7 +1222,7 @@ async def create_export_link(req: ExportRequest):
     link_id = str(uuid.uuid4())
     from export import export_base64
     try:
-        vless_parts = parse_vless(req.vless_config)
+        vless_parts = parse_config(req.vless_config)
         content = export_base64(req.ips, vless_parts)
         export_links[link_id] = content
         return {"link_id": link_id}
@@ -806,8 +1238,43 @@ async def get_subscription(link_id: str):
     return PlainTextResponse("Subscription not found or expired.", status_code=404)
 
 
+@app.post('/rescan-ip')
+async def rescan_ip_endpoint(req: dict = Body(...)):
+    """Re-test a single IP with no thresholds — returns full metrics."""
+    try:
+        vless_config = req.get('vless_config', '').strip()
+        ip = req.get('ip', '').strip()
+        if not vless_config or not ip:
+            return {'error': 'Missing vless_config or ip'}
+        vless_parts = parse_config(vless_config)
+        from scanner import scan_ip
+        # Use extremely lenient thresholds so the scan always completes all tests
+        thresholds = {'max_ping': 99999, 'max_jitter': 99999, 'min_download': 0, 'min_upload': 0}
+        result = await scan_ip(ip, vless_parts, thresholds)
+        return {'result': result}
+    except Exception as e:
+        return {'error': str(e)}
+
+@app.post('/test-config')
+async def test_config_endpoint(req: dict = Body(...)):
+    """Full config validation: test if a VPN config is alive and return metrics."""
+    print("[test-config] Endpoint entered!")
+    try:
+        config_url = req.get('config', '').strip()
+        print(f"[test-config] Config URL: {config_url[:60]}...")
+        if not config_url:
+            return {'ok': False, 'message': 'No config provided'}
+        vless_parts = parse_config(config_url)
+        print(f"[test-config] Parsed config, protocol={vless_parts.get('protocol')}, address={vless_parts.get('address')}")
+        ok, message, result = await test_config(vless_parts)
+        print(f"[test-config] Result: ok={ok}, message={message}")
+        return {'ok': ok, 'message': message, 'result': result}
+    except Exception as e:
+        print(f"[test-config] Error: {e}")
+        return {'ok': False, 'message': f'Error: {str(e)}'}
+
 @app.post('/scan')
-async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
+async def start_scan(req: ScanRequest, request: Request, background_tasks: BackgroundTasks):
     current_settings = Settings(
         concurrency=req.concurrency,
         stop_after=req.stop_after,
@@ -821,9 +1288,11 @@ async def start_scan(req: ScanRequest, background_tasks: BackgroundTasks):
 
     scan_id = str(uuid.uuid4())
     try:
-        vless_parts = parse_vless(req.vless_config)
+        vless_parts = parse_config(req.vless_config)
     except Exception as e:
         return {'error': f'Invalid config: {str(e)}'}
+        
+    client_id = request.headers.get('x-client-id', 'Unknown')
     
     active_scans[scan_id] = {
         'status': 'running', 
@@ -1230,11 +1699,14 @@ def get_scan_status(scan_id: str):
         return {'error': 'Scan not found'}
     
     all_results = results[scan_id]
-    valid_results = [r for r in all_results if r.get('status') == 'ok']
+    # Include both OK and dropped (high_ping, high_jitter, low_download, low_upload) results
+    SHOW_STATUSES = {'ok', 'high_ping', 'high_jitter', 'low_download', 'low_upload'}
+    visible_results = [r for r in all_results if r.get('status') in SHOW_STATUSES]
+    show_results = sorted(visible_results, key=lambda x: (0 if x.get('status') == 'ok' else 1, x.get('ping', 9999)))
     
     return {
         'status': active_scans[scan_id],
-        'results': sorted(valid_results, key=lambda x: x.get('ping', 9999))
+        'results': show_results
     }
 
 @app.post('/scan/{scan_id}/pause')
@@ -1257,6 +1729,43 @@ def stop_scan(scan_id: str):
         active_scans[scan_id]['status'] = 'stopped'
         return {'status': 'ok'}
     return {'error': 'Cannot stop'}
+
+_freedom_task = None
+
+@app.post('/api/freedom/start')
+async def api_freedom_start():
+    global _freedom_task
+    if _freedom_task and not _freedom_task.done():
+        return {"status": "already_running"}
+    freedom_state._stop_signal = False
+    _freedom_task = asyncio.create_task(run_play_freedom_loop())
+    return {"status": "started"}
+
+@app.post('/api/freedom/stop')
+async def api_freedom_stop():
+    freedom_state._stop_signal = True
+    return {"status": "stopped"}
+
+@app.get('/api/freedom/status')
+async def api_freedom_status():
+    return {
+        "status": freedom_state.status,
+        "phase": freedom_state.phase,
+        "logs": freedom_state.logs,
+        "found_configs": freedom_state.found_configs,
+        "active_scanner_id": freedom_state.active_scanner_id,
+        "waiting_for_config": freedom_state.waiting_for_config
+    }
+
+@app.post('/api/freedom/provide-config')
+async def api_freedom_provide_config(req: dict = Body(...)):
+    config = req.get('config', '').strip()
+    if not config:
+        return {"error": "No config provided"}
+    if not freedom_state.waiting_for_config:
+        return {"error": "Engine is not waiting for a config"}
+    freedom_state.user_provided_config = config
+    return {"status": "config_received"}
 
 class UsageLogRequest(BaseModel):
     event_type: str
@@ -1297,12 +1806,14 @@ class ScanAdvancedRequest(BaseModel):
     max_ping: int = 2000
 
 @app.post('/scan-advanced')
-def start_advanced_scan(req: ScanAdvancedRequest, background_tasks: BackgroundTasks):
+def start_advanced_scan(req: ScanAdvancedRequest, request: Request, background_tasks: BackgroundTasks):
     scan_id = str(uuid.uuid4())
     try:
-        vless_parts = parse_vless(req.vless_config)
+        vless_parts = parse_config(req.vless_config)
     except Exception as e:
         return {'error': f'Invalid config: {str(e)}'}
+        
+    client_id = request.headers.get('x-client-id', 'Unknown')
     
     items_to_test = []
     if req.mode == 'fragment':
@@ -1490,21 +2001,53 @@ async def handle_best_bypasses(isp: str, mode: str, limit: int = 5):
     try:
         from db import get_best_community_bypasses
         results = await get_best_community_bypasses(isp, mode, limit)
-        return {"results": results}
+        if results:
+            return {"results": results}
     except Exception as e:
-        return {"results": [], "error": str(e)}
+        print(f"Best bypasses DB error: {e}")
+    # Offline fallback
+    try:
+        cache_file = os.path.join(APP_DIR, 'offline_bypass_profiles.json')
+        if os.path.exists(cache_file):
+            with open(cache_file, 'r') as f:
+                all_profiles = json.load(f)
+            filtered = [p for p in all_profiles if p.get('_isp', '').lower() == isp.lower() and p.get('_mode', '').lower() == mode.lower()]
+            return {"results": filtered[:limit]}
+    except Exception:
+        pass
+    return {"results": []}
 
 @app.get('/analytics')
 async def get_analytics_endpoint(provider: str = 'cloudflare'):
     from db import get_analytics
-    data = await get_analytics(provider)
-    return data
+    try:
+        data = await get_analytics(provider)
+        if data:
+            return data
+    except Exception:
+        pass
+    # Offline fallback
+    cache_file = os.path.join(APP_DIR, 'offline_analytics.json')
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            return json.load(f)
+    return {}
 
 @app.get('/analytics/geo')
 async def get_geo_analytics_endpoint(provider: str = 'cloudflare'):
     from db import get_geo_analytics
-    data = await get_geo_analytics(provider)
-    return data
+    try:
+        data = await get_geo_analytics(provider)
+        if data:
+            return data
+    except Exception:
+        pass
+    # Offline fallback
+    cache_file = os.path.join(APP_DIR, 'offline_geo_analytics.json')
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as f:
+            return json.load(f)
+    return {}
 
 # --- WARP SCANNER ROUTES ---
 class WarpScanRequest(BaseModel):
@@ -1577,6 +2120,407 @@ async def run_warp_job(scan_id, req):
     if active_warp_scans[scan_id]['status'] == 'running':
         active_warp_scans[scan_id]['status'] = 'completed'
     wlog("WARP Scan job finished.")
+
+@app.get('/api/db-export')
+async def db_export():
+    import db
+    from offline_db import encrypt_payload
+    try:
+        # Collect ALL data needed for complete offline functionality
+        data = {
+            "version": "2.0",
+            "exported_at": str(datetime.now()),
+            "settings": {},
+            "working_configs": [],
+            "vpn_admin_configs": [],
+            "vpn_admin_vanilla_configs": [],
+            "scan_results": [],
+            "smart_recommendations": [],
+            "analytics": {},
+            "geo_analytics": {},
+            "country_domains": {},
+            "bypass_profiles": [],
+        }
+        
+        # 1. App Settings
+        try:
+            settings_file = os.path.join(APP_DIR, 'settings.json')
+            if os.path.exists(settings_file):
+                with open(settings_file, 'r') as f:
+                    data["settings"] = json.load(f)
+        except Exception as e:
+            print(f"Skipped settings export: {e}")
+        
+        # 2. Working configs (needed for Play Freedom & DB tunnel fallback)
+        try:
+            history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+            if os.path.exists(history_file):
+                with open(history_file, 'r') as f:
+                    data["working_configs"] = json.load(f)
+        except Exception as e:
+            print(f"Skipped working configs export: {e}")
+                
+        # 3. VPN Admin CF configs (needed for Play Freedom mining & free-configs tab)
+        try:
+            import httpx
+            admin_api = os.environ.get('ADMIN_API_URL', '')
+            if not admin_api:
+                raise ValueError("ADMIN_API_URL not configured")
+            async with httpx.AsyncClient(timeout=10, verify=False) as client:
+                resp = await client.get(f"{admin_api}/sub/cf")
+                if resp.status_code == 200:
+                    import base64
+                    text = resp.text.strip()
+                    try:
+                        decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
+                    except:
+                        decoded = text
+                    lines = [l.strip() for l in decoded.split('\n') if l.strip().startswith(('vless://', 'vmess://', 'trojan://', 'ss://'))]
+                    data["vpn_admin_configs"] = lines
+        except Exception as e:
+            print(f"Skipped Admin CF Configs: {e}")
+            # Fallback to offline cache
+            try:
+                cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
+                if os.path.exists(cache_file):
+                    with open(cache_file, 'r') as f:
+                        data["vpn_admin_configs"] = json.load(f)
+            except:
+                pass
+
+        # 4. VPN Admin vanilla configs (needed for Play Freedom Phase 1)
+        try:
+            import httpx
+            admin_api = os.environ.get('ADMIN_API_URL', '')
+            if not admin_api:
+                raise ValueError("ADMIN_API_URL not configured")
+            async with httpx.AsyncClient(timeout=10, verify=False) as client:
+                resp = await client.get(f"{admin_api}/sub")
+                if resp.status_code == 200:
+                    import base64
+                    text = resp.text.strip()
+                    try:
+                        decoded = base64.b64decode(text).decode('utf-8', errors='ignore')
+                    except:
+                        decoded = text
+                    lines = [l.strip() for l in decoded.split('\n') if l.strip().startswith(('vless://', 'vmess://', 'trojan://', 'ss://'))]
+                    data["vpn_admin_vanilla_configs"] = lines
+        except Exception as e:
+            print(f"Skipped Admin Vanilla Configs: {e}")
+
+        # 5. Scan Results (from MySQL or SQLite, limit 50k)
+        import aiosqlite
+        try:
+            async def _fetch_mysql():
+                if hasattr(db, 'pool') and db.pool:
+                    async with db.pool.acquire() as conn:
+                        async with conn.cursor() as cur:
+                            await cur.execute("SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT 20000")
+                            columns = [desc[0] for desc in cur.description] if cur.description else []
+                            rows = await cur.fetchall()
+                            for r in rows:
+                                row_dict = dict(zip(columns, r))
+                                if "timestamp" in row_dict and row_dict["timestamp"]:
+                                    row_dict["timestamp"] = str(row_dict["timestamp"])
+                                row_dict["user_ip"] = "redacted"
+                                row_dict["user_location"] = "redacted"
+                                row_dict["user_isp"] = "redacted"
+                                row_dict["vless_uuid"] = "redacted"
+                                data["scan_results"].append(row_dict)
+                else:
+                    raise Exception("No pool")
+
+            async def _fetch_sqlite():
+                sqlite_path = getattr(db, 'local_db', None)
+                sqlite_path = sqlite_path.path if sqlite_path else os.path.join(APP_DIR, 'offline_cache.db')
+                if os.path.exists(sqlite_path):
+                    async with aiosqlite.connect(sqlite_path) as ldb:
+                        ldb.row_factory = aiosqlite.Row
+                        try:
+                            cur = await ldb.execute("SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT 20000")
+                            rows = await cur.fetchall()
+                            for r in rows:
+                                rd = dict(r)
+                                rd["user_ip"] = "redacted"
+                                rd["user_location"] = "redacted"
+                                rd["user_isp"] = "redacted"
+                                rd["vless_uuid"] = "redacted"
+                                data["scan_results"].append(rd)
+                        except Exception as sqle:
+                            print(f"No scan_results in SQLite yet: {sqle}")
+
+            mysql_success = False
+            try:
+                if hasattr(db, 'pool') and db.pool:
+                    await asyncio.wait_for(_fetch_mysql(), timeout=6.0)
+                    mysql_success = len(data["scan_results"]) > 0
+            except Exception as e:
+                print(f"MySQL fetch failed, falling back to SQLite: {e}")
+                
+            if not mysql_success:
+                try:
+                    await asyncio.wait_for(_fetch_sqlite(), timeout=6.0)
+                except Exception as e:
+                    print(f"SQLite fetch failed: {e}")
+                    
+        except Exception as e:
+            print(f"Skipped Scan Results: {e}")
+            
+        # 6. Smart Recommendations
+        try:
+            recs = await asyncio.wait_for(db.get_smart_recommendations(isp="", location="", country="", limit=100), timeout=8.0)
+            data["smart_recommendations"] = recs if recs else []
+        except Exception as e:
+            print(f"Skipped Smart Recommendations: {e}")
+            # Fallback to offline cache
+            try:
+                recs_file = os.path.join(APP_DIR, 'offline_smart_recs.json')
+                if os.path.exists(recs_file):
+                    with open(recs_file, 'r') as f:
+                        data["smart_recommendations"] = json.load(f)
+            except:
+                pass
+
+        # 7. Global Analytics (needed for Analytics tab offline)
+        try:
+            analytics = await asyncio.wait_for(db.get_analytics(provider='cloudflare'), timeout=8.0)
+            if analytics:
+                data["analytics"] = analytics
+        except Exception as e:
+            print(f"Skipped Analytics: {e}")
+
+        # 8. Geo Analytics (needed for Analytics geo map offline)
+        try:
+            geo = await asyncio.wait_for(db.get_geo_analytics(provider='cloudflare'), timeout=8.0)
+            if geo:
+                data["geo_analytics"] = geo
+        except Exception as e:
+            print(f"Skipped Geo Analytics: {e}")
+
+        # 9. Country Domains (needed for IP generation from gold domains)
+        try:
+            # Fetch cached country domains from DB for known countries
+            known_countries = ['IR', 'CN', 'RU', 'TR', 'AE', 'PK', 'EG', 'VN', 'TH', 'ID', 'SA', 'IQ', 'AF', 'BY', 'CU', 'VE', 'MM', 'TM', 'UZ', 'TJ']
+            for cc in known_countries:
+                try:
+                    result = await asyncio.wait_for(db.get_country_domains(cc), timeout=3.0)
+                    if result and result.get('domains'):
+                        data["country_domains"][cc] = result['domains']
+                except:
+                    pass
+        except Exception as e:
+            print(f"Skipped Country Domains: {e}")
+
+        # 10. Best Bypass Profiles (needed for ISP-specific bypass settings)
+        try:
+            # Get bypass profiles for common ISPs
+            common_isps = ['MCI', 'Irancell', 'Rightel', 'Shatel', 'Mokhaberat', 'Asiatech', 'HiWEB']
+            for isp_name in common_isps:
+                for mode in ['fragment', 'sni']:
+                    try:
+                        bypasses = await asyncio.wait_for(db.get_best_community_bypasses(isp=isp_name, mode=mode, limit=5), timeout=3.0)
+                        if bypasses and bypasses.get('results'):
+                            for bp in bypasses['results']:
+                                bp['_isp'] = isp_name
+                                bp['_mode'] = mode
+                                data["bypass_profiles"].append(bp)
+                    except:
+                        pass
+        except Exception as e:
+            print(f"Skipped Bypass Profiles: {e}")
+            
+        encrypted_bytes = encrypt_payload(data)
+        return Response(
+            content=encrypted_bytes,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f"attachment; filename=antigravity-bundle-{int(time.time())}.agdb"}
+        )
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.post('/api/db-import')
+async def db_import(file: UploadFile = File(...)):
+    import db
+    from offline_db import decrypt_payload
+    try:
+        content = await file.read()
+        data = decrypt_payload(content)
+        stats = {}
+        
+        # 1. Restore App Settings
+        if data.get("settings"):
+            try:
+                settings_file = os.path.join(APP_DIR, 'settings.json')
+                with open(settings_file, 'w') as f:
+                    json.dump(data["settings"], f, indent=2)
+                stats["settings"] = "restored"
+            except Exception as e:
+                print(f"Failed to restore settings: {e}")
+        
+        # 2. Import working configs (merge with existing)
+        history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+        existing = []
+        if os.path.exists(history_file):
+            with open(history_file, 'r') as f:
+                existing = json.load(f)
+        for wc in data.get("working_configs", []):
+            if wc not in existing:
+                existing.insert(0, wc)
+        with open(history_file, 'w') as f:
+            json.dump(existing[:100], f)
+        stats["working_configs"] = len(data.get("working_configs", []))
+            
+        # 3. Write VPN admin CF configs (for free-configs tab & Play Freedom mining)
+        admin_cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
+        cf_configs = data.get("vpn_admin_configs", [])
+        with open(admin_cache_file, 'w') as f:
+            json.dump(cf_configs, f)
+        stats["vpn_cf_configs"] = len(cf_configs)
+
+        # 4. Write VPN admin vanilla configs (for Play Freedom Phase 1)
+        vanilla_configs = data.get("vpn_admin_vanilla_configs", [])
+        if vanilla_configs:
+            vanilla_cache_file = os.path.join(APP_DIR, 'offline_admin_vanilla_configs.json')
+            with open(vanilla_cache_file, 'w') as f:
+                json.dump(vanilla_configs, f)
+            stats["vpn_vanilla_configs"] = len(vanilla_configs)
+
+        # 5. Write Smart Recommendations to fallback
+        recs = data.get("smart_recommendations", [])
+        recs_cache_file = os.path.join(APP_DIR, 'offline_smart_recs.json')
+        with open(recs_cache_file, 'w') as f:
+            json.dump(recs, f)
+        stats["smart_recommendations"] = len(recs)
+
+        # 6. Cache Analytics data for offline viewing
+        if data.get("analytics"):
+            try:
+                analytics_cache = os.path.join(APP_DIR, 'offline_analytics.json')
+                with open(analytics_cache, 'w') as f:
+                    json.dump(data["analytics"], f)
+                stats["analytics"] = "restored"
+            except Exception as e:
+                print(f"Failed to cache analytics: {e}")
+
+        # 7. Cache Geo Analytics data for offline viewing
+        if data.get("geo_analytics"):
+            try:
+                geo_cache = os.path.join(APP_DIR, 'offline_geo_analytics.json')
+                with open(geo_cache, 'w') as f:
+                    json.dump(data["geo_analytics"], f)
+                stats["geo_analytics"] = "restored"
+            except Exception as e:
+                print(f"Failed to cache geo analytics: {e}")
+
+        # 8. Cache Country Domains for IP generation
+        if data.get("country_domains"):
+            try:
+                domains_cache = os.path.join(APP_DIR, 'offline_country_domains.json')
+                with open(domains_cache, 'w') as f:
+                    json.dump(data["country_domains"], f)
+                stats["country_domains"] = len(data["country_domains"])
+            except Exception as e:
+                print(f"Failed to cache country domains: {e}")
+
+        # 9. Cache Bypass Profiles for ISP-specific settings
+        if data.get("bypass_profiles"):
+            try:
+                bypass_cache = os.path.join(APP_DIR, 'offline_bypass_profiles.json')
+                with open(bypass_cache, 'w') as f:
+                    json.dump(data["bypass_profiles"], f)
+                stats["bypass_profiles"] = len(data["bypass_profiles"])
+            except Exception as e:
+                print(f"Failed to cache bypass profiles: {e}")
+
+        # 10. Import Scan Results to SQLite
+        import aiosqlite
+        inserted = 0
+        if data.get("scan_results"):
+            sqlite_path = getattr(db, 'local_db', None)
+            sqlite_path = sqlite_path.path if sqlite_path else os.path.join(APP_DIR, 'offline_cache.db')
+            async with aiosqlite.connect(sqlite_path) as ldb:
+                await ldb.execute("""
+                    CREATE TABLE IF NOT EXISTS scan_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT, vless_uuid TEXT, scanned_ip TEXT,
+                        ip_source TEXT, ping REAL, jitter REAL, download REAL, upload REAL, status TEXT, datacenter TEXT, asn TEXT,
+                        network_type TEXT, port INTEGER, sni TEXT, app_version TEXT, provider TEXT, synced INTEGER DEFAULT 0
+                    )
+                """)
+                await ldb.commit()
+                
+                for r in data["scan_results"]:
+                    try:
+                        await ldb.execute("""
+                            INSERT OR IGNORE INTO scan_results 
+                            (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip,
+                             ip_source, ping, jitter, download, upload, status, datacenter, asn,
+                             network_type, port, sni, app_version, provider)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            r.get("timestamp") or str(datetime.now()), 
+                            r.get("user_ip") or "Unknown", 
+                            r.get("user_location") or "Unknown",
+                            r.get("user_isp") or "Unknown", 
+                            r.get("vless_uuid") or "Unknown", 
+                            r.get("scanned_ip") or "Unknown",
+                            r.get("ip_source") or "Unknown", 
+                            float(r.get("ping") or -1), 
+                            float(r.get("jitter") or -1),
+                            float(r.get("download") or -1), 
+                            float(r.get("upload") or -1), 
+                            r.get("status") or "Unknown",
+                            r.get("datacenter") or "Unknown", 
+                            r.get("asn") or "Unknown", 
+                            r.get("network_type") or "Unknown",
+                            int(r.get("port") or 443), 
+                            r.get("sni") or "Unknown", 
+                            r.get("app_version") or "1.0.0",
+                            r.get("provider") or "cloudflare"
+                        ))
+                    except Exception as ins_e:
+                        print(f"Skipped inserting record due to {ins_e}")
+                        continue
+                    inserted += 1
+                await ldb.commit()
+        stats["scan_results"] = inserted
+                
+        return {
+            "success": True, 
+            "message": "Full import complete! All app data restored for offline use.",
+            "stats": stats
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ==========================================
+# PLAY FREEDOM AUTO-PILOT ENDPOINTS
+# ==========================================
+import freedom_engine
+
+@app.post('/api/freedom/start')
+async def freedom_start(background_tasks: BackgroundTasks):
+    if freedom_engine.state.status == "running":
+        return {"success": False, "message": "Already running"}
+    background_tasks.add_task(freedom_engine.run_play_freedom_loop)
+    return {"success": True, "message": "Play Freedom started in background!"}
+
+@app.post('/api/freedom/stop')
+async def freedom_stop():
+    freedom_engine.state._stop_signal = True
+    freedom_engine.push_log("User requested stop. Halting loops...")
+    if freedom_engine.state.active_scanner_id and freedom_engine.state.active_scanner_id in active_scans:
+        active_scans[freedom_engine.state.active_scanner_id]['stop_requested'] = True
+    return {"success": True, "message": "Stop signal sent"}
+
+@app.get('/api/freedom/status')
+async def freedom_status():
+    return {
+        "status": freedom_engine.state.status,
+        "phase": freedom_engine.state.phase,
+        "logs": freedom_engine.state.logs,
+        "found_configs": freedom_engine.state.found_configs
+    }
 
 if __name__ == '__main__':
     uvicorn.run(app, host='127.0.0.1', port=8000)

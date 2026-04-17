@@ -111,44 +111,66 @@ class WorkerDBProxy:
     async def save_country_domains(self, country, domains):
         await self._post("/api/save-country-domains", {"country": country, "domains": domains})
 
+    async def get_user_contributions(self, user_ip, isp):
+        r = await self._post("/api/user-contributions", {"user_ip": user_ip, "isp": isp})
+        return r.get("total_scans", 0)
+
+    async def get_recent_contributions(self, user_ip, isp):
+        r = await self._post("/api/user-recent-contributions", {"user_ip": user_ip, "isp": isp})
+        return r.get("recent_scans", 0)
+
 worker_proxy = None  # Active WorkerDBProxy instance (set during init)
 
 # --- Layer 5: Local SQLite Offline Fallback ---
 import aiosqlite
 import json as _json
+import asyncio as _asyncio
 
 SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'offline_cache.db')
 
 class LocalSQLiteDB:
-    """Local SQLite fallback — Layer 5 (offline mode)"""
+    """Local SQLite fallback — Layer 5 (offline mode)
+    Uses a persistent connection with WAL mode and asyncio.Lock
+    to prevent 'database is locked' errors under concurrent access.
+    """
 
     def __init__(self, path=None):
         self.path = path or SQLITE_PATH
+        self._conn = None
+        self._lock = _asyncio.Lock()
 
     async def init(self):
-        async with aiosqlite.connect(self.path) as db:
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS scan_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
-                    vless_uuid TEXT, scanned_ip TEXT, ip_source TEXT,
-                    ping REAL, jitter REAL, download REAL, upload REAL,
-                    status TEXT, datacenter TEXT, asn TEXT, network_type TEXT,
-                    port INTEGER, sni TEXT, app_version TEXT, provider TEXT DEFAULT 'cloudflare',
-                    synced INTEGER DEFAULT 0
-                )
-            """)
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS usage_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
-                    event_type TEXT, details TEXT, synced INTEGER DEFAULT 0
-                )
-            """)
-            await db.commit()
+        self._conn = await aiosqlite.connect(self.path)
+        await self._conn.execute("PRAGMA journal_mode=WAL")
+        await self._conn.execute("PRAGMA busy_timeout=5000")
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS scan_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
+                vless_uuid TEXT, scanned_ip TEXT, ip_source TEXT,
+                ping REAL, jitter REAL, download REAL, upload REAL,
+                status TEXT, datacenter TEXT, asn TEXT, network_type TEXT,
+                port INTEGER, sni TEXT, app_version TEXT, provider TEXT DEFAULT 'cloudflare',
+                synced INTEGER DEFAULT 0
+            )
+        """)
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS usage_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT, user_ip TEXT, user_location TEXT, user_isp TEXT,
+                event_type TEXT, details TEXT, synced INTEGER DEFAULT 0
+            )
+        """)
+        await self._conn.commit()
+
+    async def _get_conn(self):
+        if self._conn is None:
+            await self.init()
+        return self._conn
 
     async def save_scan_result(self, data):
-        async with aiosqlite.connect(self.path) as db:
+        async with self._lock:
+            db = await self._get_conn()
             await db.execute("""
                 INSERT INTO scan_results 
                 (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip,
@@ -169,7 +191,8 @@ class LocalSQLiteDB:
             await db.commit()
 
     async def get_historical_good_ips(self, isp, location, limit=100):
-        async with aiosqlite.connect(self.path) as db:
+        async with self._lock:
+            db = await self._get_conn()
             db.row_factory = aiosqlite.Row
             cursor = await db.execute("""
                 SELECT DISTINCT scanned_ip FROM scan_results
@@ -181,7 +204,8 @@ class LocalSQLiteDB:
             return [r[0] for r in rows]
 
     async def log_usage_event(self, ip, location, isp, event_type, details=""):
-        async with aiosqlite.connect(self.path) as db:
+        async with self._lock:
+            db = await self._get_conn()
             await db.execute("""
                 INSERT INTO usage_logs (timestamp, user_ip, user_location, user_isp, event_type, details)
                 VALUES (datetime('now'), ?, ?, ?, ?, ?)
@@ -190,7 +214,8 @@ class LocalSQLiteDB:
 
     async def get_unsynced_scans(self, limit=100):
         """Get scans that haven't been synced to remote DB yet"""
-        async with aiosqlite.connect(self.path) as db:
+        async with self._lock:
+            db = await self._get_conn()
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
                 "SELECT * FROM scan_results WHERE synced = 0 LIMIT ?", (limit,))
@@ -198,10 +223,30 @@ class LocalSQLiteDB:
 
     async def mark_synced(self, ids):
         """Mark scans as synced after successful remote upload"""
-        async with aiosqlite.connect(self.path) as db:
+        async with self._lock:
+            db = await self._get_conn()
             placeholders = ','.join(['?'] * len(ids))
             await db.execute(f"UPDATE scan_results SET synced = 1 WHERE id IN ({placeholders})", ids)
             await db.commit()
+
+    async def get_user_contributions(self, user_ip, isp):
+        async with self._lock:
+            db = await self._get_conn()
+            cursor = await db.execute("SELECT COUNT(*) FROM scan_results WHERE status = 'ok' AND ping < 500")
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+            
+    async def get_recent_contributions(self, user_ip, isp):
+        async with self._lock:
+            db = await self._get_conn()
+            cursor = await db.execute("SELECT COUNT(*) FROM scan_results WHERE status = 'ok' AND ping < 500 AND timestamp >= datetime('now', '-3 days')")
+            row = await cursor.fetchone()
+            return row[0] if row else 0
+
+    async def close(self):
+        if self._conn:
+            await self._conn.close()
+            self._conn = None
 
 local_db = None  # Active LocalSQLiteDB instance
 
@@ -216,9 +261,9 @@ async def init_db():
             db=DB_NAME,
             autocommit=True,
             minsize=1,
-            maxsize=10, 
-            pool_recycle=300,
-            connect_timeout=5
+            maxsize=20, 
+            pool_recycle=60,
+            connect_timeout=30
         )
         
         # Ensure table exists
@@ -319,48 +364,55 @@ async def init_db():
         print("Database initialized and table verified.")
     except Exception as e:
         print(f"Failed to initialize database: {e}")
+        if pool:
+            try:
+                pool.close()
+                await pool.wait_closed()
+            except: pass
+        pool = None
 
 async def save_scan_result(data: dict):
     # Smart routing: try pool → worker → local SQLite
     if pool:
         try:
-            async with asyncio.timeout(2.0):
-                async with pool.acquire() as conn:
-                    async with conn.cursor() as cur:
-                        await cur.execute("""
-                            INSERT INTO scan_results 
-                            (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version, provider)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                        datetime.now(),
-                        data.get("user_ip", "Unknown"),
-                        data.get("user_location", "Unknown"),
-                        data.get("user_isp", "Unknown"),
-                        data.get("vless_uuid", "Unknown"),
-                        data.get("scanned_ip", "Unknown"),
-                        data.get("ip_source", "Unknown"),
-                        data.get("ping", -1),
-                        data.get("jitter", -1),
-                        data.get("download", -1),
-                        data.get("upload", -1),
-                        data.get("status", "Unknown"),
-                        data.get("datacenter", "Unknown"),
-                        data.get("asn", "Unknown"),
-                        data.get("network_type", "Unknown"),
-                        data.get("port", -1),
-                        data.get("sni", "Unknown"),
-                        data.get("app_version", "1.0.0"),
-                        data.get("provider", "cloudflare")
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("""
+                        INSERT INTO scan_results 
+                        (timestamp, user_ip, user_location, user_isp, vless_uuid, scanned_ip, ip_source, ping, jitter, download, upload, status, datacenter, asn, network_type, port, sni, app_version, provider)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                    datetime.now(),
+                    data.get("user_ip", "Unknown"),
+                    data.get("user_location", "Unknown"),
+                    data.get("user_isp", "Unknown"),
+                    data.get("vless_uuid", "Unknown"),
+                    data.get("scanned_ip", "Unknown"),
+                    data.get("ip_source", "Unknown"),
+                    data.get("ping", -1),
+                    data.get("jitter", -1),
+                    data.get("download", -1),
+                    data.get("upload", -1),
+                    data.get("status", "Unknown"),
+                    data.get("datacenter", "Unknown"),
+                    data.get("asn", "Unknown"),
+                    data.get("network_type", "Unknown"),
+                    data.get("port", -1),
+                    data.get("sni", "Unknown"),
+                    data.get("app_version", "1.0.0"),
+                    data.get("provider", "cloudflare")
                     ))
+            await _also_save_local(data)
             return
         except Exception as e:
             import sys
-            print(f"[DB] Direct save failed: {e}", file=sys.stderr)
+            print(f"[DB] Direct save failed: {type(e).__name__} - {e}", file=sys.stderr)
 
     # Fallback to Worker proxy
     if worker_proxy:
         try:
             await worker_proxy.save_scan_result(data)
+            await _also_save_local(data)
             return
         except Exception as e:
             import sys
@@ -373,6 +425,14 @@ async def save_scan_result(data: dict):
         except Exception as e:
             import sys
             print(f"[DB] Local save failed: {e}", file=sys.stderr)
+
+async def _also_save_local(data: dict):
+    """Always save to local SQLite for gamification/offline tracking"""
+    if local_db:
+        try:
+            await local_db.save_scan_result(data)
+        except:
+            pass
 
 async def get_historical_good_ips(isp: str, location: str, limit: int = 100):
     # Smart routing: pool → worker → local SQLite
@@ -443,6 +503,69 @@ async def get_historical_good_ips(isp: str, location: str, limit: int = 100):
             pass
 
     return []
+
+async def get_user_contributions(user_ip: str, isp: str, client_id: str = "unknown"):
+    """Gamification: Get total lifetime successful scans — always use local SQLite first (most reliable)"""
+    # Local SQLite is always available and has all scans from this machine
+    if local_db:
+        try:
+            return await local_db.get_user_contributions(user_ip, isp)
+        except:
+            pass
+
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("""
+                        SELECT COUNT(*) FROM scan_results 
+                        WHERE status = 'ok' 
+                        AND ((user_ip = %s AND user_isp = %s) OR (vless_uuid = %s AND vless_uuid != 'Unknown'))
+                    """, (user_ip, isp, client_id))
+                    row = await cur.fetchone()
+                    return row[0] if row else 0
+        except Exception as e:
+            print(f"DB Fetch Error (get_user_contributions): {e}")
+
+    if worker_proxy:
+        try:
+            return await worker_proxy.get_user_contributions(user_ip, isp)
+        except Exception as e:
+            print(f"Worker Fetch Error: {e}")
+
+    return 0
+    
+async def get_recent_contributions(user_ip: str, isp: str, client_id: str = "unknown"):
+    """Gamification: Check if user scanned recently (Last 3 days) — always use local SQLite first"""
+    # Local SQLite is always available and has all scans from this machine
+    if local_db:
+        try:
+            return await local_db.get_recent_contributions(user_ip, isp)
+        except:
+            pass
+
+    if pool:
+        try:
+            async with pool.acquire() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute("""
+                        SELECT COUNT(*) FROM scan_results 
+                        WHERE status = 'ok' 
+                        AND ((user_ip = %s AND user_isp = %s) OR (vless_uuid = %s AND vless_uuid != 'Unknown'))
+                        AND timestamp >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+                    """, (user_ip, isp, client_id))
+                    row = await cur.fetchone()
+                    return row[0] if row else 0
+        except Exception as e:
+            print(f"DB Fetch Error (get_recent_contributions): {e}")
+
+    if worker_proxy:
+        try:
+            return await worker_proxy.get_recent_contributions(user_ip, isp)
+        except Exception as e:
+            print(f"Worker Fetch Error: {e}")
+
+    return 0
 
 async def get_country_domains(country: str):
     if not pool:

@@ -1,11 +1,23 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-export const API_URL = "http://127.0.0.1:8000";
+export const API_URL = "http://127.0.0.1:8055";
 
 export const scanIPs = async (config) => {
+    let cid = localStorage.getItem('app_client_id') || '';
+    if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
+    
     const response = await fetch(`${API_URL}/scan`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
         body: JSON.stringify(config)
+    });
+    return response.json();
+};
+
+export const rescanIP = async (vlessConfig, ip) => {
+    const response = await fetch(`${API_URL}/rescan-ip`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vless_config: vlessConfig, ip })
     });
     return response.json();
 };
@@ -147,11 +159,74 @@ export const getGeoAnalytics = async (provider = 'cloudflare') => {
     return { error: 'Failed to fetch geo analytics' };
 };
 
-export const scanAdvancedIPs = async (payload) => {
+export const getGamificationStatus = async () => {
     try {
-        const response = await fetch(`${API_URL}/scan-advanced`, {
+        let cid = localStorage.getItem('app_client_id') || '';
+        if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
+        
+        const response = await fetch(`${API_URL}/api/gamification/status`, {
+            headers: { 'X-Client-ID': cid }
+        });
+        if (response.ok) return await response.json();
+    } catch (e) { console.error(e); }
+    return { success: false, total_scans: 0, recent_scans: 0, has_scanned_recently: false, vip_unlocked: false };
+};
+
+export const getFreeConfigs = async () => {
+    try {
+        const response = await fetch(`${API_URL}/api/free-configs`);
+        if (response.ok) return await response.json();
+    } catch (e) { console.error(e); }
+    return { success: false, configs: [] };
+};
+
+export const startMixAndTest = async () => {
+    try {
+        const response = await fetch(`${API_URL}/api/community/mix-and-test`, { method: 'POST' });
+        if (response.ok) return await response.json();
+    } catch (e) { console.error(e); }
+    return { success: false };
+};
+
+export const getMixTestStatus = async (jobId) => {
+    try {
+        const response = await fetch(`${API_URL}/api/community/mix-status/${jobId}`);
+        if (response.ok) return await response.json();
+    } catch (e) { console.error(e); }
+    return { success: false, done: true, error: 'Connection failed' };
+};
+
+const ADMIN_PANEL_URL = import.meta.env.VITE_ADMIN_PANEL_URL || '';
+
+export const testConfigRemote = async (configString) => {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        const response = await fetch(`${API_URL}/test-config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ config: configString }),
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        const data = await response.json();
+        return { success: data.ok, error: data.ok ? null : data.message, message: data.message, result: data.result || null };
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            return { success: false, error: 'Test timed out after 60 seconds. The config may be too slow or unreachable.' };
+        }
+        return { success: false, error: 'Could not reach the test server. Please try again later.' };
+    }
+};
+
+export const scanAdvancedIPs = async (payload) => {
+    try {
+        let cid = localStorage.getItem('app_client_id') || '';
+        if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
+        
+        const response = await fetch(`${API_URL}/scan-advanced`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
             body: JSON.stringify(payload)
         });
         return response.json();
@@ -193,3 +268,45 @@ export async function stopScan(scanId) {
     const res = await fetch(`${API_URL}/scan/${scanId}/stop`, { method: 'POST' });
     return res.json();
 }
+
+export const exportDatabase = async () => {
+    const response = await fetch(`${API_URL}/api/db-export`, {
+        method: 'GET',
+    });
+    if (!response.ok) throw new Error("Failed to export DB");
+    return response.blob();
+};
+
+export const importDatabase = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_URL}/api/db-import`, {
+        method: 'POST',
+        body: formData
+    });
+    return response.json();
+};
+
+export const startFreedom = async () => {
+    const res = await fetch(`${API_URL}/api/freedom/start`, { method: 'POST' });
+    return res.json();
+};
+
+export const stopFreedom = async () => {
+    const res = await fetch(`${API_URL}/api/freedom/stop`, { method: 'POST' });
+    return res.json();
+};
+
+export const getFreedomStatus = async () => {
+    const res = await fetch(`${API_URL}/api/freedom/status`, { method: 'GET' });
+    return res.json();
+};
+
+export const provideFreedomConfig = async (config) => {
+    const res = await fetch(`${API_URL}/api/freedom/provide-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config })
+    });
+    return res.json();
+};

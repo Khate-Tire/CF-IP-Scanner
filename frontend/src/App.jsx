@@ -14,13 +14,17 @@ import DebugConsole from './components/DebugConsole';
 import FragmentChart from './components/FragmentChart';
 import DnsScanner from './components/DnsScanner';
 import DnsScannerGuide from './components/DnsScannerGuide';
+import FreeVpnDashboard from './components/FreeVpnDashboard';
+import SmartRecommendationPanel from './components/SmartRecommendationPanel';
+import DataTransferPanel from './components/DataTransferPanel';
+import FreedomWidget from './components/FreedomWidget';
 import IranLogo from './components/IranLogo';
 import DBStatusBar from './components/DBStatusBar';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { useTranslation } from './i18n/LanguageContext';
 import { Toaster, toast } from 'react-hot-toast';
 import logoImg from '/logo.png';
-import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan } from './api';
+import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan, getMyIP, startFreedom, stopFreedom } from './api';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
@@ -32,6 +36,7 @@ function App() {
   const [status, setStatus] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('scanner');
+  const [autoStartSignal, setAutoStartSignal] = useState(0);
 
   // Use Refs for Scan State to prevent massive re-renders during active polling
   const currentVlessConfig = useRef("");
@@ -45,16 +50,14 @@ function App() {
   const [updateUrl, setUpdateUrl] = useState(null);
 
   useEffect(() => {
-    import('./api').then(api => {
-      api.getMyIP(useSystemProxy).then(info => {
-        if (info) {
-          setUserInfo(info);
-          if (isInitialMount.current) {
-            logUsage("app_open", "User opened the application");
-            isInitialMount.current = false;
-          }
+    getMyIP(useSystemProxy).then(info => {
+      if (info) {
+        setUserInfo(info);
+        if (isInitialMount.current) {
+          logUsage("app_open", "User opened the application");
+          isInitialMount.current = false;
         }
-      });
+      }
     });
   }, [useSystemProxy]);
 
@@ -303,49 +306,101 @@ function App() {
           </div>
         </header>
 
-        <div className="flex justify-center gap-4 mb-8">
-          <button
-            onClick={() => setActiveTab('scanner')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'scanner' ? 'bg-neon-blue text-black shadow-[0_0_15px_rgba(0,243,255,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            {t('app.tabs.scanner')}
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'analytics' ? 'bg-neon-purple text-black shadow-[0_0_15px_rgba(188,19,254,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            {t('app.tabs.analytics')}
-          </button>
-          <button
-            onClick={() => setActiveTab('advanced')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'advanced' ? 'bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            {t('app.tabs.advanced')}
-          </button>
-          <button
-            onClick={() => setActiveTab('warp')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'warp' ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            {t('app.tabs.warp')}
-          </button>
-          <button
-            onClick={() => setActiveTab('dns')}
-            className={`px-6 py-2 rounded-full font-bold transition-all flex items-center gap-2 ${activeTab === 'dns' ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-            {t('app.tabs.dns')}
-          </button>
-          <button
-            onClick={() => setActiveTab('about')}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === 'about' ? 'bg-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.8)]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-            {t('app.tabs.about')}
-          </button>
+        {/* ── Glassmorphism Navigation Bar ── */}
+        <div className="flex justify-center mb-8 px-2">
+          <div className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-1.5 flex flex-wrap justify-center gap-1 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
+
+            {/* Scanner */}
+            <button
+              onClick={() => setActiveTab('scanner')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'scanner' ? 'nav-tab-active text-[#00f3ff] bg-[#00f3ff]/10 shadow-[0_0_20px_rgba(0,243,255,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+              {t('app.tabs.scanner')}
+            </button>
+
+            {/* Analytics */}
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'analytics' ? 'nav-tab-active text-[#bc13fe] bg-[#bc13fe]/10 shadow-[0_0_20px_rgba(188,19,254,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+              {t('app.tabs.analytics')}
+            </button>
+
+            {/* Advanced */}
+            <button
+              onClick={() => setActiveTab('advanced')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'advanced' ? 'nav-tab-active text-white bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.2)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              {t('app.tabs.advanced')}
+            </button>
+
+            <div className="w-px bg-white/[0.08] my-1.5"></div>
+
+            {/* WARP */}
+            <button
+              onClick={() => setActiveTab('warp')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'warp' ? 'nav-tab-active text-orange-400 bg-orange-500/10 shadow-[0_0_20px_rgba(249,115,22,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              {t('app.tabs.warp')}
+            </button>
+
+            {/* Tunnel & DNS */}
+            <button
+              onClick={() => setActiveTab('dns')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'dns' ? 'nav-tab-active text-indigo-400 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+              {t('app.tabs.dns')}
+            </button>
+
+            {/* Free VPN */}
+            <button
+              onClick={() => setActiveTab('freevpn')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'freevpn' ? 'nav-tab-active text-[#2AABEE] bg-[#2AABEE]/10 shadow-[0_0_20px_rgba(42,171,238,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" /></svg>
+              {t('app.tabs.freevpn')}
+            </button>
+
+            <div className="w-px bg-white/[0.08] my-1.5"></div>
+
+            {/* Data Sync */}
+            <button
+              onClick={() => setActiveTab('data')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'data' ? 'nav-tab-active text-pink-400 bg-pink-500/10 shadow-[0_0_20px_rgba(236,72,153,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+              Data Sync
+            </button>
+
+            {/* Play Freedom */}
+            <button
+              onClick={() => setActiveTab('freedom')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'freedom' ? 'nav-tab-active text-teal-400 bg-teal-500/10 shadow-[0_0_20px_rgba(20,184,166,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              Play Freedom
+            </button>
+
+            {/* About */}
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'about' ? 'nav-tab-active text-green-400 bg-green-500/10 shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              {t('app.tabs.about')}
+            </button>
+
+          </div>
         </div>
 
         {activeTab === 'scanner' ? (
           <>
-            <ConfigInput onStartScan={handleStartScan} isLoading={isScanning} useSystemProxy={useSystemProxy} />
+            <ConfigInput onStartScan={handleStartScan} isLoading={isScanning} useSystemProxy={useSystemProxy} autoStartSignal={autoStartSignal} />
 
             {isScanning && status && (
               <div className="mt-4 flex flex-col items-center justify-center gap-3 mb-6">
@@ -387,7 +442,14 @@ function App() {
               </div>
             )}
 
-            <ResultsTable results={results} vlessConfig={currentVlessConfig} />
+            {results.length === 0 && !isScanning && (
+              <div className="max-w-6xl mx-auto mt-8">
+                <SmartRecommendationPanel />
+              </div>
+            )}
+
+            {results.length > 0 && <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />}
+
           </>
         ) : activeTab === 'advanced' ? (
           <>
@@ -413,7 +475,7 @@ function App() {
               </div>
             )}
 
-            <ResultsTable results={results} vlessConfig={currentVlessConfig} />
+            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />
           </>
         ) : activeTab === 'dns' ? (
           <>
@@ -438,12 +500,25 @@ function App() {
               </div>
             )}
 
-            <ResultsTable results={results} vlessConfig={currentVlessConfig} />
+            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />
           </>
         ) : activeTab === 'analytics' ? (
           <AnalyticsDashboard />
         ) : activeTab === 'warp' ? (
           <WarpScanner />
+        ) : activeTab === 'freevpn' ? (
+          <FreeVpnDashboard onStartContribution={() => {
+            setActiveTab('scanner');
+            setAutoStartSignal(Date.now());
+          }} />
+        ) : activeTab === 'freedom' ? (
+          <FreedomWidget onStart={async () => {
+            try { await startFreedom(); } catch (e) { console.error(e); }
+          }} onStop={async () => {
+            try { await stopFreedom(); } catch (e) { console.error(e); }
+          }} />
+        ) : activeTab === 'data' ? (
+          <DataTransferPanel />
         ) : (
           <AboutBox />
         )}

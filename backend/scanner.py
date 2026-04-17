@@ -11,6 +11,7 @@ from core_manager import get_xray_path, APP_DIR
 import urllib.parse
 import socket
 import ssl
+import base64
 
 def parse_vless(vless_url: str):
     try:
@@ -70,19 +71,93 @@ def parse_vless(vless_url: str):
             "params": {}
         }
 
+def parse_vmess(vmess_url: str):
+    """Parse a vmess:// base64-encoded link into the unified config dict format."""
+    try:
+        if not vmess_url.strip().startswith("vmess://"):
+            raise ValueError("Invalid URL: Must be vmess://")
+        b64 = vmess_url.strip().replace("vmess://", "", 1)
+        # Fix padding
+        padding = 4 - len(b64) % 4
+        if padding != 4:
+            b64 += "=" * padding
+        decoded = base64.b64decode(b64).decode('utf-8')
+        data = json.loads(decoded)
+
+        # Map VMess JSON fields to unified params format
+        params = {}
+        net = data.get("net", "tcp")
+        params["type"] = net
+
+        tls = data.get("tls", "")
+        params["security"] = "tls" if tls == "tls" else "none"
+
+        params["sni"] = data.get("sni", "")
+        params["host"] = data.get("host", "")
+        params["path"] = data.get("path", "/")
+        params["fp"] = data.get("fp", "")
+        params["alpn"] = data.get("alpn", "")
+
+        # VMess-specific
+        params["encryption"] = data.get("scy", "auto")
+        params["alterId"] = str(data.get("aid", "0"))
+
+        # gRPC: in VMess JSON, path is used as serviceName for grpc
+        if net == "grpc":
+            params["serviceName"] = data.get("path", "")
+            params["mode"] = data.get("type", "gun")
+
+        return {
+            "protocol": "vmess",
+            "uuid": data.get("id", ""),
+            "address": data.get("add", ""),
+            "port": int(data.get("port", 443)),
+            "params": params
+        }
+    except Exception as e:
+        print(f"Error parsing VMess URI: {e}")
+        return {
+            "protocol": "vmess",
+            "uuid": "invalid",
+            "address": "127.0.0.1",
+            "port": 443,
+            "params": {}
+        }
+
+def parse_config(config_url: str):
+    """Unified config parser - routes to the correct protocol parser."""
+    config_url = config_url.strip()
+    if config_url.startswith("vmess://"):
+        return parse_vmess(config_url)
+    elif config_url.startswith(("vless://", "trojan://")):
+        return parse_vless(config_url)
+    else:
+        # ss:// and other unsupported protocols
+        return {
+            "protocol": "unknown",
+            "uuid": "invalid",
+            "address": "127.0.0.1",
+            "port": 443,
+            "params": {}
+        }
+
 def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None, advanced_dns_config=None):
     params = vless_data.get("params", {})
     # Prepare TLS settings
     tls_settings = None
     if params.get("security") == "tls":
+        # SNI fallback chain: test_sni > sni param > host param
+        effective_sni = test_sni or params.get("sni", "") or params.get("host", "")
         tls_settings = {
-            "serverName": test_sni if test_sni else params.get("sni", ""),
+            "serverName": effective_sni,
             "allowInsecure": True,
-            "fingerprint": params.get("fp", "")
+            "fingerprint": params.get("fp", "") or "chrome"
         }
-        if "alpn" in params:
+        if params.get("alpn"):
             alpn_val = urllib.parse.unquote(params["alpn"])
-            tls_settings["alpn"] = alpn_val.split(",")
+            alpn_list = [a.strip() for a in alpn_val.split(",") if a.strip()]
+            if alpn_list:
+                tls_settings["alpn"] = alpn_list
 
     vless_stream_settings = {
         "network": params.get("type", "tcp"),
@@ -100,6 +175,26 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
                 "Host": test_sni if test_sni else params.get("host", "")
             }
         } if params.get("type") == "ws" else None,
+        "grpcSettings": {
+            "serviceName": params.get("serviceName", ""),
+            "multiMode": params.get("mode", "gun") == "multi"
+        } if params.get("type") == "grpc" else None,
+        "httpSettings": {
+            "path": urllib.parse.unquote(params.get("path", "/")),
+            "host": [test_sni if test_sni else params.get("host", "")]
+        } if params.get("type") in ("h2", "http") else None,
+        "httpupgradeSettings": {
+            "path": urllib.parse.unquote(params.get("path", "/")),
+            "host": test_sni if test_sni else params.get("host", ""),
+            "headers": {
+                "Host": test_sni if test_sni else params.get("host", "")
+            }
+        } if params.get("type") == "httpupgrade" else None,
+        "xhttpSettings": {
+            "path": urllib.parse.unquote(params.get("path", "/")),
+            "host": test_sni if test_sni else params.get("host", ""),
+            "mode": params.get("mode", "auto")
+        } if params.get("type") in ("xhttp", "splithttp") else None,
         "tlsSettings": tls_settings,
         "realitySettings": {
             "serverName": test_sni if test_sni else params.get("sni", ""),
@@ -110,21 +205,48 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
         } if params.get("security") == "reality" else None
     }
 
-    outbounds = [{
-        "protocol": vless_data.get("protocol", "vless"),
-        "settings": {
+    # Remove None-valued keys — xray-core rejects null settings
+    vless_stream_settings = {k: v for k, v in vless_stream_settings.items() if v is not None}
+
+    protocol = vless_data.get("protocol", "vless")
+    target_port = test_port if test_port is not None else vless_data.get("port", 443)
+
+    if protocol == "trojan":
+        outbound_settings = {
+            "servers": [{
+                "address": target_ip,
+                "port": target_port,
+                "password": vless_data.get("uuid", "")
+            }]
+        }
+    elif protocol == "vmess":
+        outbound_settings = {
             "vnext": [{
                 "address": target_ip,
-                "port": test_port if test_port is not None else vless_data.get("port", 443),
+                "port": target_port,
+                "users": [{
+                    "id": vless_data.get("uuid", ""),
+                    "alterId": int(params.get("alterId", "0")),
+                    "security": params.get("encryption", "auto")
+                }]
+            }]
+        }
+    else:  # vless
+        outbound_settings = {
+            "vnext": [{
+                "address": target_ip,
+                "port": target_port,
                 "users": [{
                     "id": vless_data.get("uuid", ""),
                     "encryption": params.get("encryption", "none"),
                     "flow": params.get("flow", "")
-                }] if vless_data.get("protocol", "vless") == "vless" else [{
-                    "password": vless_data.get("uuid", "")
                 }]
             }]
-        },
+        }
+
+    outbounds = [{
+        "protocol": protocol,
+        "settings": outbound_settings,
         "streamSettings": vless_stream_settings
     }]
 
@@ -216,7 +338,7 @@ async def measure_ping(session, url, check_status_cb=None):
 
     start = time.time()
     try:
-        async with session.get(url, timeout=12) as response:
+        async with session.get(url, timeout=8) as response:
             if response.status == 204 or response.status == 200:
                 duration = (time.time() - start) * 1000
                 return duration
@@ -280,18 +402,398 @@ async def measure_speed(session, url, size_mb=1, is_upload=False, check_status_c
     return 0
 
 def reconstruct_vless(parts, new_ip):
-    # Rebuild the VLESS URL with the new IP
+    # Rebuild the VLESS/Trojan URL with the new IP
     query = "&".join([f"{k}={v}" for k, v in parts["params"].items()])
-    # Preserve original remark if possible, but here we don't have it stored separately in parts. 
-    # Usually it's extracting from the end. Let's just use a generic one or try to keep it.
-    # For now, we will use a generated remark
-    
-    # We need to construct the URL
-    base = f"vless://{parts['uuid']}@{new_ip}:{parts['port']}"
+    protocol = parts.get("protocol", "vless")
+    base = f"{protocol}://{parts['uuid']}@{new_ip}:{parts['port']}"
     url = f"{base}?{query}#IP-{new_ip}"
     return url
 
+def reconstruct_vmess(parts, new_ip):
+    # Rebuild the VMess URL with the new IP
+    params = parts.get("params", {})
+    data = {
+        "v": "2",
+        "ps": f"IP-{new_ip}",
+        "add": new_ip,
+        "port": str(parts["port"]),
+        "id": parts["uuid"],
+        "aid": params.get("alterId", "0"),
+        "scy": params.get("encryption", "auto"),
+        "net": params.get("type", "tcp"),
+        "type": "none",
+        "host": params.get("host", ""),
+        "path": params.get("path", "/"),
+        "tls": "tls" if params.get("security") == "tls" else "",
+        "sni": params.get("sni", ""),
+        "alpn": params.get("alpn", ""),
+        "fp": params.get("fp", "")
+    }
+    encoded = base64.b64encode(json.dumps(data).encode()).decode()
+    return f"vmess://{encoded}"
+
+
+async def quick_test_ip(vless_parts, target_ip, test_port=None, test_sni=None):
+    """Quick connectivity + ping test (~5-8s). For batch screening of IP/config combos."""
+    local_port = random.randint(10000, 20000)
+    config = generate_xray_config(vless_parts, target_ip, local_port, test_port=test_port, test_sni=test_sni)
+
+    safe_ip = target_ip.replace(":", "_")
+    config_path = os.path.join(APP_DIR, f"config_quick_{safe_ip}_{local_port}.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+
+    xray_path = get_xray_path()
+    creationflags = 0
+    if os.name == 'nt':
+        creationflags = subprocess.CREATE_NO_WINDOW
+    process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
+
+    result = {"ip": target_ip, "ping": -1, "jitter": -1, "datacenter": "Unknown", "connected": False}
+
+    try:
+      try:
+        # Boot polling (max 5 attempts, 1s each)
+        xray_ready = False
+        for i in range(5):
+            await asyncio.sleep(1)
+            if process.poll() is not None:
+                return result
+            try:
+                connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get("http://cp.cloudflare.com/generate_204", timeout=aiohttp.ClientTimeout(total=2)) as r:
+                        if r.status in (200, 204):
+                            xray_ready = True
+                            break
+            except:
+                pass
+
+        if not xray_ready:
+            return result
+
+        result["connected"] = True
+
+        # Measure 4 pings (drop first for cold-start)
+        connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+        async with aiohttp.ClientSession(connector=connector) as session:
+            test_url = "http://cp.cloudflare.com/generate_204"
+            pings = []
+            for i in range(4):
+                p = await measure_ping(session, test_url)
+                if p != -1 and i > 0:
+                    pings.append(p)
+                await asyncio.sleep(0.1)
+
+            if pings:
+                result["ping"] = round(sum(pings) / len(pings), 2)
+                result["jitter"] = round(max(pings) - min(pings), 2) if len(pings) >= 2 else 0
+
+            # Quick datacenter
+            try:
+                async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=aiohttp.ClientTimeout(total=3)) as t_resp:
+                    if t_resp.status == 200:
+                        trace_text = await t_resp.text()
+                        for line in trace_text.splitlines():
+                            if line.startswith("colo="):
+                                result["datacenter"] = line.split("=")[1].strip()
+                                break
+            except:
+                pass
+      except asyncio.CancelledError:
+          pass
+    finally:
+        try:
+            import psutil
+            parent = psutil.Process(process.pid)
+            for child in parent.children(recursive=True):
+                child.kill()
+            parent.kill()
+        except:
+            try:
+                process.kill()
+            except:
+                pass
+        try:
+            os.remove(config_path)
+        except:
+            pass
+
+    return result
+
+
+async def speed_test_ip(vless_parts, target_ip, test_port=None, test_sni=None):
+    """Full speed test for a specific IP with a config template. Returns detailed metrics."""
+    local_port = random.randint(10000, 20000)
+    config = generate_xray_config(vless_parts, target_ip, local_port, test_port=test_port, test_sni=test_sni)
+
+    safe_ip = target_ip.replace(":", "_")
+    config_path = os.path.join(APP_DIR, f"config_speed_{safe_ip}_{local_port}.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+
+    xray_path = get_xray_path()
+    creationflags = 0
+    if os.name == 'nt':
+        creationflags = subprocess.CREATE_NO_WINDOW
+    process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
+
+    result = {"ip": target_ip, "ping": -1, "jitter": -1, "download": 0, "upload": 0, "datacenter": "Unknown", "connected": False}
+
+    try:
+      try:
+        # Boot polling (max 6 attempts)
+        xray_ready = False
+        for i in range(6):
+            await asyncio.sleep(1)
+            if process.poll() is not None:
+                return result
+            try:
+                connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get("http://cp.cloudflare.com/generate_204", timeout=aiohttp.ClientTimeout(total=2)) as r:
+                        if r.status in (200, 204):
+                            xray_ready = True
+                            break
+            except:
+                pass
+
+        if not xray_ready:
+            return result
+
+        result["connected"] = True
+        await asyncio.sleep(0.3)
+
+        connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+        async with aiohttp.ClientSession(connector=connector) as session:
+            test_url = "http://cp.cloudflare.com/generate_204"
+
+            # Pings (6 total, drop first)
+            pings = []
+            for i in range(6):
+                p = await measure_ping(session, test_url)
+                if p != -1 and i > 0:
+                    pings.append(p)
+                await asyncio.sleep(0.15)
+
+            if pings:
+                result["ping"] = round(sum(pings) / len(pings), 2)
+                result["jitter"] = round(max(pings) - min(pings), 2) if len(pings) >= 2 else 0
+
+            # Datacenter
+            try:
+                async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=aiohttp.ClientTimeout(total=3)) as t_resp:
+                    if t_resp.status == 200:
+                        trace_text = await t_resp.text()
+                        for line in trace_text.splitlines():
+                            if line.startswith("colo="):
+                                result["datacenter"] = line.split("=")[1].strip()
+                                break
+            except:
+                pass
+
+            # Download speed (best of 2)
+            dl_url = "http://speed.cloudflare.com/__down?bytes=1000000"
+            try:
+                speed_down_1 = await measure_speed(session, dl_url, size_mb=1, is_upload=False)
+                speed_down_2 = await measure_speed(session, dl_url, size_mb=1, is_upload=False)
+                result["download"] = round(max(speed_down_1, speed_down_2), 2)
+            except (asyncio.CancelledError, Exception):
+                pass
+
+            # Upload speed (best of 2)
+            ul_url = "http://speed.cloudflare.com/__up"
+            try:
+                speed_up_1 = await measure_speed(session, ul_url, size_mb=1, is_upload=True)
+                speed_up_2 = await measure_speed(session, ul_url, size_mb=1, is_upload=True)
+                result["upload"] = round(max(speed_up_1, speed_up_2), 2)
+            except (asyncio.CancelledError, Exception):
+                pass
+      except asyncio.CancelledError:
+          pass
+
+    finally:
+        try:
+            import psutil
+            parent = psutil.Process(process.pid)
+            for child in parent.children(recursive=True):
+                child.kill()
+            parent.kill()
+        except:
+            try:
+                process.kill()
+            except:
+                pass
+        try:
+            os.remove(config_path)
+        except:
+            pass
+
+    return result
+
+
+def reconstruct_config(parts, new_ip):
+    """Reconstruct config URL with new IP - handles all protocols."""
+    protocol = parts.get("protocol", "vless")
+    if protocol == "vmess":
+        return reconstruct_vmess(parts, new_ip)
+    return reconstruct_vless(parts, new_ip)
+
+async def test_config(vless_parts, test_port=None, test_sni=None):
+    """Full config validation: test config against its original IP, return detailed metrics."""
+    original_ip = vless_parts.get("address", "")
+    print(f"[test_config] Testing config against original IP: {original_ip}")
+    if not original_ip or original_ip in ("127.0.0.1", "invalid"):
+        return False, "Invalid config address", None
+    
+    local_port = random.randint(10000, 20000)
+    config = generate_xray_config(vless_parts, original_ip, local_port, test_port=test_port, test_sni=test_sni)
+    
+    safe_ip = original_ip.replace(":", "_")
+    config_path = os.path.join(APP_DIR, f"config_test_{safe_ip}_{local_port}.json")
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    
+    xray_path = get_xray_path()
+    creationflags = 0
+    if os.name == 'nt':
+        creationflags = subprocess.CREATE_NO_WINDOW
+    process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
+    print(f"[test_config] Xray started on port {local_port}, pid={process.pid}")
+    
+    try:
+        # Phase 1: Boot polling - wait for xray to be ready (up to 8s)
+        xray_ready = False
+        for i in range(8):
+            await asyncio.sleep(1)
+            if process.poll() is not None:
+                print(f"[test_config] Xray crashed at iter {i}")
+                return False, "Xray process crashed - config may be invalid", None
+            try:
+                connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get("http://cp.cloudflare.com/generate_204", timeout=aiohttp.ClientTimeout(total=2)) as r:
+                        if r.status in (200, 204):
+                            xray_ready = True
+                            print(f"[test_config] Connected at iter {i}")
+                            break
+            except Exception as e:
+                if i == 0 or i == 4 or i == 7:
+                    print(f"[test_config] Attempt {i}: {type(e).__name__}")
+        
+        if not xray_ready:
+            print(f"[test_config] FAILED after 8 attempts")
+            return False, f"Config failed - could not connect through {original_ip}. Server may be down or credentials expired.", None
+        
+        # Phase 2: Full metrics - ping, jitter, speed, datacenter
+        connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+        async with aiohttp.ClientSession(connector=connector) as session:
+            test_url = "http://cp.cloudflare.com/generate_204"
+            
+            # Cooldown after boot
+            await asyncio.sleep(0.3)
+            
+            # Pings (6 total, drop first for cold-start bias)
+            pings = []
+            for i in range(6):
+                p = await measure_ping(session, test_url)
+                if p != -1:
+                    if i > 0:
+                        pings.append(p)
+                await asyncio.sleep(0.15)
+            
+            avg_ping = round(sum(pings) / len(pings), 2) if pings else 0
+            jitter = round(max(pings) - min(pings), 2) if len(pings) >= 2 else 0
+            
+            # Datacenter colo
+            datacenter = "Unknown"
+            try:
+                async with session.get("http://cp.cloudflare.com/cdn-cgi/trace", timeout=5) as t_resp:
+                    if t_resp.status == 200:
+                        trace_text = await t_resp.text()
+                        for line in trace_text.splitlines():
+                            if line.startswith("colo="):
+                                datacenter = line.split("=")[1].strip()
+                                break
+            except:
+                pass
+            
+            # Download speed (best of 2)
+            dl_url = "http://speed.cloudflare.com/__down?bytes=1000000"
+            speed_down_1 = await measure_speed(session, dl_url, size_mb=1, is_upload=False)
+            speed_down_2 = await measure_speed(session, dl_url, size_mb=1, is_upload=False)
+            speed_down = max(speed_down_1, speed_down_2)
+            
+            # Upload speed (best of 2)
+            ul_url = "http://speed.cloudflare.com/__up"
+            speed_up_1 = await measure_speed(session, ul_url, size_mb=1, is_upload=True)
+            speed_up_2 = await measure_speed(session, ul_url, size_mb=1, is_upload=True)
+            speed_up = max(speed_up_1, speed_up_2)
+            
+            # Convert Mbps to KB/s for frontend
+            download_kbs = round(speed_down * 1024 / 8, 1) if speed_down > 0 else 0
+            upload_kbs = round(speed_up * 1024 / 8, 1) if speed_up > 0 else 0
+            
+            # Extract protocol info from config parts
+            params = vless_parts.get("params", {})
+            protocol = vless_parts.get("protocol", "unknown")
+            transport = params.get("type", params.get("net", "tcp"))
+            tls = params.get("security", params.get("tls", "none"))
+            if tls == "": tls = "none"
+            
+            result = {
+                "ping": avg_ping,
+                "jitter": jitter,
+                "download_speed": download_kbs,
+                "upload_speed": upload_kbs,
+                "protocol": protocol,
+                "transport": transport,
+                "tls": tls,
+                "datacenter": datacenter,
+                "country": "",
+                "city": "",
+                "isp": ""
+            }
+            
+            # Try to get location info via ipinfo
+            try:
+                async with aiohttp.ClientSession(connector=ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")) as geo_session:
+                    async with geo_session.get("https://ipinfo.io/json", timeout=aiohttp.ClientTimeout(total=5)) as geo_resp:
+                        if geo_resp.status == 200:
+                            geo = await geo_resp.json()
+                            result["country"] = geo.get("country", "")
+                            result["city"] = geo.get("city", "")
+                            result["isp"] = geo.get("org", "")
+            except:
+                pass
+            
+            print(f"[test_config] SUCCESS: ping={avg_ping}ms, jitter={jitter}ms, dl={download_kbs}KB/s, ul={upload_kbs}KB/s, dc={datacenter}")
+            return True, f"Config OK (tested via {original_ip})", result
+    finally:
+        try:
+            process.terminate()
+            process.wait(timeout=3)
+        except:
+            try:
+                process.kill()
+            except:
+                pass
+        try:
+            os.remove(config_path)
+        except:
+            pass
+
 async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None):
+    """Wrapper with global 90s timeout to prevent stuck scans."""
+    try:
+        return await asyncio.wait_for(
+            _scan_ip_impl(ip, vless_parts, thresholds, speed_sem, test_port, fragment, test_sni, verify_tls, check_status_cb, provider, advanced_dns_config),
+            timeout=90
+        )
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        return {"ip": ip.strip() if ip else ip, "ping": -1, "jitter": -1, "download": -1, "upload": -1, "status": "timeout", "datacenter": "Unknown", "link": ""}
+
+async def _scan_ip_impl(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None):
     ip = ip.strip()
     if not ip: return {"status": "error"}
     
@@ -318,20 +820,6 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         
     process = subprocess.Popen([xray_path, "-c", config_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=creationflags)
     
-    # FIX #3: Adaptive Xray boot - poll readiness instead of fixed 2s wait
-    connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
-    xray_ready = False
-    for _ in range(10):  # Up to 5 seconds (10 x 500ms)
-        await asyncio.sleep(0.5)
-        try:
-            async with aiohttp.ClientSession(connector=ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")) as probe:
-                async with probe.get("http://cp.cloudflare.com/generate_204", timeout=2) as r:
-                    if r.status in [200, 204]:
-                        xray_ready = True
-                        break
-        except:
-            pass
-    
     result = {
         "ip": ip, 
         "ping": -1, 
@@ -343,20 +831,36 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
         "link": ""
     }
     
-    if verify_tls:
-        if check_status_cb:
-            while check_status_cb() == 'paused':
-                await asyncio.sleep(0.5)
-            if check_status_cb() not in ['running', 'paused']:
-                result["status"] = "abort"
+    try:
+        # FIX #3: Adaptive Xray boot - poll readiness instead of fixed 2s wait
+        xray_ready = False
+        for _ in range(10):  # Up to 5 seconds (10 x 500ms)
+            await asyncio.sleep(0.5)
+            try:
+                async with aiohttp.ClientSession(connector=ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")) as probe:
+                    async with probe.get("http://cp.cloudflare.com/generate_204", timeout=2) as r:
+                        if r.status in [200, 204]:
+                            xray_ready = True
+                            break
+            except:
+                pass
+        
+        # Create fresh connector AFTER xray is ready (avoids stale connection state)
+        connector = ProxyConnector.from_url(f"socks5://127.0.0.1:{local_port}")
+        
+        if verify_tls:
+            if check_status_cb:
+                while check_status_cb() == 'paused':
+                    await asyncio.sleep(0.5)
+                if check_status_cb() not in ['running', 'paused']:
+                    result["status"] = "abort"
+                    return result
+
+            is_valid_tls = await verify_cloudflare_tls(ip, port=test_port or vless_parts.get('port', 443), sni=test_sni or vless_parts['params'].get('sni'))
+            if not is_valid_tls:
+                result["status"] = "compromised"
                 return result
 
-        is_valid_tls = await verify_cloudflare_tls(ip, port=test_port or vless_parts.get('port', 443), sni=test_sni or vless_parts['params'].get('sni'))
-        if not is_valid_tls:
-            result["status"] = "compromised"
-            return result
-
-    try:
         async with aiohttp.ClientSession(connector=connector) as session:
             # 1. PING & JITTER
             pings = []
@@ -369,7 +873,7 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
                     if await measure_ping(session, test_url, check_status_cb) != -1:
                         warmup_success = True
                         break
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1)
                 
                 if not warmup_success:
                      result["status"] = "unreachable"
@@ -493,7 +997,7 @@ async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, f
 
                  # PASSED ALL
                  result["status"] = "ok"
-                 result["link"] = reconstruct_vless(vless_parts, ip)
+                 result["link"] = reconstruct_config(vless_parts, ip)
 
     except Exception as e:
         # print(f"Scan fatal error {ip}: {e}")

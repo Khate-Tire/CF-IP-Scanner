@@ -3,30 +3,68 @@
 !.env.example
 backend/.env
 !backend/.env.example
+frontend/.env
+!frontend/.env.example
 
 # Python
 backend/__pycache__/
-backend/__pycache__/*.pyc
-*.pyc
 __pycache__/
+*.pyc
 .venv/
 venv/
 
 # Backend artifacts
 backend/*.json
-backend/results/*.json
+!backend/settings.json
+backend/results/
 backend/build/
 backend/dist/
+backend/offline_cache.db
+backend/offline_cache.db-shm
+backend/offline_cache.db-wal
+backend/scan_queue.db
+backend/scan_queue.db-shm
+backend/scan_queue.db-wal
+backend/*.spec
+backend/_out.txt
+backend/_test_out.txt
+backend/_test_out2.txt
+backend/_ssl_hook.py
+backend/test_*.py
+backend/test_*.json
+
+# Root test files
+test_*.py
 
 # Frontend
 node_modules/
 frontend/node_modules/
+frontend/.env
 
 # Build output
 dist/
+build/
+
+# Worker secrets & artifacts
+worker/.wrangler/
+worker/deploy_log.txt
+worker/deploy_success.txt
 
 # Debug & temp files
 debug.html
 bw.html
 *.log
 main.png
+
+# V2Ray configs (may contain real credentials)
+V2Ray-Configs/
+
+# VPN Admin Panel (private)
+vpn-admin-panel/
+
+# CF-SITES (scraped data)
+CF-SITES/
+
+# OS files
+.DS_Store
+Thumbs.db
