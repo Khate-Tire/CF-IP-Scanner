@@ -25,6 +25,7 @@ import { useTranslation } from './i18n/LanguageContext';
 import { Toaster, toast } from 'react-hot-toast';
 import logoImg from '/logo.png';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan, getMyIP, startFreedom, stopFreedom } from './api';
+import { API_URL } from './api';
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
@@ -37,6 +38,7 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [activeTab, setActiveTab] = useState('scanner');
   const [autoStartSignal, setAutoStartSignal] = useState(0);
+  const [backendReady, setBackendReady] = useState(false);
 
   // Use Refs for Scan State to prevent massive re-renders during active polling
   const currentVlessConfig = useRef("");
@@ -48,6 +50,29 @@ function App() {
   const isInitialMount = useRef(true);
   const [latestVersion, setLatestVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);
+
+  // Poll backend health until it's ready
+  useEffect(() => {
+    let cancelled = false;
+    const checkBackend = async () => {
+      while (!cancelled) {
+        try {
+          const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) { setBackendReady(true); return; }
+        } catch (e) { /* backend not ready yet */ }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    };
+    checkBackend();
+    // Also listen for Electron IPC signal
+    if (typeof window !== 'undefined' && window.require) {
+      try {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.on('backend-ready', () => setBackendReady(true));
+      } catch (e) { /* not in Electron */ }
+    }
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     getMyIP(useSystemProxy).then(info => {
@@ -217,6 +242,18 @@ function App() {
 
   return (
     <div className="min-h-screen p-8 bg-[url('/bg-grid.svg')] bg-cover relative">
+      {!backendReady && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-[#0f172a]">
+          <img src={logoImg} alt="Loading" className="w-24 h-24 mb-6 animate-pulse" />
+          <div className="flex items-center gap-3">
+            <svg className="animate-spin h-5 w-5 text-cyan-400" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <span className="text-cyan-400 font-mono text-sm tracking-wider">Starting engine...</span>
+          </div>
+        </div>
+      )}
       <Toaster
         position="bottom-right"
         toastOptions={{

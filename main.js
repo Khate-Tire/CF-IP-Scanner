@@ -45,11 +45,17 @@ function createWindow() {
         width: 1200,
         height: 800,
         icon: iconPath,
+        show: false,
+        backgroundColor: '#0f172a',
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         },
         autoHideMenuBar: true,
+    });
+
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
     });
 
     // In production, load the built React app. In dev, load localhost.
@@ -209,13 +215,19 @@ app.on('ready', async () => {
     log(`Is packaged: ${app.isPackaged}`);
     log(`User data: ${app.getPath('userData')}`);
 
-    await startPythonBackend();
-
-    // Wait for the backend to actually be ready (up to 60 seconds for cold PyInstaller starts)
-    log('Waiting for backend to be ready...');
-    await waitForBackend(60, 1000);
-
+    // Show the window immediately so the user sees the UI right away
     createWindow();
+
+    // Start backend and wait for it in the background (UI is already visible)
+    startPythonBackend().then(() => {
+        log('Waiting for backend to be ready...');
+        return waitForBackend(60, 1000);
+    }).then((ready) => {
+        if (ready && mainWindow) {
+            mainWindow.webContents.send('backend-ready');
+            log('Backend ready signal sent to renderer');
+        }
+    });
 
     // Auto updater logic
     autoUpdater.checkForUpdatesAndNotify();
