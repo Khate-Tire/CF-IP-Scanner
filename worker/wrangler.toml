@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "YOUR_HYPERDRIVE_ID"
+id = "ffcc3deddb8449fe8a45e28e6185b3fb"
 
 # API_KEY is set via `wrangler secret put API_KEY` — do NOT put secrets in [vars]
 # [vars]
