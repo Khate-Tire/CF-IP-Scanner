@@ -1,490 +1,656 @@
 {
-    "app": {
-        "title": "ANTIGRAVITY IP SCANNER",
-        "subtitle": "Cloudflare IP Optimization Tool",
-        "proxyLabel": "Route Location API & Discovery through Windows System Proxy / VPN",
-        "supportGithub": "⭐ Support — Star on GitHub",
-        "updateAvailable": "Update to v{version}",
-        "builtBy": "Built with ❤️ by",
-        "openSource": "Open Source for Internet Freedom",
-        "tabs": {
-            "scanner": "Scanner",
-            "analytics": "Global Analytics",
-            "advanced": "Advanced Bypasses",
-            "warp": "WARP Endpoints",
-            "dns": "Tunnel & DNS",
-            "freevpn": "Free VPN",
-            "data": "Data Sync",
-            "freedom": "Play Freedom",
-            "about": "About App"
+  "app": {
+    "title": "ANTIGRAVITY IP SCANNER",
+    "subtitle": "Cloudflare IP Optimization Tool",
+    "proxyLabel": "Route Location API & Discovery through Windows System Proxy / VPN",
+    "supportGithub": "⭐ Support — Star on GitHub",
+    "updateAvailable": "Update to v{version}",
+    "builtBy": "Built with ❤️ by",
+    "openSource": "Open Source for Internet Freedom",
+    "tabs": {
+      "scanner": "Scanner",
+      "analytics": "Global Analytics",
+      "advanced": "Advanced Bypasses",
+      "warp": "WARP Endpoints",
+      "dns": "Tunnel & DNS",
+      "freevpn": "Free VPN",
+      "data": "Data Sync",
+      "freedom": "Play Freedom",
+      "about": "About App"
+    },
+    "startingEngine": "Starting engine..."
+  },
+  "config": {
+    "configLabel": "VLESS Configuration",
+    "configPlaceholder": "Paste your vless://... config here",
+    "subUrlPlaceholder": "https://your-subscription-link.com/sub",
+    "fetchConfig": "Fetch Config",
+    "fetching": "Fetching...",
+    "autoScan": "🔥 ONE-CLICK AUTO SCAN",
+    "startScan": "🚀 START SCAN",
+    "scanning": "⏳ SCANNING...",
+    "ipSource": "IP Source",
+    "sources": {
+      "official": "📂 Official Cloudflare IPs",
+      "custom": "🔗 Custom IP List URL",
+      "history": "🧠 Smart History (Your ISP)",
+      "gold": "🏆 Gold IPs (Recommended)",
+      "community": "👥 Community Gold"
+    },
+    "manualIps": "Manual IPs",
+    "manualIpsPlaceholder": "One IP per line...",
+    "advancedSettings": "Advanced Settings",
+    "stopAfter": "Stop After Good IPs",
+    "concurrency": "Concurrency",
+    "maxPing": "Max Ping (ms)",
+    "maxJitter": "Max Jitter (ms)",
+    "minDownload": "Min Download (Mbps)",
+    "minUpload": "Min Upload (Mbps)",
+    "ipVersion": "IP Version",
+    "targetCountry": "Target Country",
+    "testPorts": "Test Ports",
+    "verifyTls": "🔒 Verify TLS (Anti-MITM)",
+    "importSub": "Import from Subscription Link",
+    "selectCountry": "Select on Map",
+    "vlessUrl": "VLESS URL",
+    "showAdvanced": "Show Advanced Settings",
+    "hideAdvanced": "Hide Advanced Settings",
+    "threads": "Threads (Concurrency)",
+    "stopAfterLabel": "Stop after (Good IPs)",
+    "bothIpv": "Both IPv4 & IPv6",
+    "ipv4Only": "IPv4 Only",
+    "ipv6Only": "IPv6 Only",
+    "strictTls": "Strict TLS Verification (Anti-MITM)",
+    "targetPorts": "Target Ports (Leave empty to use Config Default)",
+    "geoTarget": "Interactive Geo-Targeting (Global by default)",
+    "geoHint": "Left-click a country to strictly hunt for Datacenters in that region. Click again to clear.",
+    "useManual": "Use Manual IPs or Domains",
+    "ipGenSource": "IP Generation Source",
+    "srcOfficial": "Official Cloudflare IP Ranges (Random/Systematic)",
+    "srcHistory": "Smart History (Fastest - Best IPs for your ISP)",
+    "srcGold": "Gold IPs (Smart History + Auto Top Domains for your country)",
+    "srcCommunity": "Community Gold (Best IPs verified by ANY user in your region)",
+    "srcScrape": "Auto-Scrape Private/Clean IPs (Community GitHub Lists)",
+    "srcCustom": "Custom Private IP List URL",
+    "autoScanning": "SCANNING...",
+    "startManual": "START MANUAL",
+    "strictMin": "🛡️ Minimum (Maximize Survival)",
+    "strictAvg": "⚖️ Average (Balanced)",
+    "strictHard": "⚡ Hard (Strict Speed)",
+    "verifyConfig": "Verify Config (Not a Scan)",
+    "configWorking": "Config is Working!",
+    "configNotWorking": "Config Not Working",
+    "ping": "Ping",
+    "jitter": "Jitter",
+    "download": "Download",
+    "upload": "Upload",
+    "errorNotWorking": "It seems this config is not working. Please check the config or try another one.",
+    "ultimateMode": "Ultimate Mode",
+    "globalSearch": "Global Search",
+    "fastlyCdn": "FASTLY CDN",
+    "beta": "Beta",
+    "fastlyWarn": "Ensure your VLESS config uses a Fastly SNI/Host (e.g. fastly.net). Scanning Fastly IPs with Cloudflare configs will fail.",
+    "tunnelFailed": "Server reachable (ping: ${testResult.details.ping}ms) but proxy tunnel failed."
+  },
+  "results": {
+    "title": "Scan Results",
+    "ip": "IP",
+    "ping": "Ping",
+    "jitter": "Jitter",
+    "download": "Download",
+    "upload": "Upload",
+    "datacenter": "Datacenter",
+    "status": "Status",
+    "actions": "Actions",
+    "copyLink": "Copy Link",
+    "copied": "Copied!",
+    "export": "Export",
+    "exporting": "Exporting...",
+    "noResults": "No results yet. Run a scan to discover clean IPs.",
+    "exportSub": "Export Subscription",
+    "base64": "Base64 (V2RayNG)",
+    "clash": "Clash YAML",
+    "singbox": "SingBox JSON",
+    "copyAll": "Copy All IPs",
+    "copyConfigs": "Configs",
+    "copyIps": "IPs",
+    "send": "SEND",
+    "save": "SAVE",
+    "ipAddress": "IP Address",
+    "pingMs": "Ping (ms)",
+    "jitterMs": "Jitter (ms)",
+    "downloadMbps": "Download (Mbps)",
+    "uploadMbps": "Upload (Mbps)",
+    "locationIsp": "Location / ISP",
+    "noGoodIps": "No good IPs found yet...",
+    "qrTitle": "Config QR Code",
+    "close": "Close"
+  },
+  "scan": {
+    "scanning": "Scanning...",
+    "scanned": "IPs checked",
+    "paused": "Paused...",
+    "pause": "PAUSE",
+    "resume": "RESUME",
+    "stop": "STOP",
+    "retryMsg": "⚠️ Strict Limits Failed. Relaxing Thresholds (Attempt {count}/2)..."
+  },
+  "analytics": {
+    "loading": "Loading Global Intelligence...",
+    "failed": "Failed to load analytics.",
+    "totalScans": "Total IP Scans",
+    "verifiedGood": "Verified Good IPs",
+    "timeline": "Discovery Performance Over Time (7 Days)",
+    "dcLatency": "Datacenter Latency (Average Ping)",
+    "fastestPorts": "Fastest Ports",
+    "successes": "successes",
+    "networkProto": "Network Protocols",
+    "routes": "routes",
+    "noData": "No data available yet.",
+    "worldMap": {
+      "title": "Global Network Health Map",
+      "loading": "Loading Global Intelligence Map...",
+      "successLabel": "Success",
+      "noData": "No Data",
+      "totalScans": "Total Scans",
+      "goodIps": "Good IPs",
+      "avgPing": "Avg Ping",
+      "avgJitter": "Avg Jitter",
+      "avgDownload": "Avg Download",
+      "avgUpload": "Avg Upload",
+      "activeUsers": "Active Users",
+      "topIsps": "Top ISPs",
+      "bestDcs": "Best Datacenters",
+      "countries": "countries with scan data",
+      "worldwide": "total scans worldwide",
+      "globalUsers": "unique users globally",
+      "hits": "hits"
+    },
+    "success": "Success",
+    "totalScansExecuted": "Total Scans Executed",
+    "successfulBypasses": "Successful Bypasses",
+    "scanOutcomes": "Scan Outcomes",
+    "avgLatency": "Avg Latency (ms)",
+    "topUserIsps": "Top User ISPs",
+    "successfulScans": "Successful Scans",
+    "topContributorAsns": "Top Contributor ASNs",
+    "activeVerifiedIps": "Active Verified IPs",
+    "port": "PORT"
+  },
+  "health": {
+    "cloudflare": "CLOUDFLARE",
+    "globalDb": "GLOBAL DB",
+    "online": "Online",
+    "offline": "Offline",
+    "checking": "Checking",
+    "connectionFailed": "Connection failed",
+    "invalidConfig": "Please enter a valid VLESS config.",
+    "connectedProxy": "Connected through VLESS proxy tunnel (ISP bypass active)",
+    "tunnelTooltip": "If your ISP blocked the global database, click here to tunnel it through your VPN.",
+    "tunnelDb": "Tunnel DB",
+    "initTunnel": "Initialize Database Tunnel",
+    "ispBlocking": "Your ISP is blocking the direct connection to the Community Data Repository.",
+    "pasteVless": "Paste any working",
+    "pasteVlessEnd": "URL below. The scanner will instantly spin up a local proxy router and tunnel the secure MySQL connection through that VLESS server to bypass the network block!",
+    "cancel": "Cancel",
+    "connecting": "Connecting...",
+    "tunnelNetwork": "Tunnel Network"
+  },
+  "advanced": {
+    "title": "Multi-Vector DPI Bypassing",
+    "fragment": "Fragment Analyzer",
+    "sni": "SNI Fronting",
+    "vlessConfig": "VLESS URL Config",
+    "targetIp": "Clean Target Cloudflare IP",
+    "fragDesc": "Test every permutation of length and interval pairs against the target IP to find a DPI bypass sweet spot for your current ISP.",
+    "lengths": "Lengths (Comma Separated Ranges)",
+    "intervals": "Intervals (Comma Separated Ranges)",
+    "sniLabel": "Custom SNI Hostnames (Comma/Newline separated)",
+    "sniDesc": "Iterates through a massive list of SNIs against a single working Cloudflare IP.",
+    "startBypass": "Start Bypass Scan",
+    "scanningBypass": "Scanning Bypass Configurations...",
+    "checksComplete": "checks complete"
+  },
+  "warp": {
+    "title": "WARP Endpoint Scanner",
+    "desc": "Hunt for fully functional Cloudflare WARP UDP/TCP nodes tailored to your region. You can use these IPs as Wireguard endpoints to establish full-device VPN tunnels that bypass DPI censorship.",
+    "threads": "Threads (Concurrency)",
+    "targetEndpoints": "Target Endpoints (Stop After)",
+    "maxPing": "Max acceptable ping (ms)",
+    "ports": "Wireguard UDP Ports to scan",
+    "startHunt": "Start WARP Hunt",
+    "stopScanning": "Stop Scanning",
+    "cleanEndpoints": "Clean Endpoints",
+    "copyAll": "Copy All endpoints",
+    "noEndpoints": "No endpoints found yet.",
+    "logs": "Scanner Logs",
+    "waiting": "Waiting to start..."
+  },
+  "dnsScanner": {
+    "title": "DNS & Tunnel Scanner (BETA)",
+    "subtitle": "Test DNS resolver overrides and TLS Split-Stream fragmentation to bypass DPI censorship.",
+    "testOption": "Testing Mode",
+    "dnstt": "DNS Resolver Override",
+    "tlsSplit": "TLS Split-Stream",
+    "nameserver": "DNS Server (Encrypted or Plain)",
+    "nameserverDesc": "Supports UDP, TCP, DNS-over-HTTPS (DoH), and DNS-over-TLS (DoT) formats.",
+    "customDns": "Custom DNS Server...",
+    "testDomain": "Test Domain",
+    "testDomainDesc": "Domain to try resolving through the selected DNS server.",
+    "fragmentSize": "Fragment Size (Bytes)",
+    "fragmentSizeDesc": "Example: '10-20' segments packets between 10 and 20 bytes.",
+    "fragmentInterval": "Fragment Interval (ms)",
+    "fragmentIntervalDesc": "Delay between fragments.",
+    "ispPreset": "ISP DPI Preset",
+    "packetMode": "Packet Fragmentation Mode",
+    "packetModeDesc": "tlshello splits only the TLS handshake. 1-3 splits the first 1-3 TCP data writes.",
+    "recommended": "(Recommended)",
+    "broader": "(Broader)",
+    "fingerprint": "TLS Browser Fingerprint (uTLS)",
+    "fingerprintDesc": "Mimics real browser TLS handshakes to evade DPI fingerprint detection.",
+    "vlessConfig": "Vless / Xray Configuration",
+    "errorNoConfig": "Please paste a valid Xray/V2Ray config first.",
+    "testing": "Testing...",
+    "startScanner": "Start Scanner",
+    "testingParams": "Testing DNS/Tunnel parameters..."
+  },
+  "dnsGuide": {
+    "showGuide": "Show Guide & More Info",
+    "hideGuide": "Hide Guide & Info",
+    "beginnerTitle": "📖 Beginner Guide — How to Use This Tab",
+    "step1Title": "Choose Your Mode",
+    "step1Desc": "Select 'DNS Resolver Override' to test if your ISP is poisoning DNS queries, or 'TLS Split-Stream' to fragment your TLS handshake and bypass DPI censorship.",
+    "step2Title": "Configure Your Settings",
+    "step2Desc": "For DNS mode: Pick a DNS server from the dropdown (DoH recommended for censored regions). For TLS Split: Select your ISP preset or manually set fragment size and interval.",
+    "step3Title": "Select Browser Fingerprint",
+    "step3Desc": "Choose a TLS fingerprint (Chrome recommended) so your traffic looks like normal browser activity to DPI systems.",
+    "step4Title": "Paste Your Config & Scan",
+    "step4Desc": "Paste a working VLESS/Trojan config (vless://... or trojan://...) into the text box, then press Start Scanner. The app will launch Xray with your settings and test connectivity.",
+    "proTip": "Pro Tip",
+    "proTipDesc": "If you're in Iran, start with the 'Iran MCI' or 'Iran Irancell' preset and Chrome fingerprint. If it fails, try DoH (Google or Cloudflare) instead of plain DNS.",
+    "tlsTitle": "🔧 How TLS Split-Stream Works",
+    "tlsP1": "When you connect to a website over HTTPS, the very first message your computer sends is called the 'TLS ClientHello'. This message contains the SNI (Server Name Indication) — the hostname you're trying to visit (e.g., youtube.com).",
+    "tlsP2": "Government firewalls read this SNI to decide whether to block your connection. TLS Split-Stream defeats this by splitting the ClientHello into tiny fragments. The firewall sees incomplete pieces and can't reconstruct the hostname.",
+    "tlsHelloDesc": "Splits ONLY the TLS ClientHello. Most effective and targeted. Use this first.",
+    "mode13Desc": "Splits the first 1-3 data writes. Broader but less targeted. Try if tlshello fails.",
+    "sizeIntervalDesc": "Size = bytes per fragment (smaller = harder to detect). Interval = delay in ms between fragments.",
+    "dnsTitle": "🌐 How DNS Resolver Override Works",
+    "dnsP1": "When your ISP censors the internet, one of the first things they do is poison DNS queries. When you try to resolve 'youtube.com', your ISP returns a fake IP address or blocks the response entirely.",
+    "dnsP2": "DNS Resolver Override routes your Xray DNS queries through a different server — bypassing your ISP's poisoned DNS. You can use encrypted protocols like DoH (DNS-over-HTTPS) so your ISP can't even see what you're resolving.",
+    "dnsFormat": "Format",
+    "dnsExample": "Example",
+    "dnsSecurity": "Security",
+    "dnsPlain": "Unencrypted",
+    "dnsEncrypted": "Encrypted",
+    "utlsTitle": "🎭 What is uTLS Browser Fingerprint?",
+    "utlsP1": "Every program creates a unique 'TLS fingerprint' when it connects to a server. Government DPI systems can detect that you're using Xray/V2Ray instead of a real browser by analyzing this fingerprint.",
+    "utlsP2": "uTLS solves this by mimicking the exact TLS handshake of real browsers. When you select 'Chrome', your Xray connection looks identical to Google Chrome to any observer.",
+    "utlsWarning": "Important for Iranian Users",
+    "utlsWarningDesc": "Iranian ISPs (especially MCI and Irancell) actively detect non-browser TLS fingerprints. Always select Chrome or Firefox to avoid detection.",
+    "ispTitle": "🇮🇷 ISP-Specific Presets Explained",
+    "ispP1": "Different ISPs use different DPI (Deep Packet Inspection) systems with varying detection capabilities. Fragment settings that work on one ISP may not work on another.",
+    "ispMci": "Most aggressive DPI in Iran. Uses ML-based analysis. Needs large fragments (100-200 bytes) with moderate delays.",
+    "ispIrancell": "Strong DPI but less aggressive than MCI. Medium fragments (50-100 bytes) usually work well.",
+    "ispShatel": "Lighter DPI. Small, fast fragments (10-30 bytes, 1-5ms delay) are very effective.",
+    "ispChina": "Advanced stateful DPI. Medium fragments with longer delays (20-50ms) to avoid detection."
+  },
+  "about": {
+    "title": "Antigravity IP Scanner",
+    "subtitle": "Advanced Cloudflare IP Optimization & Censorship Bypass Tool",
+    "version": "Version 2.5 • Open Source",
+    "whatIs": {
+      "title": "What is Antigravity?",
+      "p1": "Antigravity is a professional-grade network tool designed to discover and verify Cloudflare Edge IPs and WARP endpoints that bypass Deep Packet Inspection (DPI) and geographic censorship.",
+      "p2": "It tests latency (ping), jitter, and real-world download/upload speeds to find the best connections for your specific internet provider and location.",
+      "cards": {
+        "ping": {
+          "label": "Ping & Jitter",
+          "val": "Real-time latency"
+        },
+        "speed": {
+          "label": "Speed Test",
+          "val": "Download & Upload"
+        },
+        "tls": {
+          "label": "TLS Verify",
+          "val": "Anti-MITM Protection"
+        },
+        "proto": {
+          "label": "Multi-Protocol",
+          "val": "VLESS / WARP"
         }
+      }
     },
-    "config": {
-        "configLabel": "VLESS Configuration",
-        "configPlaceholder": "Paste your vless://... config here",
-        "subUrlPlaceholder": "https://your-subscription-link.com/sub",
-        "fetchConfig": "Fetch Config",
-        "fetching": "Fetching...",
-        "autoScan": "🔥 ONE-CLICK AUTO SCAN",
-        "startScan": "🚀 START SCAN",
-        "scanning": "⏳ SCANNING...",
-        "ipSource": "IP Source",
-        "sources": {
-            "official": "📂 Official Cloudflare IPs",
-            "custom": "🔗 Custom IP List URL",
-            "history": "🧠 Smart History (Your ISP)",
-            "gold": "🏆 Gold IPs (Recommended)",
-            "community": "👥 Community Gold"
+    "guide": {
+      "title": "Quick Start Guide (Step by Step)",
+      "steps": {
+        "s1": {
+          "title": "Get a VLESS Config",
+          "desc": "You need a working VLESS configuration as a base. You can:",
+          "sub": [
+            "Paste your own config directly into the text box",
+            "Enter a subscription URL and click 'Fetch Config' to auto-import",
+            "Use the '🔥 ONE-CLICK AUTO SCAN' button (it fetches configs automatically)"
+          ]
         },
-        "manualIps": "Manual IPs",
-        "manualIpsPlaceholder": "One IP per line...",
-        "advancedSettings": "Advanced Settings",
-        "stopAfter": "Stop After Good IPs",
-        "concurrency": "Concurrency",
-        "maxPing": "Max Ping (ms)",
-        "maxJitter": "Max Jitter (ms)",
-        "minDownload": "Min Download (Mbps)",
-        "minUpload": "Min Upload (Mbps)",
-        "ipVersion": "IP Version",
-        "targetCountry": "Target Country",
-        "testPorts": "Test Ports",
-        "verifyTls": "🔒 Verify TLS (Anti-MITM)",
-        "importSub": "Import from Subscription Link",
-        "selectCountry": "Select on Map",
-        "vlessUrl": "VLESS URL",
-        "showAdvanced": "Show Advanced Settings",
-        "hideAdvanced": "Hide Advanced Settings",
-        "threads": "Threads (Concurrency)",
-        "stopAfterLabel": "Stop after (Good IPs)",
-        "bothIpv": "Both IPv4 & IPv6",
-        "ipv4Only": "IPv4 Only",
-        "ipv6Only": "IPv6 Only",
-        "strictTls": "Strict TLS Verification (Anti-MITM)",
-        "targetPorts": "Target Ports (Leave empty to use Config Default)",
-        "geoTarget": "Interactive Geo-Targeting (Global by default)",
-        "geoHint": "Left-click a country to strictly hunt for Datacenters in that region. Click again to clear.",
-        "useManual": "Use Manual IPs or Domains",
-        "ipGenSource": "IP Generation Source",
-        "srcOfficial": "Official Cloudflare IP Ranges (Random/Systematic)",
-        "srcHistory": "Smart History (Fastest - Best IPs for your ISP)",
-        "srcGold": "Gold IPs (Smart History + Auto Top Domains for your country)",
-        "srcCommunity": "Community Gold (Best IPs verified by ANY user in your region)",
-        "srcScrape": "Auto-Scrape Private/Clean IPs (Community GitHub Lists)",
-        "srcCustom": "Custom Private IP List URL",
-        "autoScanning": "SCANNING...",
-        "startManual": "START MANUAL",
-        "strictMin": "🛡️ Minimum (Maximize Survival)",
-        "strictAvg": "⚖️ Average (Balanced)",
-        "strictHard": "⚡ Hard (Strict Speed)"
-    },
-    "results": {
-        "title": "Scan Results",
-        "ip": "IP",
-        "ping": "Ping",
-        "jitter": "Jitter",
-        "download": "Download",
-        "upload": "Upload",
-        "datacenter": "Datacenter",
-        "status": "Status",
-        "actions": "Actions",
-        "copyLink": "Copy Link",
-        "copied": "Copied!",
-        "export": "Export",
-        "exporting": "Exporting...",
-        "noResults": "No results yet. Run a scan to discover clean IPs.",
-        "exportSub": "Export Subscription",
-        "base64": "Base64 (V2RayNG)",
-        "clash": "Clash YAML",
-        "singbox": "SingBox JSON",
-        "copyAll": "Copy All IPs",
-        "copyConfigs": "Configs",
-        "copyIps": "IPs",
-        "send": "SEND",
-        "save": "SAVE",
-        "ipAddress": "IP Address",
-        "pingMs": "Ping (ms)",
-        "jitterMs": "Jitter (ms)",
-        "downloadMbps": "Download (Mbps)",
-        "uploadMbps": "Upload (Mbps)",
-        "locationIsp": "Location / ISP",
-        "noGoodIps": "No good IPs found yet...",
-        "qrTitle": "Config QR Code",
-        "close": "Close"
-    },
-    "scan": {
-        "scanning": "Scanning...",
-        "scanned": "IPs checked",
-        "paused": "Paused...",
-        "pause": "PAUSE",
-        "resume": "RESUME",
-        "stop": "STOP",
-        "retryMsg": "⚠️ Strict Limits Failed. Relaxing Thresholds (Attempt {count}/2)..."
-    },
-    "analytics": {
-        "loading": "Loading Global Intelligence...",
-        "failed": "Failed to load analytics.",
-        "totalScans": "Total IP Scans",
-        "verifiedGood": "Verified Good IPs",
-        "timeline": "Discovery Performance Over Time (7 Days)",
-        "dcLatency": "Datacenter Latency (Average Ping)",
-        "fastestPorts": "Fastest Ports",
-        "successes": "successes",
-        "networkProto": "Network Protocols",
-        "routes": "routes",
-        "noData": "No data available yet.",
-        "worldMap": {
-            "title": "Global Network Health Map",
-            "loading": "Loading Global Intelligence Map...",
-            "successLabel": "Success",
-            "noData": "No Data",
-            "totalScans": "Total Scans",
-            "goodIps": "Good IPs",
-            "avgPing": "Avg Ping",
-            "avgJitter": "Avg Jitter",
-            "avgDownload": "Avg Download",
-            "avgUpload": "Avg Upload",
-            "activeUsers": "Active Users",
-            "topIsps": "Top ISPs",
-            "bestDcs": "Best Datacenters",
-            "countries": "countries with scan data",
-            "worldwide": "total scans worldwide",
-            "globalUsers": "unique users globally"
+        "s2": {
+          "title": "Choose Your IP Source",
+          "desc": "Select where to find IPs to test:",
+          "sub": [
+            "📂 Official Cloudflare — Fresh IPs from Cloudflare's ranges",
+            "🧠 Smart History — IPs verified on your exact ISP before",
+            "🏆 Gold IPs — Smartest strategy: combines history + community + scraped domains",
+            "👥 Community Gold — IPs verified by other users in your country"
+          ]
+        },
+        "s3": {
+          "title": "Configure Thresholds (Optional)",
+          "desc": "Click 'Advanced Settings' to fine-tune:",
+          "sub": [
+            "Max Ping — Reject IPs slower than this (default: 800ms)",
+            "Max Jitter — Reject unstable connections (default: 500ms)",
+            "Min Download — Reject slow downloads (default: 1 Mbps)",
+            "Concurrency — How many IPs to test in parallel (default: 8)"
+          ]
+        },
+        "s4": {
+          "title": "Start Scanning",
+          "desc": "Click 'START SCAN' and watch results appear in real-time. The scanner stops automatically after finding enough good IPs.",
+          "sub": []
+        },
+        "s5": {
+          "title": "Use Your Results",
+          "desc": "From the Results Table:",
+          "sub": [
+            "Click 'Copy Link' to copy any good IP's VLESS config",
+            "Click 'Export' to generate a subscription link for V2RayNG / Clash",
+            "Results are sorted by speed — the top rows are your best IPs"
+          ]
         }
+      }
     },
-    "health": {
-        "cloudflare": "CLOUDFLARE",
-        "globalDb": "GLOBAL DB",
-        "online": "Online",
-        "offline": "Offline"
+    "features": {
+      "title": "Advanced Features",
+      "tls": {
+        "title": "🔒 Strict TLS Verification",
+        "desc": "Validates that the server's TLS certificate belongs to Cloudflare before allowing traffic. Prevents Man-In-The-Middle attacks."
+      },
+      "dpi": {
+        "title": "🧩 DPI Fragment Analyzer",
+        "desc": "Tests various V2Ray fragment configurations on a single IP to bypass advanced deep packet inspection firewalls."
+      },
+      "tcp": {
+        "title": "⚡ TCP Pre-Filter",
+        "desc": "Instantly drops dead IPs using an ultra-fast raw TCP connection test before initiating heavy Xray proxy engines."
+      },
+      "queue": {
+        "title": "💾 Persistent Background Queue",
+        "desc": "Pure SQLite asynchronous scan queue ensures your heavy scans survive application restarts and crashes."
+      },
+      "fastly": {
+        "title": "⚡ Fastly CDN Native Support",
+        "desc": "Built-in intelligence to natively discover and verify Fastly Edge Network IPs alongside Cloudflare."
+      },
+      "dnstt": {
+        "title": "🛡️ DNSTT & TLS Split-Stream",
+        "desc": "Dedicated Beta scanner for SlowDNS encapsulation and fragmented packet analysis to shatter deep DPI layers."
+      },
+      "sni": {
+        "title": "🌐 SNI Fronting Scanner",
+        "desc": "Scans a working IP against hundreds of domain names to find unblocked SNIs for disguised routing."
+      },
+      "warp": {
+        "title": "📡 WARP Endpoint Scanner",
+        "desc": "Discovers Cloudflare WARP UDP endpoints for Wireguard-based VPN clients."
+      },
+      "map": {
+        "title": "📊 Global Analytics",
+        "desc": "Interactive world heatmap showing scan results across all countries."
+      },
+      "retry": {
+        "title": "🔄 Smart Retry System",
+        "desc": "If strict thresholds find nothing, the scanner automatically retries with relaxed settings."
+      },
+      "dns_override": {
+        "title": "🌐 DNS Resolver Override",
+        "desc": "Routes DNS queries through encrypted DoH/DoT servers to bypass ISP DNS poisoning and censorship."
+      },
+      "macos": {
+        "title": "🍎 macOS Support",
+        "desc": "Native macOS DMG installer available. Run Antigravity Scanner on both Windows and macOS."
+      }
     },
-    "advanced": {
-        "title": "Multi-Vector DPI Bypassing",
-        "fragment": "Fragment Analyzer",
-        "sni": "SNI Fronting",
-        "vlessConfig": "VLESS URL Config",
-        "targetIp": "Clean Target Cloudflare IP",
-        "fragDesc": "Test every permutation of length and interval pairs against the target IP to find a DPI bypass sweet spot for your current ISP.",
-        "lengths": "Lengths (Comma Separated Ranges)",
-        "intervals": "Intervals (Comma Separated Ranges)",
-        "sniLabel": "Custom SNI Hostnames (Comma/Newline separated)",
-        "sniDesc": "Iterates through a massive list of SNIs against a single working Cloudflare IP.",
-        "startBypass": "Start Bypass Scan",
-        "scanningBypass": "Scanning Bypass Configurations..."
+    "tips": {
+      "title": "Tips for Best Results",
+      "list": [
+        "Enable the 'System Proxy' checkbox if you have a VPN active",
+        "The '🔥 ONE-CLICK AUTO SCAN' button is the easiest way to start",
+        "If no good IPs are found, try 'Official Cloudflare' source",
+        "Lower Min Download to 1-2 Mbps if getting too few results",
+        "Run scans during off-peak hours for better speeds",
+        "Use 'Advanced Bypasses' tab for DPI fragmentation testing",
+        "Export results as subscription link for V2RayNG",
+        "WARP scanner works without any V2Ray configs"
+      ]
     },
-    "warp": {
-        "title": "WARP Endpoint Scanner",
-        "desc": "Hunt for fully functional Cloudflare WARP UDP/TCP nodes tailored to your region. You can use these IPs as Wireguard endpoints to establish full-device VPN tunnels that bypass DPI censorship.",
-        "threads": "Threads (Concurrency)",
-        "targetEndpoints": "Target Endpoints (Stop After)",
-        "maxPing": "Max acceptable ping (ms)",
-        "ports": "Wireguard UDP Ports to scan",
-        "startHunt": "Start WARP Hunt",
-        "stopScanning": "Stop Scanning",
-        "cleanEndpoints": "Clean Endpoints",
-        "copyAll": "Copy All endpoints",
-        "noEndpoints": "No endpoints found yet.",
-        "logs": "Scanner Logs",
-        "waiting": "Waiting to start..."
+    "faq": {
+      "title": "Frequently Asked Questions",
+      "items": [
+        {
+          "q": "What is a 'clean' IP?",
+          "a": "A clean IP is a Cloudflare Edge server IP that is not blocked or throttled by your ISP. By finding unblocked IPs, you bypass censorship."
+        },
+        {
+          "q": "Is this app safe to use?",
+          "a": "Yes. The app only connects to Cloudflare's infrastructure. Configs are never uploaded to any third party."
+        },
+        {
+          "q": "Why are scans slow?",
+          "a": "Each IP requires Xray startup, warmup, 6 pings, and speed tests. This takes 15-30 seconds per IP."
+        },
+        {
+          "q": "What does 'unreachable' mean?",
+          "a": "The IP could not establish a connection. It's likely blocked by your ISP or the config is invalid."
+        },
+        {
+          "q": "VLESS vs WARP?",
+          "a": "VLESS is a proxy protocol needing a V2Ray config. WARP is Cloudflare's own VPN using Wireguard — no separate server needed."
+        },
+        {
+          "q": "Can I use this on my phone?",
+          "a": "The scanner runs on Windows, but results (VLESS links) work in any V2Ray client on any platform."
+        }
+      ]
     },
-    "dnsScanner": {
-        "title": "DNS & Tunnel Scanner (BETA)",
-        "subtitle": "Test DNS resolver overrides and TLS Split-Stream fragmentation to bypass DPI censorship.",
-        "testOption": "Testing Mode",
-        "dnstt": "DNS Resolver Override",
-        "tlsSplit": "TLS Split-Stream",
-        "nameserver": "DNS Server (Encrypted or Plain)",
-        "nameserverDesc": "Supports UDP, TCP, DNS-over-HTTPS (DoH), and DNS-over-TLS (DoT) formats.",
-        "customDns": "Custom DNS Server...",
-        "testDomain": "Test Domain",
-        "testDomainDesc": "Domain to try resolving through the selected DNS server.",
-        "fragmentSize": "Fragment Size (Bytes)",
-        "fragmentSizeDesc": "Example: '10-20' segments packets between 10 and 20 bytes.",
-        "fragmentInterval": "Fragment Interval (ms)",
-        "fragmentIntervalDesc": "Delay between fragments.",
-        "ispPreset": "ISP DPI Preset",
-        "packetMode": "Packet Fragmentation Mode",
-        "packetModeDesc": "tlshello splits only the TLS handshake. 1-3 splits the first 1-3 TCP data writes.",
-        "recommended": "(Recommended)",
-        "broader": "(Broader)",
-        "fingerprint": "TLS Browser Fingerprint (uTLS)",
-        "fingerprintDesc": "Mimics real browser TLS handshakes to evade DPI fingerprint detection.",
-        "vlessConfig": "Vless / Xray Configuration",
-        "errorNoConfig": "Please paste a valid Xray/V2Ray config first.",
-        "testing": "Testing...",
-        "startScanner": "Start Scanner"
+    "sysReq": {
+      "title": "System Requirements",
+      "min": {
+        "title": "Minimum",
+        "items": [
+          "Windows 10/11 (64-bit)",
+          "4 GB RAM",
+          "Internet connection",
+          "Xray-core (bundled)"
+        ]
+      },
+      "rec": {
+        "title": "Recommended",
+        "items": [
+          "8+ GB RAM",
+          "SSD storage",
+          "Active VPN/proxy for initial setup",
+          "Concurrency: 8-15 IPs parallel"
+        ]
+      }
     },
-    "dnsGuide": {
-        "showGuide": "Show Guide & More Info",
-        "hideGuide": "Hide Guide & Info",
-        "beginnerTitle": "📖 Beginner Guide — How to Use This Tab",
-        "step1Title": "Choose Your Mode",
-        "step1Desc": "Select 'DNS Resolver Override' to test if your ISP is poisoning DNS queries, or 'TLS Split-Stream' to fragment your TLS handshake and bypass DPI censorship.",
-        "step2Title": "Configure Your Settings",
-        "step2Desc": "For DNS mode: Pick a DNS server from the dropdown (DoH recommended for censored regions). For TLS Split: Select your ISP preset or manually set fragment size and interval.",
-        "step3Title": "Select Browser Fingerprint",
-        "step3Desc": "Choose a TLS fingerprint (Chrome recommended) so your traffic looks like normal browser activity to DPI systems.",
-        "step4Title": "Paste Your Config & Scan",
-        "step4Desc": "Paste a working VLESS/Trojan config (vless://... or trojan://...) into the text box, then press Start Scanner. The app will launch Xray with your settings and test connectivity.",
-        "proTip": "Pro Tip",
-        "proTipDesc": "If you're in Iran, start with the 'Iran MCI' or 'Iran Irancell' preset and Chrome fingerprint. If it fails, try DoH (Google or Cloudflare) instead of plain DNS.",
-        "tlsTitle": "🔧 How TLS Split-Stream Works",
-        "tlsP1": "When you connect to a website over HTTPS, the very first message your computer sends is called the 'TLS ClientHello'. This message contains the SNI (Server Name Indication) — the hostname you're trying to visit (e.g., youtube.com).",
-        "tlsP2": "Government firewalls read this SNI to decide whether to block your connection. TLS Split-Stream defeats this by splitting the ClientHello into tiny fragments. The firewall sees incomplete pieces and can't reconstruct the hostname.",
-        "tlsHelloDesc": "Splits ONLY the TLS ClientHello. Most effective and targeted. Use this first.",
-        "mode13Desc": "Splits the first 1-3 data writes. Broader but less targeted. Try if tlshello fails.",
-        "sizeIntervalDesc": "Size = bytes per fragment (smaller = harder to detect). Interval = delay in ms between fragments.",
-        "dnsTitle": "🌐 How DNS Resolver Override Works",
-        "dnsP1": "When your ISP censors the internet, one of the first things they do is poison DNS queries. When you try to resolve 'youtube.com', your ISP returns a fake IP address or blocks the response entirely.",
-        "dnsP2": "DNS Resolver Override routes your Xray DNS queries through a different server — bypassing your ISP's poisoned DNS. You can use encrypted protocols like DoH (DNS-over-HTTPS) so your ISP can't even see what you're resolving.",
-        "dnsFormat": "Format",
-        "dnsExample": "Example",
-        "dnsSecurity": "Security",
-        "dnsPlain": "Unencrypted",
-        "dnsEncrypted": "Encrypted",
-        "utlsTitle": "🎭 What is uTLS Browser Fingerprint?",
-        "utlsP1": "Every program creates a unique 'TLS fingerprint' when it connects to a server. Government DPI systems can detect that you're using Xray/V2Ray instead of a real browser by analyzing this fingerprint.",
-        "utlsP2": "uTLS solves this by mimicking the exact TLS handshake of real browsers. When you select 'Chrome', your Xray connection looks identical to Google Chrome to any observer.",
-        "utlsWarning": "Important for Iranian Users",
-        "utlsWarningDesc": "Iranian ISPs (especially MCI and Irancell) actively detect non-browser TLS fingerprints. Always select Chrome or Firefox to avoid detection.",
-        "ispTitle": "🇮🇷 ISP-Specific Presets Explained",
-        "ispP1": "Different ISPs use different DPI (Deep Packet Inspection) systems with varying detection capabilities. Fragment settings that work on one ISP may not work on another.",
-        "ispMci": "Most aggressive DPI in Iran. Uses ML-based analysis. Needs large fragments (100-200 bytes) with moderate delays.",
-        "ispIrancell": "Strong DPI but less aggressive than MCI. Medium fragments (50-100 bytes) usually work well.",
-        "ispShatel": "Lighter DPI. Small, fast fragments (10-30 bytes, 1-5ms delay) are very effective.",
-        "ispChina": "Advanced stateful DPI. Medium fragments with longer delays (20-50ms) to avoid detection."
+    "privacy": {
+      "title": "Privacy & Security",
+      "items": [
+        "Your VLESS configs are NEVER uploaded — they stay 100% local",
+        "Scan results (IP, ping, speed) are stored in a shared database to help other users",
+        "All tests go through Cloudflare's own infrastructure",
+        "Your public IP is detected via ip-api.com solely for ISP matching",
+        "No analytics trackers, no ads, no telemetry — fully open source"
+      ]
     },
-    "about": {
-        "title": "Antigravity IP Scanner",
-        "subtitle": "Advanced Cloudflare IP Optimization & Censorship Bypass Tool",
-        "version": "Version 2.5 • Open Source",
-        "whatIs": {
-            "title": "What is Antigravity?",
-            "p1": "Antigravity is a professional-grade network tool designed to discover and verify Cloudflare Edge IPs and WARP endpoints that bypass Deep Packet Inspection (DPI) and geographic censorship.",
-            "p2": "It tests latency (ping), jitter, and real-world download/upload speeds to find the best connections for your specific internet provider and location.",
-            "cards": {
-                "ping": {
-                    "label": "Ping & Jitter",
-                    "val": "Real-time latency"
-                },
-                "speed": {
-                    "label": "Speed Test",
-                    "val": "Download & Upload"
-                },
-                "tls": {
-                    "label": "TLS Verify",
-                    "val": "Anti-MITM Protection"
-                },
-                "proto": {
-                    "label": "Multi-Protocol",
-                    "val": "VLESS / WARP"
-                }
-            }
-        },
-        "guide": {
-            "title": "Quick Start Guide (Step by Step)",
-            "steps": {
-                "s1": {
-                    "title": "Get a VLESS Config",
-                    "desc": "You need a working VLESS configuration as a base. You can:",
-                    "sub": [
-                        "Paste your own config directly into the text box",
-                        "Enter a subscription URL and click 'Fetch Config' to auto-import",
-                        "Use the '🔥 ONE-CLICK AUTO SCAN' button (it fetches configs automatically)"
-                    ]
-                },
-                "s2": {
-                    "title": "Choose Your IP Source",
-                    "desc": "Select where to find IPs to test:",
-                    "sub": [
-                        "📂 Official Cloudflare — Fresh IPs from Cloudflare's ranges",
-                        "🧠 Smart History — IPs verified on your exact ISP before",
-                        "🏆 Gold IPs — Smartest strategy: combines history + community + scraped domains",
-                        "👥 Community Gold — IPs verified by other users in your country"
-                    ]
-                },
-                "s3": {
-                    "title": "Configure Thresholds (Optional)",
-                    "desc": "Click 'Advanced Settings' to fine-tune:",
-                    "sub": [
-                        "Max Ping — Reject IPs slower than this (default: 800ms)",
-                        "Max Jitter — Reject unstable connections (default: 500ms)",
-                        "Min Download — Reject slow downloads (default: 1 Mbps)",
-                        "Concurrency — How many IPs to test in parallel (default: 8)"
-                    ]
-                },
-                "s4": {
-                    "title": "Start Scanning",
-                    "desc": "Click 'START SCAN' and watch results appear in real-time. The scanner stops automatically after finding enough good IPs.",
-                    "sub": []
-                },
-                "s5": {
-                    "title": "Use Your Results",
-                    "desc": "From the Results Table:",
-                    "sub": [
-                        "Click 'Copy Link' to copy any good IP's VLESS config",
-                        "Click 'Export' to generate a subscription link for V2RayNG / Clash",
-                        "Results are sorted by speed — the top rows are your best IPs"
-                    ]
-                }
-            }
-        },
-        "features": {
-            "title": "Advanced Features",
-            "tls": {
-                "title": "🔒 Strict TLS Verification",
-                "desc": "Validates that the server's TLS certificate belongs to Cloudflare before allowing traffic. Prevents Man-In-The-Middle attacks."
-            },
-            "dpi": {
-                "title": "🧩 DPI Fragment Analyzer",
-                "desc": "Tests various V2Ray fragment configurations on a single IP to bypass advanced deep packet inspection firewalls."
-            },
-            "tcp": {
-                "title": "⚡ TCP Pre-Filter",
-                "desc": "Instantly drops dead IPs using an ultra-fast raw TCP connection test before initiating heavy Xray proxy engines."
-            },
-            "queue": {
-                "title": "💾 Persistent Background Queue",
-                "desc": "Pure SQLite asynchronous scan queue ensures your heavy scans survive application restarts and crashes."
-            },
-            "fastly": {
-                "title": "⚡ Fastly CDN Native Support",
-                "desc": "Built-in intelligence to natively discover and verify Fastly Edge Network IPs alongside Cloudflare."
-            },
-            "dnstt": {
-                "title": "🛡️ DNSTT & TLS Split-Stream",
-                "desc": "Dedicated Beta scanner for SlowDNS encapsulation and fragmented packet analysis to shatter deep DPI layers."
-            },
-            "sni": {
-                "title": "🌐 SNI Fronting Scanner",
-                "desc": "Scans a working IP against hundreds of domain names to find unblocked SNIs for disguised routing."
-            },
-            "warp": {
-                "title": "📡 WARP Endpoint Scanner",
-                "desc": "Discovers Cloudflare WARP UDP endpoints for Wireguard-based VPN clients."
-            },
-            "map": {
-                "title": "📊 Global Analytics",
-                "desc": "Interactive world heatmap showing scan results across all countries."
-            },
-            "retry": {
-                "title": "🔄 Smart Retry System",
-                "desc": "If strict thresholds find nothing, the scanner automatically retries with relaxed settings."
-            },
-            "dns_override": {
-                "title": "🌐 DNS Resolver Override",
-                "desc": "Routes DNS queries through encrypted DoH/DoT servers to bypass ISP DNS poisoning and censorship."
-            },
-            "macos": {
-                "title": "🍎 macOS Support",
-                "desc": "Native macOS DMG installer available. Run Antigravity Scanner on both Windows and macOS."
-            }
-        },
-        "tips": {
-            "title": "Tips for Best Results",
-            "list": [
-                "Enable the 'System Proxy' checkbox if you have a VPN active",
-                "The '🔥 ONE-CLICK AUTO SCAN' button is the easiest way to start",
-                "If no good IPs are found, try 'Official Cloudflare' source",
-                "Lower Min Download to 1-2 Mbps if getting too few results",
-                "Run scans during off-peak hours for better speeds",
-                "Use 'Advanced Bypasses' tab for DPI fragmentation testing",
-                "Export results as subscription link for V2RayNG",
-                "WARP scanner works without any V2Ray configs"
-            ]
-        },
-        "faq": {
-            "title": "Frequently Asked Questions",
-            "items": [
-                {
-                    "q": "What is a 'clean' IP?",
-                    "a": "A clean IP is a Cloudflare Edge server IP that is not blocked or throttled by your ISP. By finding unblocked IPs, you bypass censorship."
-                },
-                {
-                    "q": "Is this app safe to use?",
-                    "a": "Yes. The app only connects to Cloudflare's infrastructure. Configs are never uploaded to any third party."
-                },
-                {
-                    "q": "Why are scans slow?",
-                    "a": "Each IP requires Xray startup, warmup, 6 pings, and speed tests. This takes 15-30 seconds per IP."
-                },
-                {
-                    "q": "What does 'unreachable' mean?",
-                    "a": "The IP could not establish a connection. It's likely blocked by your ISP or the config is invalid."
-                },
-                {
-                    "q": "VLESS vs WARP?",
-                    "a": "VLESS is a proxy protocol needing a V2Ray config. WARP is Cloudflare's own VPN using Wireguard — no separate server needed."
-                },
-                {
-                    "q": "Can I use this on my phone?",
-                    "a": "The scanner runs on Windows, but results (VLESS links) work in any V2Ray client on any platform."
-                }
-            ]
-        },
-        "sysReq": {
-            "title": "System Requirements",
-            "min": {
-                "title": "Minimum",
-                "items": [
-                    "Windows 10/11 (64-bit)",
-                    "4 GB RAM",
-                    "Internet connection",
-                    "Xray-core (bundled)"
-                ]
-            },
-            "rec": {
-                "title": "Recommended",
-                "items": [
-                    "8+ GB RAM",
-                    "SSD storage",
-                    "Active VPN/proxy for initial setup",
-                    "Concurrency: 8-15 IPs parallel"
-                ]
-            }
-        },
-        "privacy": {
-            "title": "Privacy & Security",
-            "items": [
-                "Your VLESS configs are NEVER uploaded — they stay 100% local",
-                "Scan results (IP, ping, speed) are stored in a shared database to help other users",
-                "All tests go through Cloudflare's own infrastructure",
-                "Your public IP is detected via ip-api.com solely for ISP matching",
-                "No analytics trackers, no ads, no telemetry — fully open source"
-            ]
-        },
-        "author": "Author & Contact",
-        "community": "Community & Support",
-        "starGithub": "Star us on GitHub",
-        "supportProject": "Support the open-source project",
-        "freeBot": "Free VPN Telegram Bot",
-        "getBotConfigs": "Get free configurations instantly",
-        "joinTelegram": "Join our Telegram Group",
-        "shareFeedback": "Share bugs, comments & feedback",
-        "footer": "🕊️ Built for a free and open internet",
-        "copyright": "Antigravity IP Scanner • © 2024-2026 Khate Tire • GNU AGPLv3 License"
-    },
-    "freevpn": {
-        "title": "Community VPN Ecosystem",
-        "subtitle": "Access free community configs or earn dedicated VIP servers by contributing to the network.",
-        "loginTelegram": "Login with Telegram",
-        "authenticated": "Authenticated",
-        "tabFree": "Free Community Configs",
-        "tabVip": "Claim VIP Server",
-        "authRequired": "Authentication Required",
-        "authDesc": "You must join our Telegram community and authenticate via the bot to access the free VPN ecosystem.",
-        "joinChannelTitle": "Join Our Telegram Community",
-        "joinChannelDesc": "Membership is required. The bot will verify your subscription before authenticating.",
-        "joinChannel": "Join @ANTIGRAVITY_IP",
-        "iJoined": "I've joined the channel",
-        "loginStepTitle": "Authenticate via Bot",
-        "loginStepDesc": "After joining, click \"Login with Telegram\" above to get a 6-digit code and send it to the bot.",
-        "scanRequired": "Contribution Required",
-        "scanDesc": "To unlock access to the community configs, you must give back to the network. Please run an IP scan and find at least 10 Clean IPs within the last 3 days.",
-        "goToScanner": "Go to Scanner",
-        "vipTitle": "Earn a Dedicated VIP Server",
-        "vipDesc": "Contribute 10,000 successful IP scans to the global database to earn a private 10GB high-speed VIP Config valid for 7 days.",
-        "yourProgress": "Your Progress",
-        "claimBtn": "Claim VIP Config",
-        "scanToEarn": "Scan IPs to Earn VIP"
-    }
+    "author": "Author & Contact",
+    "community": "Community & Support",
+    "starGithub": "Star us on GitHub",
+    "supportProject": "Support the open-source project",
+    "freeBot": "Free VPN Telegram Bot",
+    "getBotConfigs": "Get free configurations instantly",
+    "joinTelegram": "Join our Telegram Group",
+    "shareFeedback": "Share bugs, comments & feedback",
+    "footer": "🕊️ Built for a free and open internet",
+    "copyright": "Antigravity IP Scanner • © 2024-2026 Khate Tire • GNU AGPLv3 License",
+    "openSource": "Open Source"
+  },
+  "freevpn": {
+    "title": "Community VPN Ecosystem",
+    "subtitle": "Access free community configs or earn dedicated VIP servers by contributing to the network.",
+    "loginTelegram": "Login with Telegram",
+    "authenticated": "Authenticated",
+    "tabFree": "Free Community Configs",
+    "tabVip": "Claim VIP Server",
+    "authRequired": "Authentication Required",
+    "authDesc": "You must join our Telegram community and authenticate via the bot to access the free VPN ecosystem.",
+    "joinChannelTitle": "Join Our Telegram Community",
+    "joinChannelDesc": "Membership is required. The bot will verify your subscription before authenticating.",
+    "joinChannel": "Join @ANTIGRAVITY_IP",
+    "iJoined": "I've joined the channel",
+    "loginStepTitle": "Authenticate via Bot",
+    "loginStepDesc": "After joining, click \"Login with Telegram\" above to get a 6-digit code and send it to the bot.",
+    "scanRequired": "Contribution Required",
+    "scanDesc": "To unlock access to the community configs, you must give back to the network. Please run an IP scan and find at least 10 Clean IPs within the last 3 days.",
+    "goToScanner": "Go to Scanner",
+    "vipTitle": "Earn a Dedicated VIP Server",
+    "vipDesc": "Contribute 10,000 successful IP scans to the global database to earn a private 10GB high-speed VIP Config valid for 7 days.",
+    "yourProgress": "Your Progress",
+    "claimBtn": "Claim VIP Config",
+    "scanToEarn": "Scan IPs to Earn VIP",
+    "messageBot": "Message Bot This Code",
+    "copy": "Copy",
+    "openApp": "Open App & Send",
+    "waitingForYou": "Waiting for you...",
+    "scanContributions": "Your Scan Contributions",
+    "total": "total",
+    "recentScans": "Recent (last 3 days)",
+    "ips": "IPs",
+    "loginToUnlock": "Login with Telegram above to unlock configs",
+    "recentContribution": "Your Recent Contribution",
+    "almostThere": "Almost there! Keep finding those good IPs...",
+    "mixTitle": "Community Configs — Mix & Test",
+    "mixDesc": "Picks top 5 fastest CF configs",
+    "available": "available",
+    "mixDesc2": "mixes with top 3 found IPs",
+    "mixDesc3": "tests all",
+    "mixDesc4": "combos",
+    "testing": "Testing...",
+    "retestAll": "Re-Test All",
+    "mixAndTestAll": "Mix & Test All",
+    "fetching": "Fetching top 5 configs & top 3 IPs...",
+    "quickPing": "Quick ping test —",
+    "combos": "combos",
+    "speedTest": "Speed testing top candidates...",
+    "topConfigsPrefix": "Top",
+    "topConfigsSuffix": "Best Configs (Ranked by Quality)",
+    "score": "Score",
+    "copyConfig": "Copy Config",
+    "copyAll": "Copy All",
+    "configs": "Configs",
+    "browsePreInjected": "Or browse pre-injected configs (not speed-tested):",
+    "source": "Source",
+    "injectedIp": "Injected IP",
+    "copyOptimized": "Copy Optimized Config",
+    "loadingConfigs": "Loading configs from Admin Pool..."
+  },
+  "geomap": {
+    "target": "TARGET",
+    "global": "GLOBAL (Any)"
+  },
+  "freedom": {
+    "invalidConfig": "Please paste a valid VLESS config",
+    "configSubmitted": "Config submitted! Mining will resume...",
+    "submitFailed": "Failed to submit config",
+    "playFreedom": "Play Freedom",
+    "subtitle": "Fully autonomous unblockable proxy miner",
+    "startAutopilot": "START AUTOPILOT",
+    "stop": "STOP",
+    "currentPhase": "Current Phase",
+    "ready": "Ready",
+    "noConfig": "⚠️ No working config found. Paste a working VLESS config to continue:",
+    "sending": "Sending...",
+    "submit": "Submit",
+    "vanillaSub": "Vanilla Sub OK",
+    "cfSub": "CF Sub OK",
+    "spliced": "Spliced Multipliers",
+    "cleanIps": "Clean IPs Mined",
+    "foundConfigs": "Found Configs",
+    "allCopied": "All configs copied!",
+    "copyAll": "Copy All",
+    "configCopied": "Config copied!",
+    "copy": "Copy"
+  },
+  "frag": {
+    "length": "Length",
+    "interval": "Interval",
+    "status": "Status",
+    "ping": "Ping",
+    "mapTitle": "DPI Firewall Penetration Map",
+    "success": "Bypass Successful",
+    "fail": "Interception Detected"
+  },
+  "debug": {
+    "backendNotRunning": "Backend not running. Check if backend.exe crashed on startup.",
+    "connecting": "⏳ Connecting...",
+    "backendApi": "🟢 Backend API",
+    "electronLog": "📄 Electron Log File",
+    "backendOffline": "🔴 Backend Offline",
+    "closeDebug": "▼ Close Debug",
+    "openDebug": "▲ Debug Console",
+    "logTitle": "Debug Log",
+    "waiting": "Waiting for logs...",
+    "entries": "${logs.length} entries"
+  },
+  "db": {
+    "layer1": "Layer 1: Direct MySQL",
+    "layer1Desc": "Fastest, but blockable by ISP",
+    "layer2": "Layer 2: Worker Proxy",
+    "layer2Desc": "Cloudflare edge network",
+    "layer3": "Layer 3: Clean IP Front",
+    "layer3Desc": "Domain fronting bypass",
+    "layer4": "Layer 4: VLESS Tunnel",
+    "layer4Desc": "Fallback routing network",
+    "layer5": "Layer 5: Local SQLite",
+    "layer5Desc": "Offline mode safety net",
+    "unblockableLink": "Unblockable DB Link",
+    "activeMode": "Active Mode",
+    "testingDb": "Testing DB Connection...",
+    "dbLinkOnline": "DB Link: ${onlineLayers}/5 Online"
+  },
+  "data": {
+    "offlineSync": "Offline Data Sync",
+    "syncDesc": "Export your full database to share with others in restricted regions. The bundle is compressed and AES-encrypted, keeping your data completely unreadable to anyone outside of the Antigravity App.",
+    "exportDb": "Export Database",
+    "exportDesc": "Bundle ALL app data — scans, configs, analytics, settings, bypass profiles, and recommendations — into a fully encrypted .agdb file for complete offline use.",
+    "packaging": "Packaging...",
+    "downloadBundle": "Download .agdb Bundle",
+    "encrypted": "AES-256 Encrypted & ZLib Compressed",
+    "importDb": "Import Database",
+    "importDesc": "Select a shared .agdb file to populate your app locally. Great for totally offline censored environments.",
+    "processing": "Processing...",
+    "uploadFile": "Upload .agdb File",
+    "syncComplete": "Full Offline Sync Complete!",
+    "scans": "Scans",
+    "configs": "Configs",
+    "cfSub": "CF Sub",
+    "vanilla": "Vanilla",
+    "recs": "Recs",
+    "settings": "Settings",
+    "analytics": "Analytics",
+    "geoData": "Geo Data",
+    "regions": "Regions",
+    "bypasses": "Bypasses",
+    "overwriteWarn": "Overwrites existing duplicate IPs silently"
+  }
 }

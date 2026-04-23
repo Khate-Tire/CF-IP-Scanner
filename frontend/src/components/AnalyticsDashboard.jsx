@@ -46,7 +46,7 @@ export default function AnalyticsDashboard() {
     const { top_datacenters, top_ports, network_types, top_asns, top_isps, fail_reasons, total_scans, total_good, timeline_data } = data;
 
     const outcomeData = [
-        { name: 'Success', value: total_good || 0 },
+        { name: t('analytics.success', 'Success'), value: total_good || 0 },
         ...(fail_reasons || []).map(f => ({ name: f.fail_reason, value: f.count }))
     ];
     // Vibrant cohesive palette for the donut chart
@@ -117,8 +117,8 @@ export default function AnalyticsDashboard() {
                                     <YAxis stroke="#666" fontSize={12} />
                                     <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#BC13FE', color: '#fff' }} itemStyle={{ color: '#fff' }} />
                                     <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                                    <Line type="monotone" dataKey="total_scans" name="Total Scans Executed" stroke="#555" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                                    <Line type="monotone" dataKey="successful_scans" name="Successful Bypasses" stroke="#BC13FE" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6, stroke: '#fff' }} />
+                                    <Line type="monotone" dataKey="total_scans" name={t('analytics.totalScansExecuted', 'Total Scans Executed')} stroke="#555" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                                    <Line type="monotone" dataKey="successful_scans" name={t('analytics.successfulBypasses', 'Successful Bypasses')} stroke="#BC13FE" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6, stroke: '#fff' }} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
@@ -129,7 +129,7 @@ export default function AnalyticsDashboard() {
 
                 {/* Outcomes Donut */}
                 <div className="glass-panel p-6">
-                    <h3 className="text-lg font-bold text-white mb-4">Scan Outcomes</h3>
+                    <h3 className="text-lg font-bold text-white mb-4">{t('analytics.scanOutcomes', 'Scan Outcomes')}</h3>
                     {outcomeData && outcomeData.length > 0 ? (
                         <div className="h-64 w-full text-xs">
                             <ResponsiveContainer width="100%" height="100%">
@@ -160,7 +160,7 @@ export default function AnalyticsDashboard() {
                                     <XAxis type="number" stroke="#666" fontSize={12} />
                                     <YAxis dataKey="datacenter" type="category" stroke="#eee" fontSize={11} fontWeight="bold" />
                                     <Tooltip cursor={{ fill: 'rgba(0,243,255,0.05)' }} contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#00f3ff', color: '#fff', borderRadius: '8px' }} />
-                                    <Bar dataKey="avg_ping" name="Avg Latency (ms)" fill="url(#cyanGradient)" radius={[0, 4, 4, 0]} barSize={16} />
+                                    <Bar dataKey="avg_ping" name={t('analytics.avgLatency', 'Avg Latency (ms)')} fill="url(#cyanGradient)" radius={[0, 4, 4, 0]} barSize={16} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
@@ -171,7 +171,7 @@ export default function AnalyticsDashboard() {
 
                 {/* Top ISPs Area */}
                 <div className="glass-panel p-6">
-                    <h3 className="text-lg font-bold text-neon-purple mb-4">Top User ISPs</h3>
+                    <h3 className="text-lg font-bold text-neon-purple mb-4">{t('analytics.topUserIsps', 'Top User ISPs')}</h3>
                     {top_isps && top_isps.length > 0 ? (
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -190,7 +190,7 @@ export default function AnalyticsDashboard() {
                                     <YAxis stroke="#666" fontSize={12} />
                                     <Tooltip cursor={{ fill: 'rgba(188,19,254,0.05)' }} contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#BC13FE', color: '#fff', borderRadius: '8px' }} />
                                     <Area type="monotone" dataKey="count" fill="url(#purpleArea)" stroke="#BC13FE" strokeWidth={2} />
-                                    <Bar dataKey="count" name="Successful Scans" barSize={16} fill="url(#purpleGradient)" radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="count" name={t('analytics.successfulScans', 'Successful Scans')} barSize={16} fill="url(#purpleGradient)" radius={[4, 4, 0, 0]} />
                                 </ComposedChart>
                             </ResponsiveContainer>
                         </div>
@@ -201,7 +201,7 @@ export default function AnalyticsDashboard() {
 
                 {/* Top ASNs Radar */}
                 <div className="glass-panel p-6">
-                    <h3 className="text-lg font-bold text-neon-blue mb-4">Top Contributor ASNs</h3>
+                    <h3 className="text-lg font-bold text-neon-blue mb-4">{t('analytics.topContributorAsns', 'Top Contributor ASNs')}</h3>
                     {top_asns && top_asns.length > 0 ? (
                         <div className="h-64 w-full">
                             <ResponsiveContainer width="100%" height="100%">
@@ -209,7 +209,7 @@ export default function AnalyticsDashboard() {
                                     <PolarGrid stroke="#333" />
                                     <PolarAngleAxis dataKey="asn" tick={{ fill: '#eee', fontSize: 11 }} />
                                     <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={{ fill: '#777', fontSize: 10 }} axisLine={false} />
-                                    <Radar name="Active Verified IPs" dataKey="count" stroke="#00f3ff" strokeWidth={2} fill="url(#cyanGradient)" fillOpacity={0.5} />
+                                    <Radar name={t('analytics.activeVerifiedIps', 'Active Verified IPs')} dataKey="count" stroke="#00f3ff" strokeWidth={2} fill="url(#cyanGradient)" fillOpacity={0.5} />
                                     <Tooltip contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#00f3ff', color: '#fff', borderRadius: '8px' }} />
                                 </RadarChart>
                             </ResponsiveContainer>
@@ -235,7 +235,7 @@ export default function AnalyticsDashboard() {
                                 return (
                                     <div key={i} className="relative w-full bg-black/40 rounded-lg overflow-hidden flex justify-between items-center px-4 py-3 border border-white/5 shadow-inner">
                                         <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500/20 to-transparent transition-all duration-1000" style={{ width: `${(pt.count / maxCount) * 100}%` }}></div>
-                                        <span className="relative text-gray-200 font-mono text-sm tracking-widest leading-none">PORT {pt.port}</span>
+                                        <span className="relative text-gray-200 font-mono text-sm tracking-widest leading-none">{t('analytics.port', 'PORT')} {pt.port}</span>
                                         <span className="relative text-neon-blue font-bold text-sm leading-none">{pt.count} {t('analytics.successes')}</span>
                                     </div>
                                 );

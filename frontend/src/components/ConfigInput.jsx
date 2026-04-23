@@ -282,7 +282,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                         ) : (
                             <>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                                🔍 Verify Config (Not a Scan)
+                                🔍 {t('config.verifyConfig', 'Verify Config (Not a Scan)')}
                             </>
                         )}
                     </button>
@@ -298,7 +298,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                     <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 )}
                                 <span className={`text-sm font-bold ${testResult.success ? 'text-neon-green' : 'text-red-400'}`}>
-                                    {testResult.success ? 'Config is Working!' : 'Config Not Working'}
+                                    {testResult.success ? t('config.configWorking', 'Config is Working!') : t('config.configNotWorking', 'Config Not Working')}
                                 </span>
                                 <button
                                     type="button"
@@ -314,19 +314,19 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                     {/* Speed Metrics Grid */}
                                     <div className="grid grid-cols-4 gap-3 mb-3">
                                         <div className="text-center">
-                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Ping</div>
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t('config.ping', 'Ping')}</div>
                                             <div className={`text-lg font-black ${testResult.result.ping < 200 ? 'text-neon-green' : testResult.result.ping < 500 ? 'text-amber-400' : 'text-red-400'}`}>
                                                 {testResult.result.ping}<span className="text-[10px] font-normal text-gray-500 ml-0.5">ms</span>
                                             </div>
                                         </div>
                                         <div className="text-center">
-                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Jitter</div>
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t('config.jitter', 'Jitter')}</div>
                                             <div className={`text-lg font-black ${testResult.result.jitter < 50 ? 'text-neon-green' : testResult.result.jitter < 150 ? 'text-amber-400' : 'text-red-400'}`}>
                                                 {testResult.result.jitter}<span className="text-[10px] font-normal text-gray-500 ml-0.5">ms</span>
                                             </div>
                                         </div>
                                         <div className="text-center">
-                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Download</div>
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t('config.download', 'Download')}</div>
                                             <div className="text-lg font-black text-neon-blue">
                                                 {testResult.result.download_speed >= 1024
                                                     ? (testResult.result.download_speed / 1024).toFixed(1)
@@ -337,7 +337,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                             </div>
                                         </div>
                                         <div className="text-center">
-                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Upload</div>
+                                            <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{t('config.upload', 'Upload')}</div>
                                             <div className="text-lg font-black text-[#bc13fe]">
                                                 {testResult.result.upload_speed >= 1024
                                                     ? (testResult.result.upload_speed / 1024).toFixed(1)
@@ -381,11 +381,11 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                             ) : !testResult.success && (
                                 <div className="px-4 py-3">
                                     <p className="text-sm text-red-300/80">
-                                        {testResult.error || 'It seems this config is not working. Please check the config or try another one.'}
+                                        {testResult.error || t('config.errorNotWorking', 'It seems this config is not working. Please check the config or try another one.')}
                                     </p>
                                     {testResult.details && testResult.details.ping > 0 && (
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Server reachable (ping: {testResult.details.ping}ms) but proxy tunnel failed.
+                                            {t('config.tunnelFailed', { ping: testResult.details.ping }, `Server reachable (ping: ${testResult.details.ping}ms) but proxy tunnel failed.`)}
                                         </p>
                                     )}
                                 </div>
@@ -536,7 +536,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                         </div>
                                         <span className="text-sm font-semibold text-gray-300 leading-tight">{t('config.srcGold')}</span>
                                     </div>
-                                    <span className="text-[9px] text-amber-500/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">Ultimate Mode</span>
+                                    <span className="text-[9px] text-amber-500/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">{t('config.ultimateMode', 'Ultimate Mode')}</span>
                                 </label>
 
                                 {/* Community Gold */}
@@ -548,7 +548,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                         </div>
                                         <span className="text-sm font-semibold text-gray-300 leading-tight">{t('config.srcCommunity')}</span>
                                     </div>
-                                    <span className="text-[9px] text-[#bc13fe]/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">Global Search</span>
+                                    <span className="text-[9px] text-[#bc13fe]/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">{t('config.globalSearch', 'Global Search')}</span>
                                 </label>
 
                                 {/* Auto-Scrape */}
@@ -567,9 +567,9 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                         <div className={`mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${ipSource === 'fastly_cdn' ? 'border-red-500' : 'border-white/20 group-hover:border-white/40'}`}>
                                             {ipSource === 'fastly_cdn' && <div className="w-2 h-2 rounded-full bg-red-500"></div>}
                                         </div>
-                                        <span className="text-sm font-bold text-red-400 leading-tight">FASTLY CDN</span>
+                                        <span className="text-sm font-bold text-red-400 leading-tight">{t('config.fastlyCdn', 'FASTLY CDN')}</span>
                                     </div>
-                                    <span className="text-[9px] text-red-500/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">Beta</span>
+                                    <span className="text-[9px] text-red-500/80 mt-1.5 uppercase font-black tracking-[0.2em] pl-7">{t('config.beta', 'Beta')}</span>
                                 </label>
 
                                 {/* Custom URL - full width */}
@@ -585,7 +585,7 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                             {ipSource === 'fastly_cdn' && (
                                 <div className="mt-3 p-3 bg-red-500/[0.06] border border-red-500/20 rounded-xl text-xs text-red-300/80 flex items-start gap-2">
                                     <svg className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path></svg>
-                                    <span>Ensure your VLESS config uses a Fastly SNI/Host (e.g. fastly.net). Scanning Fastly IPs with Cloudflare configs will fail.</span>
+                                    <span>{t('config.fastlyWarn', 'Ensure your VLESS config uses a Fastly SNI/Host (e.g. fastly.net). Scanning Fastly IPs with Cloudflare configs will fail.')}</span>
                                 </div>
                             )}
                             {ipSource === 'custom_url' && (

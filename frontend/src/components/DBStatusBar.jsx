@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../api';
+import { useTranslation } from '../i18n/LanguageContext';
 
 const DBStatusBar = () => {
+    const { t } = useTranslation();
     const [dbStatus, setDbStatus] = useState(null);
     const [isTesting, setIsTesting] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -27,11 +29,11 @@ const DBStatusBar = () => {
     if (!dbStatus && !isTesting) return null;
 
     const layers = [
-        { key: 'layer1_direct', label: 'Layer 1: Direct MySQL', desc: 'Fastest, but blockable by ISP' },
-        { key: 'layer2_worker', label: 'Layer 2: Worker Proxy', desc: 'Cloudflare edge network' },
-        { key: 'layer3_fronted', label: 'Layer 3: Clean IP Front', desc: 'Domain fronting bypass' },
-        { key: 'layer4_tunnel', label: 'Layer 4: VLESS Tunnel', desc: 'Fallback routing network' },
-        { key: 'layer5_local', label: 'Layer 5: Local SQLite', desc: 'Offline mode safety net' },
+        { key: 'layer1_direct', label: t('db.layer1', 'Layer 1: Direct MySQL'), desc: t('db.layer1Desc', 'Fastest, but blockable by ISP') },
+        { key: 'layer2_worker', label: t('db.layer2', 'Layer 2: Worker Proxy'), desc: t('db.layer2Desc', 'Cloudflare edge network') },
+        { key: 'layer3_fronted', label: t('db.layer3', 'Layer 3: Clean IP Front'), desc: t('db.layer3Desc', 'Domain fronting bypass') },
+        { key: 'layer4_tunnel', label: t('db.layer4', 'Layer 4: VLESS Tunnel'), desc: t('db.layer4Desc', 'Fallback routing network') },
+        { key: 'layer5_local', label: t('db.layer5', 'Layer 5: Local SQLite'), desc: t('db.layer5Desc', 'Offline mode safety net') },
     ];
 
     const onlineLayers = dbStatus ? layers.filter(l => dbStatus[l.key]?.status === 'online').length : 0;
@@ -42,7 +44,7 @@ const DBStatusBar = () => {
             {isExpanded && (
                 <div className="absolute bottom-full left-0 mb-3 w-72 bg-[#0f0f0f]/95 backdrop-blur-md border border-gray-800 rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden animate-in fade-in slide-in-from-bottom-5">
                     <div className="bg-gray-900/60 p-3 border-b border-gray-800 flex justify-between items-center">
-                        <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">Unblockable DB Link</span>
+                        <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{t('db.unblockableLink', 'Unblockable DB Link')}</span>
                         <button onClick={(e) => { e.stopPropagation(); fetchStatus(); }} disabled={isTesting} className="text-gray-500 hover:text-neon-blue disabled:opacity-50 transition-colors">
                             <svg className={`w-4 h-4 ${isTesting ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         </button>
@@ -84,7 +86,7 @@ const DBStatusBar = () => {
                     {dbStatus?.active_mode && (
                         <div className="p-2.5 bg-gradient-to-r from-neon-purple/5 to-neon-blue/5 border-t border-gray-800 text-center">
                             <span className="text-[10px] text-transparent bg-clip-text bg-gradient-to-r from-neon-purple to-neon-blue font-mono uppercase tracking-widest font-bold">
-                                Active Mode: {dbStatus.active_mode.replace('_', ' ')}
+                                {t('db.activeMode', 'Active Mode')}: {dbStatus.active_mode.replace('_', ' ')}
                             </span>
                         </div>
                     )}
@@ -108,7 +110,7 @@ const DBStatusBar = () => {
                 </div>
 
                 <div className="text-[11px] font-mono font-medium text-gray-300 tracking-wide uppercase">
-                    {isTesting ? 'Testing DB Connection...' : `DB Link: ${onlineLayers}/5 Online`}
+                    {isTesting ? t('db.testingDb', 'Testing DB Connection...') : t('db.dbLinkOnline', { count: onlineLayers }, `DB Link: ${onlineLayers}/5 Online`)}
                 </div>
 
                 <svg className={`w-3.5 h-3.5 text-gray-500 transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg>

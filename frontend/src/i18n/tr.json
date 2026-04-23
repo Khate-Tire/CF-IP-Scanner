@@ -1,0 +1,679 @@
+{
+  "app": {
+    "title": "ANTIGRAVITY IP TARAYICI",
+    "subtitle": "Cloudflare IP Optimizasyon Aracı",
+    "proxyLabel": "Windows Sistem Proxy'si / VPN üzerinden Konum API'si ve Keşif Yönlendirmesi",
+    "supportGithub": "⭐ Destek — GitHub'da Yıldız Ver",
+    "updateAvailable": "v{version} sürümüne güncelle",
+    "builtBy": "❤️ ile geliştirildi:",
+    "openSource": "İnternet Özgürlüğü İçin Açık Kaynak",
+    "tabs": {
+      "scanner": "Tarayıcı",
+      "analytics": "Küresel Analiz",
+      "advanced": "Gelişmiş Atlamalar",
+      "warp": "WARP Uç Noktaları",
+      "dns": "Tünel ve DNS",
+      "freevpn": "Ücretsiz VPN",
+      "data": "Veri Senkronizasyonu",
+      "freedom": "Play Freedom",
+      "about": "Uygulama Hakkında"
+    },
+    "startingEngine": "Motor başlatılıyor..."
+  },
+  "config": {
+    "configLabel": "VLESS Yapılandırması",
+    "configPlaceholder": "vless://... yapılandırmanızı buraya yapıştırın",
+    "subUrlPlaceholder": "https://abonelik-linkiniz.com/sub",
+    "fetchConfig": "Yapılandırmayı Getir",
+    "fetching": "Getiriliyor...",
+    "autoScan": "🔥 TEK TIKLA OTOMATİK TARA",
+    "startScan": "🚀 TARAMAYI BAŞLAT",
+    "scanning": "⏳ TARANIYOR...",
+    "ipSource": "IP Kaynağı",
+    "sources": {
+      "official": "📂 Resmi Cloudflare IP'leri",
+      "custom": "🔗 Özel Dosya / URL",
+      "history": "⏱️ Akıllı Geçmiş (ISS'niz)",
+      "gold": "🏆 Altın IP'ler (Akıllı + Kazınmış)",
+      "community": "👥 Topluluk Altını (Bölgeniz)",
+      "github": "🌐 Github Otomatik Kazıma (Küresel)",
+      "fastly": "⚡ Resmi Fastly IP'leri"
+    },
+    "manualIps": "Manuel IP'ler",
+    "manualIpsPlaceholder": "Her satıra bir IP...",
+    "advancedSettings": "Gelişmiş Ayarlar",
+    "stopAfter": "İyi IP'lerden Sonra Dur",
+    "concurrency": "Eşzamanlılık",
+    "maxPing": "Maks Ping (ms)",
+    "maxJitter": "Maks Jitter (ms)",
+    "minDownload": "Min İndirme (Mbps)",
+    "minUpload": "Min Yükleme (Mbps)",
+    "ipVersion": "IP Sürümü",
+    "targetCountry": "Hedef Ülke",
+    "testPorts": "Test Portları",
+    "verifyTls": "🔒 TLS Doğrula (Anti-MITM)",
+    "importSub": "Abonelik Linkinden İçe Aktar",
+    "selectCountry": "Haritadan Seç",
+    "vlessUrl": "VLESS URL",
+    "showAdvanced": "Gelişmiş Ayarları Göster",
+    "hideAdvanced": "Gelişmiş Ayarları Gizle",
+    "threads": "İş Parçacıkları:",
+    "stopAfterLabel": "Şundan sonra dur (İyi IP'ler)",
+    "bothIpv": "Hem IPv4 hem IPv6",
+    "ipv4Only": "Sadece IPv4",
+    "ipv6Only": "Sadece IPv6",
+    "strictTls": "Sıkı TLS Doğrulaması (Anti-MITM)",
+    "targetPorts": "Hedef Portlar (Yapılandırma Varsayılanı için boş bırakın)",
+    "geoTarget": "Etkileşimli Coğrafi Hedefleme (Varsayılan olarak Küresel)",
+    "geoHint": "Kesinlikle o bölgedeki Veri Merkezlerini aramak için bir ülkeye sol tıklayın. Temizlemek için tekrar tıklayın.",
+    "useManual": "Manuel IP'leri veya Alan Adlarını Kullan",
+    "ipGenSource": "IP Üretim Kaynağı",
+    "srcOfficial": "Resmi Cloudflare IP Aralıkları (Rastgele/Sistematik)",
+    "srcHistory": "Akıllı Geçmiş (En Hızlı - ISS'niz için En İyi IP'ler)",
+    "srcGold": "Altın IP'ler (Akıllı Geçmiş + Ülkeniz için Otomatik Üst Alan Adları)",
+    "srcCommunity": "Topluluk Altını (Bölgenizdeki HERHANGİ bir kullanıcı tarafından doğrulanan En İyi IP'ler)",
+    "srcScrape": "Özel/Temiz IP'leri Otomatik Kazı (Topluluk GitHub Listeleri)",
+    "srcCustom": "Özel IP Listesi URL'si",
+    "autoScanning": "TARANIYOR...",
+    "startManual": "MANUEL BAŞLAT",
+    "strictMin": "🛡️ Minimum (Hayatta Kalmayı En Üst Düzeye Çıkar)",
+    "strictAvg": "⚖️ Ortalama (Dengeli)",
+    "strictHard": "⚡ Sert (Sıkı Hız)",
+    "verifyConfig": "Yapılandırmayı Doğrula (Tarama Değil)",
+    "configWorking": "Yapılandırma Çalışıyor!",
+    "configNotWorking": "Yapılandırma Çalışmıyor",
+    "ping": "Ping",
+    "jitter": "Jitter",
+    "download": "İndirme",
+    "upload": "Yükleme",
+    "errorNotWorking": "Görünüşe göre bu yapılandırma çalışmıyor. Lütfen yapılandırmayı kontrol edin veya başka bir tane deneyin.",
+    "ultimateMode": "Nihai Mod",
+    "globalSearch": "Küresel Arama",
+    "fastlyCdn": "FASTLY CDN",
+    "beta": "Beta",
+    "fastlyWarn": "VLESS yapılandırmanızın bir Fastly SNI/Host (örn. fastly.net) kullandığından emin olun. Cloudflare yapılandırmalarıyla Fastly IP'lerini taramak başarısız olur.",
+    "tunnelFailed": "Sunucuya ulaşılabiliyor (ping: ${testResult.details.ping}ms) ancak proxy tüneli başarısız oldu.",
+    "settingsLabel": "Tarama Ayarları",
+    "settings": {
+      "timeout": "Zaman Aşımı (ms)",
+      "maxPing": "Maks Ping (ms)",
+      "maxJitter": "Maks Jitter",
+      "minDownload": "Min İndirme (Mbps)",
+      "minUpload": "Min Yükleme"
+    },
+    "providerLabel": "Servis Sağlayıcı (Test Rotaları)",
+    "help": {
+      "subError": "Abonelik linkiniz getirilemedi. Lütfen bağlantıyı kontrol edin.",
+      "configFound": "{count} yapılandırma başarıyla yüklendi!",
+      "noConfigs": "Getirilen bağlantıda geçerli VLESS yapılandırması bulunamadı."
+    }
+  },
+  "results": {
+    "title": "Tarama Sonuçları",
+    "ip": "IP Adresi",
+    "ping": "Ping",
+    "jitter": "Jitter",
+    "download": "İndirme",
+    "upload": "Yükleme",
+    "datacenter": "Veri Merkezi",
+    "status": "Durum",
+    "actions": "İşlemler",
+    "copyLink": "Bağlantıyı Kopyala",
+    "copied": "Kopyalandı!",
+    "export": "Dışa Aktar",
+    "exporting": "Dışa Aktarılıyor...",
+    "noResults": "Henüz sonuç yok. Tarama yapın!",
+    "exportSub": "Aboneliği Dışa Aktar",
+    "base64": "Base64 (V2RayNG)",
+    "clash": "Clash YAML",
+    "singbox": "SingBox JSON",
+    "copyAll": "Tüm IP'leri Kopyala",
+    "copyConfigs": "Yapılandırmalar",
+    "copyIps": "IP'ler",
+    "send": "GÖNDER",
+    "save": "KAYDET",
+    "ipAddress": "IP Adresi",
+    "pingMs": "Ping (ms)",
+    "jitterMs": "Jitter (ms)",
+    "downloadMbps": "İndirme (Mbps)",
+    "uploadMbps": "Yükleme (Mbps)",
+    "locationIsp": "Konum / ISS",
+    "noGoodIps": "Henüz iyi bir IP bulunamadı...",
+    "qrTitle": "Yapılandırma QR Kodu",
+    "close": "Kapat",
+    "port": "Port",
+    "delay": "Gecikme",
+    "copyConfig": "Yapılandırmayı Kopyala",
+    "copyIp": "IP Kopyala",
+    "retest": "Yeniden Test Et",
+    "exportAll": "Tümünü Dışa Aktar",
+    "clearAll": "Temizle"
+  },
+  "scan": {
+    "scanning": "Taranıyor...",
+    "scanned": "IP kontrol edildi",
+    "paused": "Duraklatıldı...",
+    "pause": "DURAKLAT",
+    "resume": "DEVAM ET",
+    "stop": "DURDUR",
+    "retryMsg": "⚠️ Sıkı Sınırlar Başarısız Oldu. Eşikler Gevşetiliyor (Deneme {count}/2)..."
+  },
+  "analytics": {
+    "loading": "Küresel İstihbarat Yükleniyor...",
+    "failed": "Analitik yüklenemedi.",
+    "totalScans": "Toplam IP Taraması",
+    "verifiedGood": "Doğrulanmış İyi IP'ler",
+    "timeline": "Zaman İçinde Keşif Performansı (7 Gün)",
+    "dcLatency": "Veri Merkezi Gecikmesi (Ortalama Ping)",
+    "fastestPorts": "En Hızlı Portlar",
+    "successes": "başarı",
+    "networkProto": "Ağ Protokolleri",
+    "routes": "rota",
+    "noData": "Henüz veri yok.",
+    "worldMap": {
+      "title": "Küresel Ağ Durumu",
+      "loading": "Harita verileri yükleniyor...",
+      "successLabel": "Başarı",
+      "noData": "Veri Yok",
+      "totalScans": "TOPLAM TARAMA",
+      "goodIps": "İYİ IP'LER",
+      "avgPing": "ORT PİNG",
+      "avgJitter": "ORT JİTTER",
+      "avgDownload": "ORT İNDİRME",
+      "avgUpload": "ORT YÜKLEME",
+      "activeUsers": "Aktif Kullanıcılar",
+      "topIsps": "En İyi ISS'ler",
+      "bestDcs": "En İyi Veri Merkezleri",
+      "countries": "Ülke",
+      "worldwide": "Dünya Çapında Tarama",
+      "globalUsers": "Küresel Katkıda Bulunan",
+      "hits": "vuruş"
+    },
+    "success": "Başarı",
+    "totalScansExecuted": "Toplam Yürütülen Tarama",
+    "successfulBypasses": "Başarılı Atlamalar",
+    "scanOutcomes": "Tarama Sonuçları",
+    "avgLatency": "Ort. Gecikme (ms)",
+    "topUserIsps": "En İyi Kullanıcı ISS'leri",
+    "successfulScans": "Başarılı Taramalar",
+    "topContributorAsns": "En İyi Katkıda Bulunan ASN'ler",
+    "activeVerifiedIps": "Aktif Doğrulanmış IP'ler",
+    "port": "PORT"
+  },
+  "health": {
+    "cloudflare": "CLOUDFLARE",
+    "globalDb": "KÜRESEL DB",
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "checking": "Kontrol ediliyor",
+    "connectionFailed": "Bağlantı başarısız",
+    "invalidConfig": "Lütfen geçerli bir VLESS yapılandırması girin.",
+    "connectedProxy": "VLESS proxy tüneli üzerinden bağlı (ISS atlama aktif)",
+    "tunnelTooltip": "ISS'niz küresel veri tabanını engellediyse, VPN'iniz üzerinden tünellemek için buraya tıklayın.",
+    "tunnelDb": "DB'yi Tünelle",
+    "initTunnel": "Veri Tabanı Tünelini Başlat",
+    "ispBlocking": "ISS'niz Topluluk Veri Deposuna doğrudan bağlantıyı engelliyor.",
+    "pasteVless": "Çalışan herhangi bir",
+    "pasteVlessEnd": "URL'yi aşağıya yapıştırın. Tarayıcı, ağ engellemesini atlamak için anında yerel bir proxy yönlendiricisi oluşturacak ve güvenli MySQL bağlantısını o VLESS sunucusu üzerinden tünelleyecektir!",
+    "cancel": "İptal",
+    "connecting": "Bağlanıyor...",
+    "tunnelNetwork": "Ağı Tünelle"
+  },
+  "advanced": {
+    "title": "Çok Vektörlü DPI Atlaması",
+    "fragment": "Parça Analizörü",
+    "sni": "SNI Cephesi",
+    "vlessConfig": "VLESS URL Yapılandırması",
+    "targetIp": "Temiz Hedef Cloudflare IP'si",
+    "fragDesc": "Mevcut ISS'niz için bir DPI atlama tatlı noktası bulmak üzere hedef IP'ye karşı her uzunluk ve aralık çifti permütasyonunu test edin.",
+    "lengths": "Uzunluklar (Virgülle Ayrılmış Aralıklar)",
+    "intervals": "Aralıklar (Virgülle Ayrılmış Aralıklar)",
+    "sniLabel": "Özel SNI Ana Bilgisayar Adları (Virgül/Yeni satır ile ayrılmış)",
+    "sniDesc": "Çalışan tek bir Cloudflare IP'sine karşı devasa bir SNI listesini yineler.",
+    "startBypass": "Atlama Taramasını Başlat",
+    "scanningBypass": "Atlama Yapılandırmaları Taranıyor...",
+    "checksComplete": "kontrol tamamlandı"
+  },
+  "warp": {
+    "title": "WARP Uç Noktası Tarayıcısı",
+    "desc": "Bölgenize uyarlanmış tam işlevli Cloudflare WARP UDP/TCP düğümlerini arayın. Bu IP'leri, DPI sansürünü atlayan tam cihaz VPN tünelleri kurmak için Wireguard uç noktaları olarak kullanabilirsiniz.",
+    "threads": "İş Parçacıkları (Eşzamanlılık)",
+    "targetEndpoints": "Hedef Uç Noktalar (Sonra Dur)",
+    "maxPing": "Kabul edilebilir maksimum ping (ms)",
+    "ports": "Taranacak Wireguard UDP Portları",
+    "startHunt": "WARP Avını Başlat",
+    "stopScanning": "Taramayı Durdur",
+    "cleanEndpoints": "Temiz Uç Noktalar",
+    "copyAll": "Tüm uç noktaları kopyala",
+    "noEndpoints": "Henüz uç nokta bulunamadı.",
+    "logs": "Tarayıcı Günlükleri",
+    "waiting": "Başlamak için bekleniyor..."
+  },
+  "dnsScanner": {
+    "title": "DNS ve Tünel Tarayıcısı (BETA)",
+    "subtitle": "DPI sansürünü atlamak için DNS çözümleyici geçersiz kılmalarını ve TLS Bölünmüş Akış parçalanmasını test edin.",
+    "testOption": "Test Modu",
+    "dnstt": "DNS Çözümleyici Geçersiz Kılma",
+    "tlsSplit": "TLS Bölünmüş Akış",
+    "nameserver": "DNS Sunucusu (Şifreli veya Düz)",
+    "nameserverDesc": "UDP, TCP, DNS-over-HTTPS (DoH) ve DNS-over-TLS (DoT) formatlarını destekler.",
+    "customDns": "Özel DNS Sunucusu...",
+    "testDomain": "Test Alan Adı",
+    "testDomainDesc": "Seçilen DNS sunucusu üzerinden çözümlenmeye çalışılacak alan adı.",
+    "fragmentSize": "Parça Boyutu (Bayt)",
+    "fragmentSizeDesc": "Örnek: '10-20', paketleri 10 ile 20 bayt arasında böler.",
+    "fragmentInterval": "Parça Aralığı (ms)",
+    "fragmentIntervalDesc": "Parçalar arasındaki gecikme.",
+    "ispPreset": "ISS DPI Önayarı",
+    "packetMode": "Paket Parçalanma Modu",
+    "packetModeDesc": "tlshello sadece TLS el sıkışmasını böler. 1-3 ilk 1-3 TCP veri yazmasını böler.",
+    "recommended": "(Önerilen)",
+    "broader": "(Daha Geniş)",
+    "fingerprint": "TLS Tarayıcı Parmak İzi (uTLS)",
+    "fingerprintDesc": "DPI parmak izi tespitinden kaçınmak için gerçek tarayıcı TLS el sıkışmalarını taklit eder.",
+    "vlessConfig": "Vless / Xray Yapılandırması",
+    "errorNoConfig": "Lütfen önce geçerli bir Xray/V2Ray yapılandırması yapıştırın.",
+    "testing": "Test ediliyor...",
+    "startScanner": "Tarayıcıyı Başlat",
+    "testingParams": "DNS/Tünel parametreleri test ediliyor..."
+  },
+  "dnsGuide": {
+    "showGuide": "Kılavuzu ve Daha Fazla Bilgiyi Göster",
+    "hideGuide": "Kılavuzu ve Bilgiyi Gizle",
+    "beginnerTitle": "📖 Başlangıç Kılavuzu — Bu Sekme Nasıl Kullanılır",
+    "step1Title": "Modunuzu Seçin",
+    "step1Desc": "ISS'nizin DNS sorgularını zehirleyip zehirlemediğini test etmek için 'DNS Çözümleyici Geçersiz Kılma'yı veya TLS el sıkışmanızı parçalamak ve DPI sansürünü atlamak için 'TLS Bölünmüş Akış'ı seçin.",
+    "step2Title": "Ayarlarınızı Yapılandırın",
+    "step2Desc": "DNS modu için: Açılır menüden bir DNS sunucusu seçin (Sansürlü bölgeler için DoH önerilir). TLS Bölünmesi için: ISS önayarınızı seçin veya parça boyutunu ve aralığını manuel olarak ayarlayın.",
+    "step3Title": "Tarayıcı Parmak İzini Seçin",
+    "step3Desc": "Trafiğinizin DPI sistemlerine normal bir tarayıcı etkinliği gibi görünmesi için bir TLS parmak izi (Chrome önerilir) seçin.",
+    "step4Title": "Yapılandırmanızı Yapıştırın ve Tarayın",
+    "step4Desc": "Çalışan bir VLESS/Trojan yapılandırmasını metin kutusuna yapıştırın, ardından Tarayıcıyı Başlat'a basın. Uygulama, ayarlarınızla Xray'i başlatacak ve bağlantıyı test edecektir.",
+    "proTip": "Uzman İpucu",
+    "proTipDesc": "Eğer İran'daysanız, 'İran MCI' veya 'İran Irancell' önayarı ve Chrome parmak izi ile başlayın. Başarısız olursa, düz DNS yerine DoH (Google veya Cloudflare) deneyin.",
+    "tlsTitle": "🔧 TLS Bölünmüş Akış Nasıl Çalışır",
+    "tlsP1": "HTTPS üzerinden bir web sitesine bağlandığınızda, bilgisayarınızın gönderdiği ilk mesaja 'TLS ClientHello' denir. Bu mesaj ziyaret etmeye çalıştığınız ana bilgisayar adını (ör. youtube.com) içerir.",
+    "tlsP2": "Hükümet güvenlik duvarları bağlantınızı engelleyip engellemeyeceğine karar vermek için bu SNI'yi okur. TLS Bölünmüş Akış, ClientHello'yu küçük parçalara bölerek bunu yener. Güvenlik duvarı eksik parçalar görür ve ana bilgisayar adını yeniden oluşturamaz.",
+    "tlsHelloDesc": "SADECE TLS ClientHello'yu böler. En etkili ve hedeflidir. Önce bunu kullanın.",
+    "mode13Desc": "İlk 1-3 veri yazmasını böler. Daha geniş ancak daha az hedefli. Eğer tlshello başarısız olursa deneyin.",
+    "sizeIntervalDesc": "Boyut = parça başına bayt (daha küçük = tespit edilmesi daha zor). Aralık = parçalar arasındaki ms cinsinden gecikme.",
+    "dnsTitle": "🌐 DNS Çözümleyici Geçersiz Kılma Nasıl Çalışır",
+    "dnsP1": "ISS'niz interneti sansürlediğinde, yaptıkları ilk şeylerden biri DNS sorgularını zehirlemektir. 'youtube.com'u çözümlemeye çalıştığınızda, ISS'niz sahte bir IP adresi döndürür veya yanıtı tamamen engeller.",
+    "dnsP2": "DNS Çözümleyici Geçersiz Kılma, Xray DNS sorgularınızı farklı bir sunucu üzerinden yönlendirir — ISS'nizin zehirli DNS'sini atlar. ISS'nizin neyi çözümlediğinizi görememesi için DoH (DNS-over-HTTPS) gibi şifreli protokoller kullanabilirsiniz.",
+    "dnsFormat": "Format",
+    "dnsExample": "Örnek",
+    "dnsSecurity": "Güvenlik",
+    "dnsPlain": "Şifresiz",
+    "dnsEncrypted": "Şifreli",
+    "utlsTitle": "🎭 uTLS Tarayıcı Parmak İzi Nedir?",
+    "utlsP1": "Her program bir sunucuya bağlandığında benzersiz bir 'TLS parmak izi' oluşturur. Hükümet DPI sistemleri bu parmak izini analiz ederek gerçek bir tarayıcı yerine Xray/V2Ray kullandığınızı tespit edebilir.",
+    "utlsP2": "uTLS, gerçek tarayıcıların tam TLS el sıkışmasını taklit ederek bunu çözer. 'Chrome'u seçtiğinizde, Xray bağlantınız herhangi bir gözlemciye Google Chrome ile aynı görünür.",
+    "utlsWarning": "Önemli Uyarı",
+    "utlsWarningDesc": "Bazı ISS'ler tarayıcı dışı TLS parmak izlerini aktif olarak tespit eder. Tespitten kaçınmak için her zaman Chrome veya Firefox seçin.",
+    "ispTitle": "🇮🇷 ISS'ye Özgü Önayarlar Açıklaması",
+    "ispP1": "Farklı ISS'ler, değişen algılama yeteneklerine sahip farklı DPI (Derin Paket İnceleme) sistemleri kullanır.",
+    "ispMci": "Büyük parçalara (100-200 bayt) ve orta düzey gecikmelere ihtiyaç duyar.",
+    "ispIrancell": "Orta düzey parçalar (50-100 bayt) genellikle iyi çalışır.",
+    "ispShatel": "Küçük, hızlı parçalar (10-30 bayt, 1-5ms gecikme) çok etkilidir.",
+    "ispChina": "Gelişmiş DPI. Tespitten kaçınmak için daha uzun gecikmelere (20-50ms) sahip orta boy parçalar."
+  },
+  "about": {
+    "title": "Antigravity IP Tarayıcı",
+    "subtitle": "Gelişmiş Cloudflare IP Optimizasyonu ve Sansür Atlama Aracı",
+    "version": "Sürüm 2.5 • Açık Kaynak",
+    "whatIs": {
+      "title": "Antigravity Nedir?",
+      "p1": "Antigravity, Derin Paket İncelemesini (DPI) ve coğrafi sansürü atlayan Cloudflare IP'lerini ve WARP uç noktalarını keşfetmek için tasarlanmış profesyonel düzeyde bir ağ aracıdır.",
+      "p2": "Gecikmeyi (ping), seğirmeyi ve gerçek dünya hızlarını test ederek internet sağlayıcınız için en iyi bağlantıları bulur.",
+      "cards": {
+        "ping": {
+          "label": "Ping & Jitter",
+          "val": "Gerçek zamanlı gecikme"
+        },
+        "speed": {
+          "label": "Hız Testi",
+          "val": "İndirme & Yükleme"
+        },
+        "tls": {
+          "label": "TLS Doğrulama",
+          "val": "Anti-MITM Koruması"
+        },
+        "proto": {
+          "label": "Çoklu Protokol",
+          "val": "VLESS / WARP"
+        }
+      }
+    },
+    "guide": {
+      "title": "Hızlı Başlangıç Kılavuzu",
+      "steps": {
+        "s1": {
+          "title": "Bir VLESS Yapılandırması Alın",
+          "desc": "Temel olarak çalışan bir VLESS yapılandırmasına ihtiyacınız var:",
+          "sub": {
+            "0": "Kendi yapılandırmanızı doğrudan metin kutusuna yapıştırın",
+            "1": "Otomatik içe aktarmak için bir abonelik URL'si girin",
+            "2": "'🔥 TEK TIKLA OTOMATİK TARA' düğmesini kullanın"
+          }
+        },
+        "s2": {
+          "title": "IP Kaynağınızı Seçin",
+          "desc": "IP'lerin nereden test edileceğini seçin:",
+          "sub": {
+            "0": "📂 Resmi Cloudflare — Taze IP'ler",
+            "1": "🧠 Akıllı Geçmiş — ISS'nizde daha önce doğrulanmış IP'ler",
+            "2": "🏆 Altın IP'ler — Akıllı strateji",
+            "3": "👥 Topluluk Altını — Bölgenizdeki diğer kullanıcılar tarafından doğrulanan IP'ler"
+          }
+        },
+        "s3": {
+          "title": "Eşikleri Yapılandırın",
+          "desc": "İnce ayar yapmak için 'Gelişmiş Ayarlar'a tıklayın:",
+          "sub": {
+            "0": "Maks Ping — (varsayılan: 800ms)",
+            "1": "Maks Jitter — (varsayılan: 500ms)",
+            "2": "Min İndirme — (varsayılan: 1 Mbps)",
+            "3": "Eşzamanlılık — (varsayılan: 8)"
+          }
+        },
+        "s4": {
+          "title": "Taramayı Başlat",
+          "desc": "'TARAMAYI BAŞLAT'a tıklayın ve sonuçların gerçek zamanlı görünmesini izleyin.",
+          "sub": {}
+        },
+        "s5": {
+          "title": "Sonuçlarınızı Kullanın",
+          "desc": "Sonuçlar Tablosundan:",
+          "sub": {
+            "0": "'Bağlantıyı Kopyala'ya tıklayın",
+            "1": "V2RayNG / Clash için bağlantı oluşturmak üzere 'Dışa Aktar'a tıklayın",
+            "2": "Sonuçlar hıza göre sıralanır"
+          }
+        }
+      }
+    },
+    "features": {
+      "title": "Gelişmiş Özellikler",
+      "tls": {
+        "title": "🔒 Sıkı TLS Doğrulaması",
+        "desc": "MITM saldırılarını önler."
+      },
+      "dpi": {
+        "title": "🧩 DPI Parça Analizörü",
+        "desc": "Gelişmiş DPI güvenlik duvarlarını atlamak için parçalanma testleri."
+      },
+      "tcp": {
+        "title": "⚡ TCP Ön Filtresi",
+        "desc": "Ölü IP'leri anında düşürür."
+      },
+      "queue": {
+        "title": "💾 Kalıcı Arka Plan Sırası",
+        "desc": "Taramaların çökmelerde hayatta kalmasını sağlar."
+      },
+      "fastly": {
+        "title": "⚡ Fastly CDN Desteği",
+        "desc": "Fastly Ağ IP'lerini keşfeder."
+      },
+      "dnstt": {
+        "title": "🛡️ DNSTT ve TLS Bölünmüş Akış",
+        "desc": "SlowDNS kapsüllemesi ve parçalanmış paket analizi."
+      },
+      "sni": {
+        "title": "🌐 SNI Cephesi",
+        "desc": "Engellenmemiş SNI'leri bulur."
+      },
+      "warp": {
+        "title": "📡 WARP Uç Noktası",
+        "desc": "WARP UDP uç noktalarını keşfeder."
+      },
+      "map": {
+        "title": "📊 Küresel Analiz",
+        "desc": "Tüm ülkelerdeki tarama sonuçlarını gösteren harita."
+      },
+      "retry": {
+        "title": "🔄 Akıllı Yeniden Deneme",
+        "desc": "Sıkı eşikler başarısız olursa, otomatik olarak yeniden dener."
+      },
+      "dns_override": {
+        "title": "🌐 DNS Geçersiz Kılma",
+        "desc": "DNS sorgularını DoH/DoT sunucuları üzerinden yönlendirir."
+      },
+      "macos": {
+        "title": "🍎 macOS Desteği",
+        "desc": "Yerel macOS DMG yükleyicisi mevcuttur."
+      }
+    },
+    "tips": {
+      "title": "En İyi Sonuçlar İçin İpuçları",
+      "list": {
+        "0": "Etkin bir VPN'niz varsa 'Sistem Proxy'sini etkinleştirin",
+        "1": "'🔥 TEK TIKLA OTOMATİK TARA' en kolay yoldur",
+        "2": "İyi bir IP bulunamazsa, 'Resmi Cloudflare' deneyin",
+        "3": "Min İndirmeyi 1-2 Mbps'ye düşürün",
+        "4": "Yoğun olmayan saatlerde tarama yapın",
+        "5": "DPI testi için 'Gelişmiş Atlamalar' sekmesini kullanın",
+        "6": "Sonuçları abonelik linki olarak dışa aktarın",
+        "7": "WARP tarayıcı V2Ray yapılandırmaları olmadan çalışır"
+      }
+    },
+    "faq": {
+      "title": "Sıkça Sorulan Sorular",
+      "items": {
+        "0": {
+          "q": "Temiz IP nedir?",
+          "a": "ISS'niz tarafından engellenmeyen veya yavaşlatılmayan bir Cloudflare sunucu IP'sidir."
+        },
+        "1": {
+          "q": "Güvenli mi?",
+          "a": "Evet. Sadece Cloudflare altyapısına bağlanır."
+        },
+        "2": {
+          "q": "Taramalar neden yavaş?",
+          "a": "Her IP için Xray başlatma, ping ve hız testleri gerekir."
+        },
+        "3": {
+          "q": "'Ulaşılamaz' ne anlama geliyor?",
+          "a": "IP bağlantı kuramadı."
+        },
+        "4": {
+          "q": "VLESS vs WARP?",
+          "a": "VLESS bir proxy protokolüdür. WARP ise Wireguard kullanan Cloudflare VPN'idir."
+        },
+        "5": {
+          "q": "Bunu telefonumda kullanabilir miyim?",
+          "a": "Tarayıcı Windows'ta çalışır, ancak sonuçlar her platformda çalışır."
+        }
+      }
+    },
+    "sysReq": {
+      "title": "Sistem Gereksinimleri",
+      "min": {
+        "title": "Minimum",
+        "items": {
+          "0": "Windows 10/11 (64-bit)",
+          "1": "4 GB RAM",
+          "2": "İnternet bağlantısı",
+          "3": "Xray-core (dahil)"
+        }
+      },
+      "rec": {
+        "title": "Önerilen",
+        "items": {
+          "0": "8+ GB RAM",
+          "1": "SSD depolama",
+          "2": "Aktif VPN/proxy",
+          "3": "Eşzamanlılık: 8-15 IP paralel"
+        }
+      }
+    },
+    "privacy": {
+      "title": "Gizlilik ve Güvenlik",
+      "items": {
+        "0": "VLESS yapılandırmalarınız ASLA yüklenmez",
+        "1": "Tarama sonuçları paylaşılan bir veritabanında saklanır",
+        "2": "Tüm testler Cloudflare'in kendi altyapısı üzerinden geçer",
+        "3": "Genel IP'niz ip-api.com aracılığıyla tespit edilir",
+        "4": "Analitik izleyici, reklam, telemetri yok — tamamen açık kaynaklı"
+      }
+    },
+    "author": "Yazar ve İletişim",
+    "community": "Topluluk ve Destek",
+    "starGithub": "Bize GitHub'da Yıldız Verin",
+    "supportProject": "Açık kaynaklı projeyi destekleyin",
+    "freeBot": "Ücretsiz VPN Telegram Botu",
+    "getBotConfigs": "Ücretsiz yapılandırmaları anında alın",
+    "joinTelegram": "Telegram Grubumuza Katılın",
+    "shareFeedback": "Geri bildirim paylaşın",
+    "footer": "🕊️ Özgür ve açık bir internet için tasarlandı",
+    "copyright": "Antigravity IP Tarayıcı • © 2024-2026 Khate Tire • GNU AGPLv3",
+    "openSource": "Açık Kaynak"
+  },
+  "freevpn": {
+    "title": "Community VPN Ecosystem",
+    "subtitle": "Access free community configs or earn dedicated VIP servers by contributing to the network.",
+    "loginTelegram": "Login with Telegram",
+    "authenticated": "Authenticated",
+    "tabFree": "Free Community Configs",
+    "tabVip": "Claim VIP Server",
+    "authRequired": "Authentication Required",
+    "authDesc": "You must join our Telegram community and authenticate via the bot to access the free VPN ecosystem.",
+    "joinChannelTitle": "Join Our Telegram Community",
+    "joinChannelDesc": "Membership is required. The bot will verify your subscription before authenticating.",
+    "joinChannel": "Join @ANTIGRAVITY_IP",
+    "iJoined": "I've joined the channel",
+    "loginStepTitle": "Authenticate via Bot",
+    "loginStepDesc": "After joining, click \"Login with Telegram\" above to get a 6-digit code and send it to the bot.",
+    "scanRequired": "Contribution Required",
+    "scanDesc": "To unlock access to the community configs, you must give back to the network. Please run an IP scan and find at least 10 Clean IPs within the last 3 days.",
+    "goToScanner": "Go to Scanner",
+    "vipTitle": "Earn a Dedicated VIP Server",
+    "vipDesc": "Contribute 10,000 successful IP scans to the global database to earn a private 10GB high-speed VIP Config valid for 7 days.",
+    "yourProgress": "Your Progress",
+    "claimBtn": "Claim VIP Config",
+    "scanToEarn": "Scan IPs to Earn VIP",
+    "messageBot": "Bota Bu Kodu Gönder",
+    "copy": "Kopyala",
+    "openApp": "Uygulamayı Aç & Gönder",
+    "waitingForYou": "Seni bekliyor...",
+    "scanContributions": "Tarama Katkılarınız",
+    "total": "toplam",
+    "recentScans": "Son (son 3 gün)",
+    "ips": "IP",
+    "loginToUnlock": "Yapılandırmaların kilidini açmak için yukarıdan Telegram ile giriş yapın",
+    "recentContribution": "Son Katkınız",
+    "almostThere": "Neredeyse tamam! O iyi IP'leri bulmaya devam edin...",
+    "mixTitle": "Topluluk Yapılandırmaları — Karıştır & Test Et",
+    "mixDesc": "En hızlı 5 CF yapılandırmasını seçer",
+    "available": "mevcut",
+    "mixDesc2": "bulunan en iyi 3 IP ile karıştırır",
+    "mixDesc3": "test eder tüm",
+    "mixDesc4": "kombinasyonları.",
+    "testing": "Test ediliyor...",
+    "retestAll": "Tümünü Yeniden Test Et",
+    "mixAndTestAll": "Tümünü Karıştır & Test Et",
+    "fetching": "En iyi 5 yapılandırma ve 3 IP getiriliyor...",
+    "quickPing": "Hızlı ping testi —",
+    "combos": "kombinasyon",
+    "speedTest": "En iyi adayların hız testi yapılıyor...",
+    "topConfigsPrefix": "En İyi",
+    "topConfigsSuffix": "Yapılandırma (Kaliteye Göre Sıralı)",
+    "score": "Puan",
+    "copyConfig": "Yapılandırmayı Kopyala",
+    "copyAll": "Tümünü Kopyala",
+    "configs": "Yapılandırma",
+    "browsePreInjected": "Veya önceden enjekte edilmiş yapılandırmalara göz atın (hız testi yapılmamış):",
+    "source": "Kaynak",
+    "injectedIp": "Enjekte Edilen IP",
+    "copyOptimized": "Optimize Edilmiş Yapılandırmayı Kopyala",
+    "loadingConfigs": "Yönetici Havuzundan yapılandırmalar yükleniyor..."
+  },
+  "geomap": {
+    "target": "HEDEF",
+    "global": "KÜRESEL (Herhangi)"
+  },
+  "freedom": {
+    "invalidConfig": "Lütfen geçerli bir VLESS yapılandırması yapıştırın",
+    "configSubmitted": "Yapılandırma gönderildi! Madencilik devam edecek...",
+    "submitFailed": "Yapılandırma gönderilemedi",
+    "playFreedom": "Play Freedom",
+    "subtitle": "Tamamen otonom engellenemez proxy madencisi",
+    "startAutopilot": "OTOPİLOTU BAŞLAT",
+    "stop": "DURDUR",
+    "currentPhase": "Mevcut Aşama",
+    "ready": "Hazır",
+    "noConfig": "⚠️ Çalışan bir yapılandırma bulunamadı. Devam etmek için çalışan bir VLESS yapılandırması yapıştırın:",
+    "sending": "Gönderiliyor...",
+    "submit": "Gönder",
+    "vanillaSub": "Vanilla Sub Tamam",
+    "cfSub": "CF Sub Tamam",
+    "spliced": "Eklenmiş Çarpanlar",
+    "cleanIps": "Temiz IP'ler Çıkarıldı",
+    "foundConfigs": "Bulunan Yapılandırmalar",
+    "allCopied": "Tüm yapılandırmalar kopyalandı!",
+    "copyAll": "Tümünü Kopyala",
+    "configCopied": "Yapılandırma kopyalandı!",
+    "copy": "Kopyala"
+  },
+  "frag": {
+    "length": "Uzunluk",
+    "interval": "Aralık",
+    "status": "Durum",
+    "ping": "Ping",
+    "mapTitle": "DPI Güvenlik Duvarı Sızma Haritası",
+    "success": "Atlama Başarılı",
+    "fail": "Müdahale Tespit Edildi"
+  },
+  "debug": {
+    "backendNotRunning": "Arka uç çalışmıyor. backend.exe'nin çöküp çökmediğini kontrol edin.",
+    "connecting": "⏳ Bağlanıyor...",
+    "backendApi": "🟢 Arka Uç API",
+    "electronLog": "📄 Electron Günlük Dosyası",
+    "backendOffline": "🔴 Arka Uç Çevrimdışı",
+    "closeDebug": "▼ Hata Ayıklamayı Kapat",
+    "openDebug": "▲ Hata Ayıklama Konsolu",
+    "logTitle": "Hata Ayıklama Günlüğü",
+    "waiting": "Günlükler bekleniyor...",
+    "entries": "${logs.length} giriş"
+  },
+  "db": {
+    "layer1": "Katman 1: Doğrudan MySQL",
+    "layer1Desc": "En hızlı, ancak engellenebilir",
+    "layer2": "Katman 2: Worker Proxy",
+    "layer2Desc": "Cloudflare ağ ucu",
+    "layer3": "Katman 3: Temiz IP Cephesi",
+    "layer3Desc": "Alan adı cepheleme atlaması",
+    "layer4": "Katman 4: VLESS Tüneli",
+    "layer4Desc": "Yedek yönlendirme ağı",
+    "layer5": "Katman 5: Yerel SQLite",
+    "layer5Desc": "Çevrimdışı mod güvenlik ağı",
+    "unblockableLink": "Engellenemez DB Bağlantısı",
+    "activeMode": "Aktif Mod",
+    "testingDb": "DB Bağlantısı Test Ediliyor...",
+    "dbLinkOnline": "DB Bağlantısı: ${onlineLayers}/5 Çevrimiçi"
+  },
+  "data": {
+    "offlineSync": "Çevrimdışı Veri Senkronizasyonu",
+    "syncDesc": "Kısıtlı bölgelerdeki diğer kullanıcılarla paylaşmak için tam veritabanınızı dışa aktarın. Paket şifrelenmiştir.",
+    "exportDb": "Veritabanını Dışa Aktar",
+    "exportDesc": "TÜM uygulama verilerini paketleyin.",
+    "packaging": "Paketleniyor...",
+    "downloadBundle": ".agdb Paketini İndir",
+    "encrypted": "AES-256 Şifreli ve ZLib Sıkıştırılmış",
+    "importDb": "Veritabanını İçe Aktar",
+    "importDesc": "Yerel olarak doldurmak için paylaşılan bir .agdb dosyası seçin.",
+    "processing": "İşleniyor...",
+    "uploadFile": ".agdb Dosyası Yükle",
+    "syncComplete": "Tam Çevrimdışı Senkronizasyon Tamamlandı!",
+    "scans": "Taramalar",
+    "configs": "Yapılandırmalar",
+    "cfSub": "CF Sub",
+    "vanilla": "Vanilla",
+    "recs": "Öneriler",
+    "settings": "Ayarlar",
+    "analytics": "Analitik",
+    "geoData": "Coğrafi Veri",
+    "regions": "Bölgeler",
+    "bypasses": "Atlamalar",
+    "overwriteWarn": "Mevcut kopyaları sessizce üzerine yazar"
+  }
+}

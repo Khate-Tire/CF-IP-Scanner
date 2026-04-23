@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect, useRef } from 'react';
 import { API_URL } from '../api';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function DebugConsole() {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [logs, setLogs] = useState([]);
     const [source, setSource] = useState('checking');
@@ -46,7 +48,7 @@ export default function DebugConsole() {
             // Neither worked
             setSource('disconnected');
             setLogs(prev => {
-                const msg = `[${new Date().toLocaleTimeString()}] ⚠️ Backend not running. Check if backend.exe crashed on startup.`;
+            const msg = `[${new Date().toLocaleTimeString()}] ⚠️ ${t('debug.backendNotRunning', 'Backend not running. Check if backend.exe crashed on startup.')}`;
                 if (prev.length === 0 || prev[prev.length - 1] !== msg) {
                     return [...prev.slice(-50), msg];
                 }
@@ -66,10 +68,10 @@ export default function DebugConsole() {
     }, [logs]);
 
     const sourceLabel = {
-        'checking': '⏳ Connecting...',
-        'backend-api': '🟢 Backend API',
-        'electron-log': '📄 Electron Log File',
-        'disconnected': '🔴 Backend Offline'
+        'checking': t('debug.connecting', '⏳ Connecting...'),
+        'backend-api': t('debug.backendApi', '🟢 Backend API'),
+        'electron-log': t('debug.electronLog', '📄 Electron Log File'),
+        'disconnected': t('debug.backendOffline', '🔴 Backend Offline')
     };
 
     return (
@@ -78,22 +80,22 @@ export default function DebugConsole() {
                 onClick={() => setOpen(!open)}
                 className="absolute bottom-2 left-2 bg-black/80 border border-white/20 text-[10px] text-gray-400 hover:text-neon-blue px-3 py-1 rounded-full transition-all z-[201]"
             >
-                {open ? '▼ Close Debug' : '▲ Debug Console'}
+                {open ? t('debug.closeDebug', '▼ Close Debug') : t('debug.openDebug', '▲ Debug Console')}
             </button>
 
             {open && (
                 <div className="bg-[#0a0a0f]/95 backdrop-blur-xl border-t border-neon-blue/30 shadow-[0_-4px_20px_rgba(0,243,255,0.1)]"
                     style={{ height: '260px' }}>
                     <div className="flex items-center justify-between px-4 py-1.5 border-b border-white/10">
-                        <span className="text-[10px] font-bold text-neon-blue uppercase tracking-widest">Debug Log</span>
+                        <span className="text-[10px] font-bold text-neon-blue uppercase tracking-widest">{t('debug.logTitle', 'Debug Log')}</span>
                         <div className="flex items-center gap-4">
                             <span className="text-[9px] text-gray-500">{sourceLabel[source]}</span>
-                            <span className="text-[9px] text-gray-500">{logs.length} entries</span>
+                            <span className="text-[9px] text-gray-500">{t('debug.entries', { count: logs.length }, `${logs.length} entries`)}</span>
                         </div>
                     </div>
                     <div className="overflow-y-auto font-mono text-[11px] leading-5 p-3" style={{ height: '220px' }}>
                         {logs.length === 0 && (
-                            <div className="text-gray-600 italic">Waiting for logs...</div>
+                            <div className="text-gray-600 italic">{t('debug.waiting', 'Waiting for logs...')}</div>
                         )}
                         {logs.map((line, i) => (
                             <div key={i} className={`whitespace-pre-wrap break-all ${line.includes('✅') || line.includes('ready') ? 'text-green-400' :

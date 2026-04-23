@@ -229,7 +229,7 @@ export default function WorldHeatmap({ provider = 'cloudflare' }) {
                                 {hoveredCountry.top_datacenters.map((dc, i) => (
                                     <div key={i} className="flex justify-between text-[11px] py-0.5">
                                         <span className="text-neon-green font-mono">{dc.code}</span>
-                                        <span className="text-gray-400">{dc.hits} hits</span>
+                                        <span className="text-gray-400">{dc.hits} {t('analytics.worldMap.hits', 'hits')}</span>
                                     </div>
                                 ))}
                             </div>

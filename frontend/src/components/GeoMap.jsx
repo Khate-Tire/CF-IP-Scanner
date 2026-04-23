@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState } from 'react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
+import { useTranslation } from '../i18n/LanguageContext';
 
 // Standard World TopoJSON
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -20,6 +21,7 @@ const numericToAlpha2 = {
 };
 
 export default function GeoMap({ selectedCountry, onSelectCountry }) {
+    const { t } = useTranslation();
     return (
         <div className="w-full h-48 bg-black/40 border border-white/10 rounded-lg overflow-hidden relative cursor-crosshair">
             <ComposableMap projectionConfig={{ scale: 120 }} width={800} height={400}>
@@ -68,7 +70,7 @@ export default function GeoMap({ selectedCountry, onSelectCountry }) {
             {/* Overlay Status */}
             <div className="absolute bottom-2 left-2 pointer-events-none">
                 <div className="bg-black/60 px-3 py-1 rounded border border-neon-blue/30 text-xs text-neon-blue font-mono">
-                    TARGET: {selectedCountry || "GLOBAL (Any)"}
+                    {t('geomap.target', 'TARGET')}: {selectedCountry || t('geomap.global', 'GLOBAL (Any)')}
                 </div>
             </div>
         </div>

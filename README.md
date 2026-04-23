@@ -13,7 +13,7 @@
     <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black" />
     <img src="https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?logo=tailwindcss&logoColor=white" />
     <img src="https://img.shields.io/badge/Electron-28-47848F?logo=electron&logoColor=white" />
-    <img src="https://img.shields.io/badge/i18n-EN_|_FA_|_RU-ff6b6b" />
+    <img src="https://img.shields.io/badge/i18n-EN_|_FA_|_RU_|_ZH_|_TR_|_AR-ff6b6b" />
   </p>
 </div>
 
@@ -40,7 +40,7 @@
 - �🌍 نقشه حرارتی جهانی با آمار لحظه‌ای
 - 🔒 تأیید TLS سخت (ضد حمله وسط)
 - 🏆 سیستم آی‌پی طلایی هوشمند
-- 🌐 پشتیبانی چندزبانه (انگلیسی، فارسی، روسی)
+- 🌐 پشتیبانی چندزبانه (انگلیسی، فارسی، روسی، چینی، ترکی، عربی)
 
 ### 🚀 شروع سریع
 ```bash
@@ -78,7 +78,7 @@ python run_app.py
 - �🌍 Глобальная тепловая карта со статистикой в реальном времени
 - 🔒 Строгая проверка TLS (защита от MITM)
 - 🏆 Умная система золотых IP
-- 🌐 Мультиязычная поддержка (EN, FA, RU)
+- 🌐 Мультиязычная поддержка (EN, FA, RU, ZH, TR, AR)
 
 ### 🚀 Быстрый старт
 ```bash
@@ -158,7 +158,7 @@ python run_app.py
 | 💾 **Persistent Queue** | Pure SQLite async queue ensures scans survive app restarts |
 | 🔄 **Smart Retry** | Auto-relaxes thresholds if strict settings find nothing |
 | 📊 **Real-time Analytics** | Live charts for datacenter latency, port success, and network protocols |
-| 🌐 **Multi-Language** | Full UI in English 🇬🇧, فارسی 🇮🇷, and Русский 🇷🇺 |
+| 🌐 **Multi-Language** | Full UI in English 🇬🇧, فارسی 🇮🇷, Русский 🇷🇺, 中文 🇨🇳, Türkçe 🇹🇷, and العربية 🇦🇪 |
 | 📱 **Deep Links** | One-click export to V2RayNG, Hidify, V2Box, Clash Meta, Sing-box |
 | 🌐 **DNS Override** | Route DNS queries through encrypted DoH/DoT servers to bypass ISP poisoning |
 | 🍎 **macOS Support** | Native DMG installer for macOS alongside Windows EXE |
@@ -288,13 +288,16 @@ CF-IP-Scanner/
 
 ## 🌐 Internationalization (i18n)
 
-Antigravity supports **3 languages** with automatic font switching:
+Antigravity supports **6 languages** with automatic font switching:
 
 | Language | Code | Font | Direction |
 |----------|------|------|-----------|
 | 🇬🇧 English | `en` | Inter | LTR |
 | 🇮🇷 فارسی | `fa` | Vazirmatn | RTL |
 | 🇷🇺 Русский | `ru` | Nunito | LTR |
+| 🇨🇳 中文 (简体) | `zh` | Inter | LTR |
+| 🇹🇷 Türkçe | `tr` | Inter | LTR |
+| 🇦🇪 العربية | `ar` | Vazirmatn | RTL |
 
 ### Adding a New Language
 

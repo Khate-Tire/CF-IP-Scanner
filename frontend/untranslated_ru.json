@@ -1,0 +1,37 @@
+{
+  "app": {
+    "tabs": {
+      "freedom": "Play Freedom"
+    }
+  },
+  "config": {
+    "vlessUrl": "VLESS URL",
+    "fastlyCdn": "FASTLY CDN"
+  },
+  "results": {
+    "ip": "IP",
+    "base64": "Base64 (V2RayNG)",
+    "clash": "Clash YAML",
+    "singbox": "SingBox JSON"
+  },
+  "health": {
+    "cloudflare": "CLOUDFLARE"
+  },
+  "about": {
+    "whatIs": {
+      "cards": {
+        "proto": {
+          "val": "VLESS / WARP"
+        }
+      }
+    }
+  },
+  "freedom": {
+    "playFreedom": "Play Freedom",
+    "vanillaSub": "Vanilla Sub OK",
+    "cfSub": "CF Sub OK"
+  },
+  "data": {
+    "vanilla": "Vanilla"
+  }
+}

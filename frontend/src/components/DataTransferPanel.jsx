@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import { Download, Upload, Database, CheckCircle, ShieldCheck, Server, AlertTriangle } from 'lucide-react';
 import { exportDatabase, importDatabase } from '../api';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function DataTransferPanel() {
+    const { t } = useTranslation();
     const [exportPhase, setExportPhase] = useState({ active: false, progress: 0, text: '' });
     const [importPhase, setImportPhase] = useState({ active: false, progress: 0, text: '' });
     const [importStats, setImportStats] = useState(null);
@@ -120,11 +122,10 @@ export default function DataTransferPanel() {
                     <Database className="w-10 h-10 text-blue-400" />
                 </div>
                 <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                    Offline Data Sync
+                    {t('data.offlineSync', 'Offline Data Sync')}
                 </h2>
                 <p className="text-gray-400 text-sm max-w-lg mx-auto">
-                    Export your full database to share with others in restricted regions. The bundle is compressed and 
-                    AES-encrypted, keeping your data completely unreadable to anyone outside of the Antigravity App.
+                    {t('data.syncDesc', 'Export your full database to share with others in restricted regions. The bundle is compressed and AES-encrypted, keeping your data completely unreadable to anyone outside of the Antigravity App.')}
                 </p>
             </div>
 
@@ -137,10 +138,10 @@ export default function DataTransferPanel() {
                     
                     <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
                         <Download className="w-5 h-5 text-blue-400" />
-                        Export Database
+                        {t('data.exportDb', 'Export Database')}
                     </h3>
                     <p className="text-gray-400 text-sm mb-6 pr-8">
-                        Bundle ALL app data — scans, configs, analytics, settings, bypass profiles, and recommendations — into a fully encrypted `.agdb` file for complete offline use.
+                        {t('data.exportDesc', 'Bundle ALL app data — scans, configs, analytics, settings, bypass profiles, and recommendations — into a fully encrypted .agdb file for complete offline use.')}
                     </p>
 
                     <button
@@ -155,12 +156,12 @@ export default function DataTransferPanel() {
                         {exportPhase.active ? (
                             <>
                                 <Database className="w-5 h-5 animate-bounce" />
-                                Packaging...
+                                {t('data.packaging', 'Packaging...')}
                             </>
                         ) : (
                             <>
                                 <Download className="w-5 h-5" />
-                                Download .agdb Bundle
+                                {t('data.downloadBundle', 'Download .agdb Bundle')}
                             </>
                         )}
                     </button>
@@ -176,7 +177,7 @@ export default function DataTransferPanel() {
                     {!exportPhase.active && (
                         <div className="mt-4 flex items-center gap-2 text-xs text-green-400/80 bg-green-400/10 p-2 rounded justify-center border border-green-400/20">
                             <ShieldCheck className="w-4 h-4" />
-                            AES-256 Encrypted & ZLib Compressed
+                            {t('data.encrypted', 'AES-256 Encrypted & ZLib Compressed')}
                         </div>
                     )}
                 </div>
@@ -189,10 +190,10 @@ export default function DataTransferPanel() {
                     
                     <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
                         <Upload className="w-5 h-5 text-purple-400" />
-                        Import Database
+                        {t('data.importDb', 'Import Database')}
                     </h3>
                     <p className="text-gray-400 text-sm mb-6 pr-8">
-                        Select a shared `.agdb` file to populate your app locally. Great for totally offline censored environments.
+                        {t('data.importDesc', 'Select a shared .agdb file to populate your app locally. Great for totally offline censored environments.')}
                     </p>
 
                     <input 
@@ -215,12 +216,12 @@ export default function DataTransferPanel() {
                         {importPhase.active ? (
                             <>
                                 <Server className="w-5 h-5 animate-pulse" />
-                                Processing...
+                                {t('data.processing', 'Processing...')}
                             </>
                         ) : (
                             <>
                                 <Upload className="w-5 h-5" />
-                                Upload .agdb File
+                                {t('data.uploadFile', 'Upload .agdb File')}
                             </>
                         )}
                     </button>
@@ -235,18 +236,18 @@ export default function DataTransferPanel() {
 
                     {!importPhase.active && importStats && (
                         <div className="mt-4 text-xs bg-purple-500/10 p-3 rounded border border-purple-500/20">
-                            <div className="text-purple-300 font-bold mb-2 flex items-center justify-center gap-1"><CheckCircle className="w-4 h-4"/> Full Offline Sync Complete!</div>
+                            <div className="text-purple-300 font-bold mb-2 flex items-center justify-center gap-1"><CheckCircle className="w-4 h-4"/> {t('data.syncComplete', 'Full Offline Sync Complete!')}</div>
                             <div className="grid grid-cols-3 gap-2 text-gray-400 font-mono">
-                                {importStats.scan_results != null && <div className="text-center"><span className="block text-white text-lg">{importStats.scan_results}</span> Scans</div>}
-                                {importStats.working_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.working_configs}</span> Configs</div>}
-                                {importStats.vpn_cf_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.vpn_cf_configs}</span> CF Sub</div>}
-                                {importStats.vpn_vanilla_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.vpn_vanilla_configs}</span> Vanilla</div>}
-                                {importStats.smart_recommendations != null && <div className="text-center"><span className="block text-white text-lg">{importStats.smart_recommendations}</span> Recs</div>}
-                                {importStats.settings && <div className="text-center"><span className="block text-white text-lg">✓</span> Settings</div>}
-                                {importStats.analytics && <div className="text-center"><span className="block text-white text-lg">✓</span> Analytics</div>}
-                                {importStats.geo_analytics && <div className="text-center"><span className="block text-white text-lg">✓</span> Geo Data</div>}
-                                {importStats.country_domains != null && <div className="text-center"><span className="block text-white text-lg">{importStats.country_domains}</span> Regions</div>}
-                                {importStats.bypass_profiles != null && <div className="text-center"><span className="block text-white text-lg">{importStats.bypass_profiles}</span> Bypasses</div>}
+                                {importStats.scan_results != null && <div className="text-center"><span className="block text-white text-lg">{importStats.scan_results}</span> {t('data.scans', 'Scans')}</div>}
+                                {importStats.working_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.working_configs}</span> {t('data.configs', 'Configs')}</div>}
+                                {importStats.vpn_cf_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.vpn_cf_configs}</span> {t('data.cfSub', 'CF Sub')}</div>}
+                                {importStats.vpn_vanilla_configs != null && <div className="text-center"><span className="block text-white text-lg">{importStats.vpn_vanilla_configs}</span> {t('data.vanilla', 'Vanilla')}</div>}
+                                {importStats.smart_recommendations != null && <div className="text-center"><span className="block text-white text-lg">{importStats.smart_recommendations}</span> {t('data.recs', 'Recs')}</div>}
+                                {importStats.settings && <div className="text-center"><span className="block text-white text-lg">✓</span> {t('data.settings', 'Settings')}</div>}
+                                {importStats.analytics && <div className="text-center"><span className="block text-white text-lg">✓</span> {t('data.analytics', 'Analytics')}</div>}
+                                {importStats.geo_analytics && <div className="text-center"><span className="block text-white text-lg">✓</span> {t('data.geoData', 'Geo Data')}</div>}
+                                {importStats.country_domains != null && <div className="text-center"><span className="block text-white text-lg">{importStats.country_domains}</span> {t('data.regions', 'Regions')}</div>}
+                                {importStats.bypass_profiles != null && <div className="text-center"><span className="block text-white text-lg">{importStats.bypass_profiles}</span> {t('data.bypasses', 'Bypasses')}</div>}
                             </div>
                         </div>
                     )}
@@ -254,7 +255,7 @@ export default function DataTransferPanel() {
                     {!importPhase.active && !importStats && (
                         <div className="mt-4 flex items-center gap-2 text-xs text-yellow-400/80 bg-yellow-400/10 p-2 rounded justify-center border border-yellow-400/20">
                             <AlertTriangle className="w-4 h-4" />
-                            Overwrites existing duplicate IPs silently
+                            {t('data.overwriteWarn', 'Overwrites existing duplicate IPs silently')}
                         </div>
                     )}
                 </div>

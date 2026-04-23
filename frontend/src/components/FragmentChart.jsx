@@ -1,8 +1,10 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useTranslation } from '../i18n/LanguageContext';
 
 export default function FragmentChart({ results }) {
+    const { t } = useTranslation();
     const data = results.filter(r => r.tested_config && r.tested_config.startsWith("Frag:")).map(r => {
         const parts = r.tested_config.replace("Frag: ", "").split(" / ");
         if (parts.length === 2) {
@@ -35,10 +37,10 @@ export default function FragmentChart({ results }) {
             const data = payload[0].payload;
             return (
                 <div className="bg-black/90 border border-gray-700 p-2 text-xs text-white neon-border">
-                    <p>Length: {data.xValue}</p>
-                    <p>Interval: {data.yValue}</p>
-                    <p>Status: <span className={data.status === 'ok' ? 'text-neon-green font-bold' : 'text-red-500'}>{data.status}</span></p>
-                    {data.status === 'ok' && <p>Ping: {data.ping}ms</p>}
+                    <p>{t('frag.length', 'Length')}: {data.xValue}</p>
+                    <p>{t('frag.interval', 'Interval')}: {data.yValue}</p>
+                    <p>{t('frag.status', 'Status')}: <span className={data.status === 'ok' ? 'text-neon-green font-bold' : 'text-red-500'}>{data.status}</span></p>
+                    {data.status === 'ok' && <p>{t('frag.ping', 'Ping')}: {data.ping}ms</p>}
                 </div>
             );
         }
@@ -49,7 +51,7 @@ export default function FragmentChart({ results }) {
         <div className="glass-panel p-6 mt-6 neon-border relative group">
             <div className="absolute inset-0 bg-neon-purple/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none rounded-2xl"></div>
             <h3 className="text-xl font-bold mb-4 text-neon-purple drop-shadow-[0_0_5px_rgba(188,19,254,0.8)] tracking-wider uppercase text-center">
-                DPI Firewall Penetration Map
+                {t('frag.mapTitle', 'DPI Firewall Penetration Map')}
             </h3>
 
             <div className="h-64 w-full">
@@ -87,11 +89,11 @@ export default function FragmentChart({ results }) {
             <div className="flex justify-center mt-4 space-x-6 text-xs text-gray-500 uppercase font-bold tracking-widest">
                 <div className="flex items-center space-x-2">
                     <span className="w-3 h-3 rounded-full bg-[#39ff14] shadow-[0_0_10px_#39ff14]"></span>
-                    <span>Bypass Successful</span>
+                    <span>{t('frag.success', 'Bypass Successful')}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                     <span className="w-3 h-3 rounded-full bg-[#ff0000] shadow-[0_0_10px_#ff0000]"></span>
-                    <span>Interception Detected</span>
+                    <span>{t('frag.fail', 'Interception Detected')}</span>
                 </div>
             </div>
         </div>

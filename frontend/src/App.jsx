@@ -250,7 +250,7 @@ function App() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
-            <span className="text-cyan-400 font-mono text-sm tracking-wider">Starting engine...</span>
+            <span className="text-cyan-400 font-mono text-sm tracking-wider">{t('app.startingEngine', 'Starting engine...')}</span>
           </div>
         </div>
       )}
@@ -442,9 +442,9 @@ function App() {
             {isScanning && status && (
               <div className="mt-4 flex flex-col items-center justify-center gap-3 mb-6">
                 <div className="text-center text-neon-blue font-bold">
-                  {retryCount > 0 && <span className="text-yellow-400 block mb-2">⚠️ Strict Limits Failed. Relaxing Thresholds (Attempt {retryCount}/2)...</span>}
+                  {retryCount > 0 && <span className="text-yellow-400 block mb-2">{t('scan.retryMsg', { count: retryCount })}</span>}
                   <span className={status.status === 'running' ? "animate-pulse" : ""}>
-                    {status.status === 'paused' ? 'Paused...' : 'Scanning...'} {status.completed} / {status.total} IPs checked
+                    {status.status === 'paused' ? t('scan.paused', 'Paused...') : t('scan.scanning', 'Scanning...')} {status.completed} / {status.total} {t('scan.scanned', 'IPs checked')}
                   </span>
                 </div>
 
@@ -494,7 +494,7 @@ function App() {
 
             {isScanning && status && (
               <div className="mt-4 text-center text-white animate-pulse mb-6">
-                Testing bypass variations... {status.completed} / {status.total} checks complete
+                {t('advanced.scanningBypass', 'Testing bypass variations...')} {status.completed} / {status.total} {t('advanced.checksComplete', 'checks complete')}
               </div>
             )}
 
@@ -521,7 +521,7 @@ function App() {
 
             {isScanning && status && (
               <div className="mt-4 text-center text-white animate-pulse mb-6">
-                Testing DNS/Tunnel parameters... {status.completed} / {status.total} checks complete
+                {t('dnsScanner.testingParams', 'Testing DNS/Tunnel parameters...')} {status.completed} / {status.total} {t('advanced.checksComplete', 'checks complete')}
               </div>
             )}
 

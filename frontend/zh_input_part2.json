@@ -1,0 +1,516 @@
+{
+  "config": {
+    "subUrlPlaceholder": "https://your-subscription-link.com/sub",
+    "manualIps": "手动 IP",
+    "manualIpsPlaceholder": "每行一个 IP...",
+    "advancedSettings": "高级设置",
+    "stopAfter": "达到优质 IP 数后停止",
+    "concurrency": "并发数",
+    "maxPing": "最大延迟 (ms)",
+    "maxJitter": "最大抖动 (ms)",
+    "minDownload": "最小下载 (Mbps)",
+    "minUpload": "最小上传 (Mbps)",
+    "ipVersion": "IP 版本",
+    "targetCountry": "目标国家",
+    "testPorts": "测试端口",
+    "verifyTls": "🔒 验证 TLS (防中间人)",
+    "importSub": "从订阅链接导入",
+    "selectCountry": "在地图上选择",
+    "vlessUrl": "VLESS 链接",
+    "showAdvanced": "显示高级设置",
+    "hideAdvanced": "隐藏高级设置",
+    "stopAfterLabel": "停止扫描条件 (优质 IP)",
+    "bothIpv": "IPv4 与 IPv6",
+    "ipv4Only": "仅 IPv4",
+    "ipv6Only": "仅 IPv6",
+    "strictTls": "严格 TLS 验证 (防中间人)",
+    "targetPorts": "目标端口 (留空使用配置默认)",
+    "geoTarget": "交互式地理定位 (默认全球)",
+    "geoHint": "左键点击某个国家以严格搜索该地区的数据中心。再次点击以清除。",
+    "useManual": "使用手动 IP 或域名",
+    "ipGenSource": "IP 生成来源",
+    "srcOfficial": "官方 Cloudflare IP 段 (随机/系统)",
+    "srcHistory": "智能历史记录 (最快 - 适合您 ISP 的最佳 IP)",
+    "srcGold": "黄金 IP (智能历史记录 + 自动抓取您国家的热门域名)",
+    "srcCommunity": "社区黄金 (您所在地区任意用户验证过的最佳 IP)",
+    "srcScrape": "自动抓取私有/干净 IP (社区 GitHub 列表)",
+    "srcCustom": "自定义私有 IP 列表链接",
+    "autoScanning": "扫描中...",
+    "startManual": "开始手动扫描",
+    "strictMin": "🛡️ 最低标准 (最大化存活率)",
+    "strictAvg": "⚖️ 平均标准 (均衡)",
+    "strictHard": "⚡ 严格标准 (追求速度)",
+    "verifyConfig": "验证配置 (非扫描)",
+    "configWorking": "配置正常！",
+    "configNotWorking": "配置无效",
+    "ping": "延迟",
+    "jitter": "抖动",
+    "download": "下载",
+    "upload": "上传",
+    "errorNotWorking": "似乎此配置无法使用。请检查配置或尝试另一个。",
+    "ultimateMode": "终极模式",
+    "globalSearch": "全球搜索",
+    "fastlyCdn": "FASTLY CDN",
+    "beta": "测试版",
+    "fastlyWarn": "确保您的 VLESS 配置使用了 Fastly SNI/Host (例如 fastly.net)。使用 Cloudflare 配置扫描 Fastly IP 会失败。",
+    "tunnelFailed": "服务器可达 (延迟: ${testResult.details.ping}ms) 但代理隧道建立失败。"
+  },
+  "results": {
+    "title": "扫描结果",
+    "ping": "延迟",
+    "datacenter": "数据中心",
+    "status": "状态",
+    "copyLink": "复制链接",
+    "copied": "已复制！",
+    "export": "导出",
+    "exporting": "正在导出...",
+    "exportSub": "导出订阅",
+    "base64": "Base64 (V2RayNG)",
+    "clash": "Clash YAML",
+    "singbox": "SingBox JSON",
+    "copyAll": "复制所有 IP",
+    "copyConfigs": "个配置",
+    "copyIps": "个 IP",
+    "send": "发送",
+    "save": "保存",
+    "ipAddress": "IP 地址",
+    "pingMs": "延迟 (ms)",
+    "jitterMs": "抖动 (ms)",
+    "downloadMbps": "下载 (Mbps)",
+    "uploadMbps": "上传 (Mbps)",
+    "locationIsp": "位置 / ISP",
+    "noGoodIps": "暂未找到优质 IP...",
+    "qrTitle": "配置二维码",
+    "close": "关闭"
+  },
+  "scan": {
+    "scanning": "正在扫描...",
+    "scanned": "个 IP 已检查",
+    "paused": "已暂停...",
+    "pause": "暂停",
+    "resume": "恢复",
+    "stop": "停止",
+    "retryMsg": "⚠️ 严格限制条件失败。正在放宽阈值 (尝试第 {count}/2 次)..."
+  },
+  "analytics": {
+    "loading": "正在加载全球情报...",
+    "failed": "加载分析数据失败。",
+    "totalScans": "IP 扫描总数",
+    "verifiedGood": "验证成功的优质 IP",
+    "timeline": "历史发现表现 (过去 7 天)",
+    "dcLatency": "数据中心延迟 (平均 Ping)",
+    "fastestPorts": "最快端口",
+    "successes": "次成功",
+    "networkProto": "网络协议",
+    "routes": "条路由",
+    "noData": "暂无数据。",
+    "success": "成功",
+    "totalScansExecuted": "执行的扫描总数",
+    "successfulBypasses": "成功绕过次数",
+    "scanOutcomes": "扫描结果",
+    "avgLatency": "平均延迟 (ms)",
+    "topUserIsps": "热门用户 ISP",
+    "successfulScans": "成功的扫描",
+    "topContributorAsns": "主要贡献者 ASN",
+    "activeVerifiedIps": "活跃验证 IP",
+    "port": "端口"
+  },
+  "health": {
+    "cloudflare": "CLOUDFLARE",
+    "globalDb": "全球数据库"
+  },
+  "advanced": {
+    "title": "多维 DPI 绕过",
+    "fragment": "分片分析器",
+    "sni": "SNI 前置",
+    "vlessConfig": "VLESS 链接配置",
+    "targetIp": "干净的目标 Cloudflare IP",
+    "fragDesc": "针对目标 IP 测试所有长度和间隔组合的排列，以找到适合您当前 ISP 的 DPI 绕过最佳设置。",
+    "lengths": "长度 (逗号分隔的范围)",
+    "intervals": "间隔 (逗号分隔的范围)",
+    "sniLabel": "自定义 SNI 主机名 (逗号或换行符分隔)",
+    "sniDesc": "针对单个工作的 Cloudflare IP 迭代大量 SNI 列表。",
+    "startBypass": "开始绕过扫描",
+    "scanningBypass": "正在扫描绕过配置...",
+    "checksComplete": "项检查完成"
+  },
+  "warp": {
+    "title": "WARP 节点扫描器",
+    "desc": "寻找专为您所在地区量身定制的、功能齐全的 Cloudflare WARP UDP/TCP 节点。您可以将这些 IP 用作 Wireguard 端点，以建立绕过 DPI 审查的全设备 VPN 隧道。",
+    "threads": "线程 (并发)",
+    "targetEndpoints": "目标节点数量 (达到后停止)",
+    "maxPing": "最大可接受延迟 (ms)",
+    "ports": "要扫描的 Wireguard UDP 端口",
+    "startHunt": "开始寻找 WARP",
+    "stopScanning": "停止扫描",
+    "cleanEndpoints": "个干净节点",
+    "copyAll": "复制所有节点",
+    "noEndpoints": "暂未找到节点。",
+    "logs": "扫描器日志",
+    "waiting": "等待开始..."
+  },
+  "dnsScanner": {
+    "title": "DNS & 隧道扫描器 (测试版)",
+    "subtitle": "测试 DNS 解析器覆盖和 TLS 分流分片，以绕过 DPI 审查。",
+    "testOption": "测试模式",
+    "dnstt": "DNS 解析器覆盖",
+    "tlsSplit": "TLS 分流",
+    "nameserver": "DNS 服务器 (加密或明文)",
+    "nameserverDesc": "支持 UDP、TCP、DNS-over-HTTPS (DoH) 和 DNS-over-TLS (DoT) 格式。",
+    "customDns": "自定义 DNS 服务器...",
+    "testDomain": "测试域名",
+    "testDomainDesc": "尝试通过选定的 DNS 服务器解析的域名。",
+    "fragmentSize": "分片大小 (字节)",
+    "fragmentSizeDesc": "示例：'10-20' 将数据包分段为 10 到 20 字节之间。",
+    "fragmentInterval": "分片间隔 (ms)",
+    "fragmentIntervalDesc": "分片之间的延迟。",
+    "ispPreset": "ISP DPI 预设",
+    "packetMode": "数据包分片模式",
+    "packetModeDesc": "tlshello 仅分割 TLS 握手。1-3 分割前 1-3 次 TCP 数据写入。",
+    "recommended": "(推荐)",
+    "broader": "(更广泛)",
+    "fingerprint": "TLS 浏览器指纹 (uTLS)",
+    "fingerprintDesc": "模仿真实浏览器的 TLS 握手，以规避 DPI 指纹检测。",
+    "vlessConfig": "Vless / Xray 配置",
+    "errorNoConfig": "请先粘贴有效的 Xray/V2Ray 配置。",
+    "testing": "正在测试...",
+    "startScanner": "启动扫描器",
+    "testingParams": "正在测试 DNS/隧道参数..."
+  },
+  "dnsGuide": {
+    "showGuide": "显示指南及更多信息",
+    "hideGuide": "隐藏指南及信息",
+    "beginnerTitle": "📖 新手指南 — 如何使用此选项卡",
+    "step1Title": "选择您的模式",
+    "step1Desc": "选择 'DNS 解析器覆盖' 测试您的 ISP 是否正在污染 DNS 查询，或者选择 'TLS 分流' 来分片您的 TLS 握手以绕过 DPI 审查。",
+    "step2Title": "配置您的设置",
+    "step2Desc": "对于 DNS 模式：从下拉列表中选择一个 DNS 服务器（推荐受审查地区使用 DoH）。对于 TLS 分流：选择您的 ISP 预设或手动设置分片大小和间隔。",
+    "step3Title": "选择浏览器指纹",
+    "step3Desc": "选择一个 TLS 指纹（推荐使用 Chrome），以便您的流量在 DPI 系统看来就像正常的浏览器活动。",
+    "step4Title": "粘贴您的配置并扫描",
+    "step4Desc": "将一个正常工作的 VLESS/Trojan 配置粘贴到文本框中，然后点击启动扫描器。",
+    "proTip": "专业提示",
+    "proTipDesc": "不同网络可能需要不同的指纹和 DNS 组合。如果失败，请尝试其他组合。",
+    "tlsTitle": "🔧 TLS 分流的工作原理",
+    "tlsP1": "拆分 ClientHello 消息。",
+    "tlsP2": "阻止防火墙检测目标域名。",
+    "tlsHelloDesc": "最有效的目标分片。",
+    "mode13Desc": "如果 tlshello 失败则尝试。",
+    "sizeIntervalDesc": "大小 = 字节，间隔 = 毫秒延迟。",
+    "dnsTitle": "🌐 DNS 覆盖的工作原理",
+    "dnsP1": "绕过 ISP 的 DNS 污染。",
+    "dnsP2": "使用加密协议如 DoH 提升安全性。",
+    "dnsFormat": "格式",
+    "dnsExample": "示例",
+    "dnsSecurity": "安全性",
+    "dnsPlain": "未加密",
+    "dnsEncrypted": "已加密",
+    "utlsTitle": "🎭 什么是 uTLS 浏览器指纹？",
+    "utlsP1": "模仿真实浏览器。",
+    "utlsP2": "隐藏 Xray 的流量特征。",
+    "utlsWarning": "重要警告",
+    "utlsWarningDesc": "请务必选择 Chrome 避免被探测器发现。",
+    "ispTitle": "🇮🇷 ISP 预设说明",
+    "ispP1": "不同 ISP 使用不同的 DPI 系统。",
+    "ispMci": "需要较大的分片。",
+    "ispIrancell": "中等分片即可。",
+    "ispShatel": "小分片速度快且有效。",
+    "ispChina": "高级状态化 DPI，需要中等分片和长延迟避开检测。"
+  },
+  "about": {
+    "title": "反重力 IP 扫描器",
+    "subtitle": "高级 Cloudflare IP 优化与审查绕过工具",
+    "version": "版本 2.5 • 开源",
+    "whatIs": {
+      "title": "什么是反重力？",
+      "p1": "专业级网络工具，用于寻找抗封锁 IP。",
+      "p2": "测试延迟、抖动和实际速度。",
+      "cards": {
+        "ping": {
+          "label": "延迟与抖动",
+          "val": "实时延迟"
+        },
+        "speed": {
+          "label": "速度测试",
+          "val": "下载与上传"
+        },
+        "tls": {
+          "label": "TLS 验证",
+          "val": "防 MITM 保护"
+        },
+        "proto": {
+          "label": "多协议",
+          "val": "VLESS / WARP"
+        }
+      }
+    },
+    "guide": {
+      "title": "快速入门指南",
+      "steps": {
+        "s1": {
+          "title": "获取 VLESS 配置",
+          "desc": "您需要一个可用配置：",
+          "sub": {
+            "0": "粘贴",
+            "1": "导入",
+            "2": "一键扫描"
+          }
+        },
+        "s2": {
+          "title": "选择 IP 来源",
+          "desc": "选择要测试的 IP 来源：",
+          "sub": {
+            "0": "官方 Cloudflare",
+            "1": "智能历史",
+            "2": "黄金 IP",
+            "3": "社区黄金"
+          }
+        },
+        "s3": {
+          "title": "配置阈值",
+          "desc": "高级设置中可调整：",
+          "sub": {
+            "0": "最大延迟",
+            "1": "最大抖动",
+            "2": "最小下载",
+            "3": "并发数"
+          }
+        },
+        "s4": {
+          "title": "开始扫描",
+          "desc": "点击开始并等待结果。",
+          "sub": {}
+        },
+        "s5": {
+          "title": "使用结果",
+          "desc": "在结果表中：",
+          "sub": {
+            "0": "复制链接",
+            "1": "导出订阅",
+            "2": "按速度排序"
+          }
+        }
+      }
+    },
+    "features": {
+      "title": "高级功能",
+      "tls": {
+        "title": "🔒 严格 TLS 验证",
+        "desc": "验证证书防止劫持。"
+      },
+      "dpi": {
+        "title": "🧩 DPI 分片分析",
+        "desc": "突破高级 DPI 防火墙。"
+      },
+      "tcp": {
+        "title": "⚡ TCP 预过滤",
+        "desc": "光速剔除死 IP。"
+      },
+      "queue": {
+        "title": "💾 持久后台队列",
+        "desc": "防崩溃队列系统。"
+      },
+      "fastly": {
+        "title": "⚡ Fastly CDN 支持",
+        "desc": "不仅支持 Cloudflare，也支持 Fastly。"
+      },
+      "dnstt": {
+        "title": "🛡️ DNSTT 与 TLS 分流",
+        "desc": "高级防封锁分析。"
+      },
+      "sni": {
+        "title": "🌐 SNI 前置",
+        "desc": "寻找未封锁的 SNI。"
+      },
+      "warp": {
+        "title": "📡 WARP 扫描器",
+        "desc": "查找 WARP UDP 节点。"
+      },
+      "map": {
+        "title": "📊 全球分析",
+        "desc": "扫描结果热力图。"
+      },
+      "retry": {
+        "title": "🔄 智能重试系统",
+        "desc": "自动放宽扫描条件。"
+      },
+      "dns_override": {
+        "title": "🌐 DNS 覆盖",
+        "desc": "绕过 DNS 污染。"
+      },
+      "macos": {
+        "title": "🍎 macOS 支持",
+        "desc": "支持 Mac 苹果电脑。"
+      }
+    },
+    "tips": {
+      "title": "最佳实践提示",
+      "list": {
+        "0": "开启系统代理",
+        "1": "使用一键扫描",
+        "2": "尝试官方 IP 源",
+        "3": "降低下载限制",
+        "4": "避开高峰期",
+        "5": "使用 DPI 绕过",
+        "6": "导出为订阅",
+        "7": "使用 WARP 功能"
+      }
+    },
+    "faq": {
+      "title": "常见问题",
+      "items": {
+        "0": {
+          "q": "什么是干净 IP？",
+          "a": "未被阻断且速度快的服务器 IP。"
+        },
+        "1": {
+          "q": "安全吗？",
+          "a": "是的，完全安全，无第三方上传。"
+        },
+        "2": {
+          "q": "为什么扫描慢？",
+          "a": "包含速度、延迟、稳定性的深度测试。"
+        },
+        "3": {
+          "q": "不可达是什么意思？",
+          "a": "说明该 IP 已被封锁或不可用。"
+        },
+        "4": {
+          "q": "VLESS 和 WARP 的区别？",
+          "a": "VLESS 需要配置，WARP 是免费 VPN 节点。"
+        },
+        "5": {
+          "q": "能在手机上用吗？",
+          "a": "软件运行在电脑上，但生成的节点可在手机上用。"
+        }
+      }
+    },
+    "sysReq": {
+      "title": "系统要求",
+      "min": {
+        "title": "最低配置",
+        "items": {
+          "0": "Windows 10/11",
+          "1": "4 GB 内存",
+          "2": "互联网连接",
+          "3": "自带 Xray-core"
+        }
+      },
+      "rec": {
+        "title": "推荐配置",
+        "items": {
+          "0": "8 GB 以上内存",
+          "1": "SSD 固态硬盘",
+          "2": "良好的网络",
+          "3": "可开 15 线程并发"
+        }
+      }
+    },
+    "privacy": {
+      "title": "隐私与安全",
+      "items": {
+        "0": "VLESS 配置绝不上传",
+        "1": "扫描结果共享用于社区互助",
+        "2": "测试直接走 Cloudflare",
+        "3": "仅使用公开 IP 获取地理位置",
+        "4": "无任何跟踪或广告"
+      }
+    },
+    "author": "作者与联系方式",
+    "community": "社区支持",
+    "starGithub": "在 GitHub 上点星",
+    "supportProject": "支持开源项目",
+    "freeBot": "免费 VPN Telegram 机器人",
+    "getBotConfigs": "立刻获取免费节点",
+    "joinTelegram": "加入我们的 Telegram 群组",
+    "shareFeedback": "分享反馈",
+    "footer": "🕊️ 为自由与开放的互联网而生",
+    "copyright": "反重力 IP 扫描器 • GNU AGPLv3",
+    "openSource": "开源软件"
+  },
+  "freedom": {
+    "invalidConfig": "请粘贴有效的 VLESS 配置",
+    "configSubmitted": "配置已提交！将恢复挖掘...",
+    "submitFailed": "提交配置失败",
+    "playFreedom": "Play Freedom",
+    "subtitle": "全自动抗封锁代理挖掘器",
+    "startAutopilot": "启动自动驾驶",
+    "stop": "停止",
+    "currentPhase": "当前阶段",
+    "ready": "准备就绪",
+    "noConfig": "⚠️ 未找到可用配置。粘贴一个工作的 VLESS 配置以继续：",
+    "sending": "发送中...",
+    "submit": "提交",
+    "vanillaSub": "普通订阅 OK",
+    "cfSub": "CF 订阅 OK",
+    "spliced": "拼接乘数",
+    "cleanIps": "挖掘到的干净 IP",
+    "foundConfigs": "找到的配置",
+    "allCopied": "所有配置已复制！",
+    "copyAll": "全部复制",
+    "configCopied": "配置已复制！",
+    "copy": "复制"
+  },
+  "frag": {
+    "length": "长度",
+    "interval": "间隔",
+    "status": "状态",
+    "ping": "延迟",
+    "mapTitle": "DPI 防火墙穿透热力图",
+    "success": "成功绕过",
+    "fail": "检测到拦截"
+  },
+  "debug": {
+    "backendNotRunning": "后端未运行。请检查 backend.exe 是否在启动时崩溃。",
+    "connecting": "⏳ 连接中...",
+    "backendApi": "🟢 后端 API",
+    "electronLog": "📄 Electron 日志文件",
+    "backendOffline": "🔴 后端离线",
+    "closeDebug": "▼ 关闭调试",
+    "openDebug": "▲ 调试控制台",
+    "logTitle": "调试日志",
+    "waiting": "等待日志...",
+    "entries": "共 ${logs.length} 条记录"
+  },
+  "db": {
+    "layer1": "第 1 层：直连 MySQL",
+    "layer1Desc": "速度最快，但易被封锁",
+    "layer2": "第 2 层：Worker 代理",
+    "layer2Desc": "Cloudflare 边缘网络",
+    "layer3": "第 3 层：干净 IP 伪装",
+    "layer3Desc": "域前置绕过技术",
+    "layer4": "第 4 层：VLESS 隧道",
+    "layer4Desc": "后备路由网络",
+    "layer5": "第 5 层：本地 SQLite",
+    "layer5Desc": "离线模式安全网",
+    "unblockableLink": "防封锁数据库链路",
+    "activeMode": "活跃模式",
+    "testingDb": "正在测试数据库连接...",
+    "dbLinkOnline": "数据库链路：${onlineLayers}/5 在线"
+  },
+  "data": {
+    "offlineSync": "离线数据同步",
+    "syncDesc": "导出您的完整数据库以与受限地区的其他人共享。捆绑包经过 AES 加密压缩。",
+    "exportDb": "导出数据库",
+    "exportDesc": "将所有应用数据打包成加密的 .agdb 文件，以供完全离线使用。",
+    "packaging": "正在打包...",
+    "downloadBundle": "下载 .agdb 捆绑包",
+    "encrypted": "AES-256 加密与 ZLib 压缩",
+    "importDb": "导入数据库",
+    "importDesc": "选择共享的 .agdb 文件以在本地填充您的应用程序。非常适合完全断网的受审查环境。",
+    "processing": "处理中...",
+    "uploadFile": "上传 .agdb 文件",
+    "syncComplete": "完整离线同步完成！",
+    "scans": "扫描数",
+    "configs": "配置数",
+    "cfSub": "CF 订阅",
+    "vanilla": "普通配置",
+    "recs": "推荐设置",
+    "settings": "系统设置",
+    "analytics": "分析数据",
+    "geoData": "地理数据",
+    "regions": "地区数据",
+    "bypasses": "绕过配置",
+    "overwriteWarn": "静默覆盖现有的重复数据"
+  }
+}

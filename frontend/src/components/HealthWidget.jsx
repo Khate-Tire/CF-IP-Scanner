@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { getHealth, proxyDatabase } from '../api';
 import { toast } from 'react-hot-toast';
+import { useTranslation } from '../i18n/LanguageContext';
 
 function HealthWidget() {
+    const { t } = useTranslation();
     const [health, setHealth] = useState({ internet: 'checking', database: 'checking', internet_error: '', database_error: '', via_proxy: false });
     const [isProxying, setIsProxying] = useState(false);
     const [showProxyModal, setShowProxyModal] = useState(false);
@@ -21,20 +23,20 @@ function HealthWidget() {
     }, []);
 
     const renderStatus = (status, errorMsg) => {
-        if (status === 'checking') return <span className="text-yellow-500 animate-pulse text-xs">● Checking</span>;
-        if (status === 'online') return <span className="text-neon-green text-xs drop-shadow-[0_0_5px_rgba(57,255,20,0.8)]">● Online</span>;
+        if (status === 'checking') return <span className="text-yellow-500 animate-pulse text-xs">● {t('health.checking', 'Checking')}</span>;
+        if (status === 'online') return <span className="text-neon-green text-xs drop-shadow-[0_0_5px_rgba(57,255,20,0.8)]">● {t('health.online', 'Online')}</span>;
         return (
             <span
                 className="text-red-500 text-xs drop-shadow-[0_0_5px_rgba(255,0,0,0.8)] cursor-help border-b border-dashed border-red-500/50"
-                title={errorMsg || "Connection failed"}
+                title={errorMsg || t('health.connectionFailed', 'Connection failed')}
             >
-                ● Offline
+                ● {t('health.offline', 'Offline')}
             </span>
         );
     };
 
     const handleProxySubmit = async () => {
-        if (!proxyConfig || !proxyConfig.startsWith('vless://')) return toast.error("Please enter a valid VLESS config.");
+        if (!proxyConfig || !proxyConfig.startsWith('vless://')) return toast.error(t('health.invalidConfig', 'Please enter a valid VLESS config.'));
         setIsProxying(true);
         const res = await proxyDatabase(proxyConfig);
         setIsProxying(false);
@@ -65,7 +67,7 @@ function HealthWidget() {
                         {health.via_proxy && health.database === 'online' && (
                             <span
                                 className="text-amber-400 text-[10px] cursor-help"
-                                title="Connected through VLESS proxy tunnel (ISP bypass active)"
+                                title={t('health.connectedProxy', 'Connected through VLESS proxy tunnel (ISP bypass active)')}
                             >
                                 🔀
                             </span>
@@ -77,9 +79,9 @@ function HealthWidget() {
                     <button
                         onClick={() => setShowProxyModal(true)}
                         className="bg-red-500/20 hover:bg-neon-blue/20 text-red-400 hover:text-neon-blue border border-red-500/50 hover:border-neon-blue font-bold text-xs px-2 py-1 rounded transition-colors"
-                        title="If your ISP blocked the global database, click here to tunnel it through your VPN."
+                        title={t('health.tunnelTooltip', 'If your ISP blocked the global database, click here to tunnel it through your VPN.')}
                     >
-                        Tunnel DB
+                        {t('health.tunnelDb', 'Tunnel DB')}
                     </button>
                 )}
             </div>
@@ -87,11 +89,11 @@ function HealthWidget() {
             {showProxyModal && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm">
                     <div className="glass-panel p-6 max-w-lg w-full neon-border">
-                        <h3 className="text-lg font-bold text-neon-blue mb-2">Initialize Database Tunnel</h3>
+                        <h3 className="text-lg font-bold text-neon-blue mb-2">{t('health.initTunnel', 'Initialize Database Tunnel')}</h3>
                         <p className="text-sm text-gray-300 mb-4 whitespace-normal">
-                            Your ISP is blocking the direct connection to the Community Data Repository.
+                            {t('health.ispBlocking', 'Your ISP is blocking the direct connection to the Community Data Repository.')}
                             <br /><br />
-                            Paste any working <strong>VLESS</strong> URL below. The scanner will instantly spin up a local proxy router and tunnel the secure MySQL connection through that VLESS server to bypass the network block!
+                            {t('health.pasteVless', 'Paste any working')} <strong>VLESS</strong> {t('health.pasteVlessEnd', 'URL below. The scanner will instantly spin up a local proxy router and tunnel the secure MySQL connection through that VLESS server to bypass the network block!')}
                         </p>
 
                         <textarea
@@ -106,14 +108,14 @@ function HealthWidget() {
                                 onClick={() => setShowProxyModal(false)}
                                 className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
                             >
-                                Cancel
+                                {t('health.cancel', 'Cancel')}
                             </button>
                             <button
                                 onClick={handleProxySubmit}
                                 disabled={isProxying}
                                 className={`btn-primary px-6 py-2 text-sm ${isProxying ? 'opacity-50' : ''}`}
                             >
-                                {isProxying ? "Connecting..." : "Tunnel Network"}
+                                {isProxying ? t('health.connecting', 'Connecting...') : t('health.tunnelNetwork', 'Tunnel Network')}
                             </button>
                         </div>
                     </div>

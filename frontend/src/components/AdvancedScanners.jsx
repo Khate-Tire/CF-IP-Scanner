@@ -33,7 +33,7 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
                     const i = frags.results.map(r => r.interval).join(', ');
                     setLengths(l);
                     setIntervals(i);
-                    toast.success(`✨ Auto-configured proven fragments for ${ipData.isp}`);
+                    toast.success('✨ ' + t('advanced.autoConfigFrags', { isp: ipData.isp }));
                 }
             }
         };
@@ -41,21 +41,21 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
     }, []);
 
     const loadTopSnis = async () => {
-        if (!detectedIsp) return toast.error("Wait for ISP detection first");
-        toast.loading("Loading community SNIs...", { id: 'sniload' });
+        if (!detectedIsp) return toast.error(t('advanced.waitIsp'));
+        toast.loading(t('advanced.loadingSnis'), { id: 'sniload' });
         const res = await getBestCommunityBypasses(detectedIsp, 'sni', 10);
         if (res && res.results && res.results.length > 0) {
             const newSnis = res.results.map(r => r.sni).join(', ');
             setSnis(newSnis);
-            toast.success(`Loaded ${res.results.length} unblocked SNIs!`, { id: 'sniload' });
+            toast.success(t('advanced.loadedSnis', { count: res.results.length }), { id: 'sniload' });
         } else {
-            toast.error("No community SNIs found for your ISP yet.", { id: 'sniload' });
+            toast.error(t('advanced.noSnisFound'), { id: 'sniload' });
         }
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!config || !targetIp) return toast.error('Config and Base Target IP are required!');
+        if (!config || !targetIp) return toast.error(t('advanced.configRequired'));
 
         const payload = {
             vless_config: config,
@@ -99,11 +99,11 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
                 <div className="grid grid-cols-2 gap-4 p-4 border border-neon-purple/30 bg-neon-purple/5 rounded-lg mb-6">
                     <div className="col-span-2 flex justify-between items-center">
                         <p className="text-xs text-gray-300">
-                            {detectedIsp ? `✨ Auto-configured for ${detectedIsp}` : t('advanced.fragDesc')}
+                            {detectedIsp ? '✨ ' + t('advanced.autoConfigFor', { isp: detectedIsp }) : t('advanced.fragDesc')}
                         </p>
                         <div className="flex items-center gap-2">
                             <input type="checkbox" id="rareMode" checked={rareMode} onChange={e => setRareMode(e.target.checked)} className="accent-neon-purple" />
-                            <label htmlFor="rareMode" className="text-xs text-neon-purple font-semibold cursor-pointer" title="Generates highly randomized asymmetric intervals to actively evade GFW heuristic blocking.">Generate Rare Fragments</label>
+                            <label htmlFor="rareMode" className="text-xs text-neon-purple font-semibold cursor-pointer" title={t('advanced.rareDesc')}>{t('advanced.generateRare')}</label>
                         </div>
                     </div>
                     <div>
@@ -122,12 +122,12 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-gray-400 text-xs">{t('advanced.sniLabel')}</label>
                         <button type="button" onClick={loadTopSnis} className="text-xs bg-neon-blue/10 text-neon-blue px-2 py-1 rounded hover:bg-neon-blue/20 transition-colors">
-                            Load Top Community SNIs
+                            {t('advanced.loadTopSnis')}
                         </button>
                     </div>
                     <textarea className="input-field h-24 font-mono text-sm" value={snis} onChange={e => setSnis(e.target.value)} placeholder="domain1.com, domain2.com" />
                     <p className="text-xs text-neon-blue mt-2">
-                        {detectedIsp ? `✨ Connected to ${detectedIsp} DPI Evasion Database` : t('advanced.sniDesc')}
+                        {detectedIsp ? '✨ ' + t('advanced.connectedDpi', { isp: detectedIsp }) : t('advanced.sniDesc')}
                     </p>
                 </div>
             )}

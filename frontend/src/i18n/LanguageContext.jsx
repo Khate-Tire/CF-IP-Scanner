@@ -3,8 +3,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import en from './en.json';
 import fa from './fa.json';
 import ru from './ru.json';
+import zh from './zh.json';
+import tr from './tr.json';
+import ar from './ar.json';
 
-const locales = { en, fa, ru };
+const locales = { en, fa, ru, zh, tr, ar };
 
 const RTL_LANGUAGES = ['fa', 'ar', 'he'];
 
@@ -38,10 +41,38 @@ const FlagRU = () => (
     </svg>
 );
 
+const FlagZH = () => (
+    <svg viewBox="0 0 30 20" width="20" height="10" className="rounded-sm inline-block">
+        <rect width="30" height="20" fill="#de2910" />
+        <path fill="#ffde00" d="M5 2.5l1.5 4.5h4.8l-3.9 2.8 1.5 4.7-3.9-2.8-3.9 2.8 1.5-4.7-3.9-2.8h4.8z" />
+    </svg>
+);
+
+const FlagTR = () => (
+    <svg viewBox="0 0 30 20" width="20" height="10" className="rounded-sm inline-block">
+        <rect width="30" height="20" fill="#E30A17" />
+        <circle cx="12" cy="10" r="5" fill="#fff" />
+        <circle cx="13.5" cy="10" r="4" fill="#E30A17" />
+        <polygon fill="#fff" points="16,8.5 17.5,10 16,11.5 18,10.5 19.5,12 18.5,10 20,8.5 18,9.5" />
+    </svg>
+);
+
+const FlagAR = () => (
+    <svg viewBox="0 0 30 20" width="20" height="10" className="rounded-sm inline-block">
+        <rect width="30" height="6.6" fill="#007a3d" />
+        <rect y="6.6" width="30" height="6.6" fill="#fff" />
+        <rect y="13.2" width="30" height="6.8" fill="#000" />
+        <rect width="8" height="20" fill="#ce1126" />
+    </svg>
+);
+
 export const LANGUAGES = [
     { code: 'en', name: 'English', flag: 'EN', Flag: FlagGB },
     { code: 'fa', name: 'فارسی', flag: 'FA', Flag: FlagIR },
-    { code: 'ru', name: 'Русский', flag: 'RU', Flag: FlagRU }
+    { code: 'ru', name: 'Русский', flag: 'RU', Flag: FlagRU },
+    { code: 'zh', name: '中文 (简体)', flag: 'ZH', Flag: FlagZH },
+    { code: 'tr', name: 'Türkçe', flag: 'TR', Flag: FlagTR },
+    { code: 'ar', name: 'العربية', flag: 'AR', Flag: FlagAR }
 ];
 
 const LanguageContext = createContext();

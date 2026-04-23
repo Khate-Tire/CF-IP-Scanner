@@ -1,0 +1,679 @@
+{
+  "app": {
+    "title": "ماسح عناوين IP المضاد للجاذبية",
+    "subtitle": "أداة تحسين عناوين Cloudflare IP",
+    "proxyLabel": "توجيه واجهة برمجة التطبيقات والاستكشاف عبر وكيل النظام / VPN",
+    "supportGithub": "⭐ الدعم — اترك نجمة على GitHub",
+    "updateAvailable": "تحديث إلى الإصدار {version}",
+    "builtBy": "تم التطوير بكل ❤️ بواسطة",
+    "openSource": "مفتوح المصدر لحرية الإنترنت",
+    "tabs": {
+      "scanner": "الماسح",
+      "analytics": "التحليلات العالمية",
+      "advanced": "التجاوزات المتقدمة",
+      "warp": "نقاط النهاية لـ WARP",
+      "dns": "النفق و DNS",
+      "freevpn": "VPN مجاني",
+      "data": "مزامنة البيانات",
+      "freedom": "Play Freedom",
+      "about": "حول التطبيق"
+    },
+    "startingEngine": "جاري بدء تشغيل المحرك..."
+  },
+  "config": {
+    "configLabel": "تكوين VLESS",
+    "configPlaceholder": "الصق تكوين vless://... الخاص بك هنا",
+    "subUrlPlaceholder": "https://your-subscription-link.com/sub",
+    "fetchConfig": "جلب التكوين",
+    "fetching": "جاري الجلب...",
+    "autoScan": "🔥 فحص تلقائي بنقرة واحدة",
+    "startScan": "🚀 بدء الفحص",
+    "scanning": "⏳ جاري الفحص...",
+    "ipSource": "مصدر الـ IP",
+    "sources": {
+      "official": "📂 عناوين Cloudflare الرسمية",
+      "custom": "🔗 ملف / رابط مخصص",
+      "history": "⏱️ السجل الذكي (مزود الخدمة الخاص بك)",
+      "gold": "🏆 العناوين الذهبية (ذكية + مستخرجة)",
+      "community": "👥 ذهب المجتمع (منطقتك)",
+      "github": "🌐 استخراج تلقائي من GitHub (عالمي)",
+      "fastly": "⚡ عناوين Fastly الرسمية"
+    },
+    "manualIps": "عناوين IP يدوية",
+    "manualIpsPlaceholder": "عنوان IP واحد لكل سطر...",
+    "advancedSettings": "إعدادات متقدمة",
+    "stopAfter": "إيقاف بعد العثور على عناوين جيدة",
+    "concurrency": "التزامن",
+    "maxPing": "أقصى بينج (مللي ثانية)",
+    "maxJitter": "أقصى تقلب (مللي ثانية)",
+    "minDownload": "أدنى تنزيل (ميجابت/ثانية)",
+    "minUpload": "أدنى رفع (ميجابت/ثانية)",
+    "ipVersion": "إصدار IP",
+    "targetCountry": "البلد المستهدف",
+    "testPorts": "منافذ الاختبار",
+    "verifyTls": "🔒 التحقق من TLS (مكافحة MITM)",
+    "importSub": "استيراد من رابط الاشتراك",
+    "selectCountry": "تحديد على الخريطة",
+    "vlessUrl": "رابط VLESS",
+    "showAdvanced": "إظهار الإعدادات المتقدمة",
+    "hideAdvanced": "إخفاء الإعدادات المتقدمة",
+    "threads": "الخيوط:",
+    "stopAfterLabel": "توقف بعد (عناوين IP جيدة)",
+    "bothIpv": "كلا من IPv4 و IPv6",
+    "ipv4Only": "IPv4 فقط",
+    "ipv6Only": "IPv6 فقط",
+    "strictTls": "تحقق صارم من TLS (مكافحة MITM)",
+    "targetPorts": "المنافذ المستهدفة (اتركه فارغًا لاستخدام الافتراضي)",
+    "geoTarget": "الاستهداف الجغرافي التفاعلي (عالمي افتراضيًا)",
+    "geoHint": "انقر بزر الماوس الأيسر على بلد للبحث حصريًا عن مراكز البيانات في تلك المنطقة. انقر مرة أخرى للمسح.",
+    "useManual": "استخدام عناوين IP أو نطاقات يدوية",
+    "ipGenSource": "مصدر إنشاء IP",
+    "srcOfficial": "نطاقات عناوين Cloudflare الرسمية (عشوائي/منتظم)",
+    "srcHistory": "السجل الذكي (الأسرع - أفضل عناوين IP لمزود الخدمة الخاص بك)",
+    "srcGold": "عناوين IP الذهبية (السجل الذكي + أعلى النطاقات لبلدك تلقائيًا)",
+    "srcCommunity": "ذهب المجتمع (أفضل عناوين IP تم التحقق منها بواسطة أي مستخدم في منطقتك)",
+    "srcScrape": "استخراج تلقائي لعناوين IP خاصة/نظيفة (قوائم GitHub المجتمعية)",
+    "srcCustom": "رابط قائمة IP خاصة مخصصة",
+    "autoScanning": "جاري الفحص...",
+    "startManual": "بدء الفحص اليدوي",
+    "strictMin": "🛡️ أدنى (تضخيم البقاء)",
+    "strictAvg": "⚖️ متوسط (متوازن)",
+    "strictHard": "⚡ صارم (سرعة عالية)",
+    "verifyConfig": "التحقق من التكوين (ليس فحصًا)",
+    "configWorking": "التكوين يعمل!",
+    "configNotWorking": "التكوين لا يعمل",
+    "ping": "بينج",
+    "jitter": "تقلب",
+    "download": "تنزيل",
+    "upload": "رفع",
+    "errorNotWorking": "يبدو أن هذا التكوين لا يعمل. يرجى التحقق من التكوين أو تجربة واحد آخر.",
+    "ultimateMode": "الوضع المطلق",
+    "globalSearch": "بحث عالمي",
+    "fastlyCdn": "FASTLY CDN",
+    "beta": "تجريبي",
+    "fastlyWarn": "تأكد من أن تكوين VLESS الخاص بك يستخدم Fastly SNI/Host (مثل fastly.net). سيفشل فحص عناوين IP لـ Fastly باستخدام تكوينات Cloudflare.",
+    "tunnelFailed": "الخادم قابل للوصول (البينج: ${testResult.details.ping}ms) ولكن فشل نفق الوكيل.",
+    "settingsLabel": "إعدادات الفحص",
+    "settings": {
+      "timeout": "المهلة (مللي ثانية)",
+      "maxPing": "أقصى بينج (مللي ثانية)",
+      "maxJitter": "أقصى تقلب",
+      "minDownload": "أدنى تحميل (ميجابت/ثانية)",
+      "minUpload": "أدنى رفع"
+    },
+    "providerLabel": "مزود الخدمة (مسارات الاختبار)",
+    "help": {
+      "subError": "فشل في جلب رابط الاشتراك. يرجى التحقق من الرابط.",
+      "configFound": "تم تحميل {count} تكوينات بنجاح!",
+      "noConfigs": "لم يتم العثور على تكوينات VLESS صالحة في الرابط الذي تم جلبه."
+    }
+  },
+  "results": {
+    "title": "نتائج الفحص",
+    "ip": "عنوان IP",
+    "ping": "بينج",
+    "jitter": "التقلب",
+    "download": "تنزيل",
+    "upload": "رفع",
+    "datacenter": "مركز البيانات",
+    "status": "الحالة",
+    "actions": "إجراءات",
+    "copyLink": "نسخ الرابط",
+    "copied": "تم النسخ!",
+    "export": "تصدير",
+    "exporting": "جاري التصدير...",
+    "noResults": "لا توجد نتائج حتى الآن. قم بتشغيل فحص!",
+    "exportSub": "تصدير الاشتراك",
+    "base64": "Base64 (V2RayNG)",
+    "clash": "Clash YAML",
+    "singbox": "SingBox JSON",
+    "copyAll": "نسخ كل عناوين IP",
+    "copyConfigs": "تكوينات",
+    "copyIps": "عناوين IP",
+    "send": "إرسال",
+    "save": "حفظ",
+    "ipAddress": "عنوان IP",
+    "pingMs": "البينج (مللي ثانية)",
+    "jitterMs": "التقلب (مللي ثانية)",
+    "downloadMbps": "التنزيل (ميجابت/ثانية)",
+    "uploadMbps": "الرفع (ميجابت/ثانية)",
+    "locationIsp": "الموقع / مزود الخدمة",
+    "noGoodIps": "لم يتم العثور على عناوين IP جيدة بعد...",
+    "qrTitle": "رمز الاستجابة السريعة للتكوين",
+    "close": "إغلاق",
+    "port": "المنفذ",
+    "delay": "التأخير",
+    "copyConfig": "نسخ التكوين",
+    "copyIp": "نسخ الـ IP",
+    "retest": "إعادة الاختبار",
+    "exportAll": "تصدير الكل",
+    "clearAll": "مسح الكل"
+  },
+  "scan": {
+    "scanning": "جاري الفحص...",
+    "scanned": "عناوين IP مفحوصة",
+    "paused": "متوقف مؤقتاً...",
+    "pause": "إيقاف مؤقت",
+    "resume": "متابعة",
+    "stop": "إيقاف",
+    "retryMsg": "⚠️ فشلت الحدود الصارمة. تخفيف القيود (محاولة {count}/2)..."
+  },
+  "analytics": {
+    "loading": "جاري تحميل المعلومات العالمية...",
+    "failed": "فشل في تحميل التحليلات.",
+    "totalScans": "إجمالي فحوصات IP",
+    "verifiedGood": "عناوين IP جيدة تم التحقق منها",
+    "timeline": "أداء الاكتشاف بمرور الوقت (7 أيام)",
+    "dcLatency": "كمون مركز البيانات (متوسط البينج)",
+    "fastestPorts": "أسرع المنافذ",
+    "successes": "نجاح",
+    "networkProto": "بروتوكولات الشبكة",
+    "routes": "مسار",
+    "noData": "لا توجد بيانات متاحة بعد.",
+    "worldMap": {
+      "title": "صحة الشبكة العالمية",
+      "loading": "جاري تحميل بيانات الخريطة...",
+      "successLabel": "نجاح",
+      "noData": "لا توجد بيانات",
+      "totalScans": "إجمالي الفحوصات",
+      "goodIps": "عناوين جيدة",
+      "avgPing": "متوسط البينج",
+      "avgJitter": "متوسط التقلب",
+      "avgDownload": "متوسط التحميل",
+      "avgUpload": "متوسط الرفع",
+      "activeUsers": "المستخدمون النشطون",
+      "topIsps": "أفضل مزودي الخدمة",
+      "bestDcs": "أفضل مراكز البيانات",
+      "countries": "بلد",
+      "worldwide": "فحوصات عالمية",
+      "globalUsers": "المساهمون العالميون",
+      "hits": "زيارات"
+    },
+    "success": "نجاح",
+    "totalScansExecuted": "إجمالي الفحوصات المنفذة",
+    "successfulBypasses": "عمليات التخطي الناجحة",
+    "scanOutcomes": "نتائج الفحص",
+    "avgLatency": "متوسط الكمون (مللي ثانية)",
+    "topUserIsps": "أفضل مزودي خدمة للمستخدمين",
+    "successfulScans": "الفحوصات الناجحة",
+    "topContributorAsns": "أعلى أرقام أنظمة مساهمة",
+    "activeVerifiedIps": "عناوين IP مفحوصة نشطة",
+    "port": "المنفذ"
+  },
+  "health": {
+    "cloudflare": "CLOUDFLARE",
+    "globalDb": "قاعدة بيانات عالمية",
+    "online": "متصل",
+    "offline": "غير متصل",
+    "checking": "جاري التحقق",
+    "connectionFailed": "فشل الاتصال",
+    "invalidConfig": "يرجى إدخال تكوين VLESS صالح.",
+    "connectedProxy": "متصل عبر نفق وكيل VLESS (تجاوز مزود الخدمة نشط)",
+    "tunnelTooltip": "إذا قام مزود الخدمة الخاص بك بحظر قاعدة البيانات العالمية، انقر هنا لعمل نفق عبر الـ VPN الخاص بك.",
+    "tunnelDb": "نفق قاعدة البيانات",
+    "initTunnel": "بدء نفق قاعدة البيانات",
+    "ispBlocking": "يقوم مزود الخدمة الخاص بك بحظر الاتصال المباشر بمستودع بيانات المجتمع.",
+    "pasteVless": "الصق أي",
+    "pasteVlessEnd": "رابط بالأسفل. سيقوم الماسح على الفور بإنشاء موجه وكيل محلي وتمرير اتصال MySQL الآمن عبر خادم VLESS هذا لتجاوز حظر الشبكة!",
+    "cancel": "إلغاء",
+    "connecting": "جاري الاتصال...",
+    "tunnelNetwork": "نفق الشبكة"
+  },
+  "advanced": {
+    "title": "تخطي DPI متعدد المتجهات",
+    "fragment": "محلل الأجزاء",
+    "sni": "واجهة SNI",
+    "vlessConfig": "رابط VLESS",
+    "targetIp": "عنوان IP Cloudflare نظيف",
+    "fragDesc": "اختبر كل تبديل من أزواج الطول والفاصل الزمني مقابل عنوان IP المستهدف للعثور على نقطة التخطي الأفضل لمزود الخدمة الحالي الخاص بك.",
+    "lengths": "الأطوال (نطاقات مفصولة بفواصل)",
+    "intervals": "الفواصل الزمنية (نطاقات مفصولة بفواصل)",
+    "sniLabel": "أسماء مضيفي SNI مخصصة (مفصولة بفواصل أو سطر جديد)",
+    "sniDesc": "يكرر من خلال قائمة ضخمة من واجهات SNI مقابل عنوان Cloudflare يعمل.",
+    "startBypass": "بدء فحص التخطي",
+    "scanningBypass": "جاري فحص تكوينات التخطي...",
+    "checksComplete": "تم الانتهاء من الفحص"
+  },
+  "warp": {
+    "title": "ماسح نقاط النهاية لـ WARP",
+    "desc": "ابحث عن عقد Cloudflare WARP تعمل بكامل طاقتها والمخصصة لمنطقتك. يمكنك استخدام عناوين IP هذه كنقاط نهاية لـ Wireguard لإنشاء أنفاق VPN لكامل الجهاز لتتخطى حجب DPI.",
+    "threads": "الخيوط (التزامن)",
+    "targetEndpoints": "نقاط النهاية المستهدفة (توقف بعد)",
+    "maxPing": "أقصى بينج مقبول (مللي ثانية)",
+    "ports": "منافذ Wireguard المراد فحصها",
+    "startHunt": "بدء فحص WARP",
+    "stopScanning": "إيقاف الفحص",
+    "cleanEndpoints": "نقاط نهاية نظيفة",
+    "copyAll": "نسخ كافة نقاط النهاية",
+    "noEndpoints": "لم يتم العثور على نقاط نهاية بعد.",
+    "logs": "سجلات الماسح",
+    "waiting": "في انتظار البدء..."
+  },
+  "dnsScanner": {
+    "title": "ماسح DNS والأنفاق (تجريبي)",
+    "subtitle": "اختبر تجاوزات محلل DNS وتجزئة TLS لتخطي رقابة DPI.",
+    "testOption": "وضع الاختبار",
+    "dnstt": "تجاوز محلل DNS",
+    "tlsSplit": "تجزئة TLS",
+    "nameserver": "خادم DNS",
+    "nameserverDesc": "يدعم تنسيقات UDP و TCP و DoH و DoT.",
+    "customDns": "خادم DNS مخصص...",
+    "testDomain": "نطاق الاختبار",
+    "testDomainDesc": "النطاق المراد محاولة حله من خلال خادم DNS المحدد.",
+    "fragmentSize": "حجم الجزء (بايت)",
+    "fragmentSizeDesc": "مثال: '10-20' يُجزئ الحزم بين 10 و 20 بايت.",
+    "fragmentInterval": "فاصل الأجزاء (مللي ثانية)",
+    "fragmentIntervalDesc": "التأخير بين الأجزاء.",
+    "ispPreset": "إعداد مسبق لمزود الخدمة (DPI)",
+    "packetMode": "وضع تجزئة الحزم",
+    "packetModeDesc": "tlshello يجزئ مصافحة TLS فقط. 1-3 يجزئ أول 1 إلى 3 كتابات لبيانات TCP.",
+    "recommended": "(موصى به)",
+    "broader": "(أوسع)",
+    "fingerprint": "بصمة متصفح TLS (uTLS)",
+    "fingerprintDesc": "يحاكي مصافحة TLS للمتصفحات الحقيقية لتجنب اكتشاف بصمة DPI.",
+    "vlessConfig": "تكوين Vless / Xray",
+    "errorNoConfig": "يرجى لصق تكوين Xray/V2Ray صالح أولاً.",
+    "testing": "جاري الاختبار...",
+    "startScanner": "بدء الماسح",
+    "testingParams": "جاري اختبار معلمات DNS/النفق..."
+  },
+  "dnsGuide": {
+    "showGuide": "إظهار الدليل والمزيد من المعلومات",
+    "hideGuide": "إخفاء الدليل والمعلومات",
+    "beginnerTitle": "📖 دليل المبتدئين — كيفية استخدام علامة التبويب هذه",
+    "step1Title": "اختر الوضع الخاص بك",
+    "step1Desc": "اختر 'تجاوز محلل DNS' لاختبار ما إذا كان مزود الخدمة الخاص بك يسمم استعلامات DNS، أو 'تجزئة TLS' لتقسيم مصافحة TLS وتجاوز رقابة DPI.",
+    "step2Title": "تكوين الإعدادات",
+    "step2Desc": "لوضع DNS: اختر خادم DNS من القائمة المنسدلة (يوصى بـ DoH). لتجزئة TLS: حدد الإعداد المسبق أو اضبط الحجم يدوياً.",
+    "step3Title": "حدد بصمة المتصفح",
+    "step3Desc": "اختر بصمة TLS (يوصى بـ Chrome) لكي تبدو حركة مرورك كنشاط متصفح عادي.",
+    "step4Title": "الصق التكوين وابدأ",
+    "step4Desc": "الصق تكوين VLESS، ثم اضغط على بدء الماسح.",
+    "proTip": "نصيحة للمحترفين",
+    "proTipDesc": "جرب بصمات مختلفة إذا تم حظرك.",
+    "tlsTitle": "🔧 كيف تعمل تجزئة TLS",
+    "tlsP1": "تقوم بتقسيم رسالة ClientHello إلى أجزاء صغيرة.",
+    "tlsP2": "هذا يمنع الجدار الناري من رؤية النطاق بالكامل وتجنب الحظر.",
+    "tlsHelloDesc": "يُجزئ رسالة ClientHello فقط.",
+    "mode13Desc": "يُجزئ أول 1-3 كتابات بيانات.",
+    "sizeIntervalDesc": "الحجم = البايتات لكل جزء. الفاصل الزمني = تأخير بالمللي ثانية.",
+    "dnsTitle": "🌐 كيف يعمل تجاوز DNS",
+    "dnsP1": "يمنع مزود الخدمة من تسميم طلبات DNS وتزوير العناوين.",
+    "dnsP2": "استخدم خوادم مشفرة مثل DoH.",
+    "dnsFormat": "التنسيق",
+    "dnsExample": "مثال",
+    "dnsSecurity": "الأمان",
+    "dnsPlain": "غير مشفر",
+    "dnsEncrypted": "مشفر",
+    "utlsTitle": "🎭 ما هي بصمة uTLS؟",
+    "utlsP1": "تحاكي بصمة TLS للمتصفحات.",
+    "utlsP2": "هذا يجعل حركة المرور تبدو كانها تصفح عادي للإنترنت.",
+    "utlsWarning": "تحذير هام",
+    "utlsWarningDesc": "قد تكتشف بعض الشركات بصمات غير متصفحات. استخدم Chrome.",
+    "ispTitle": "🇮🇷 إعدادات مسبقة لمزود الخدمة",
+    "ispP1": "يستخدم مقدمو الخدمة أساليب فحص مختلفة.",
+    "ispMci": "فحص صارم. يتطلب أجزاء كبيرة.",
+    "ispIrancell": "فحص قوي ولكن أقل عدوانية.",
+    "ispShatel": "فحص خفيف. أجزاء صغيرة وفعالة.",
+    "ispChina": "فحص متقدم. أجزاء متوسطة مع تأخير أطول."
+  },
+  "about": {
+    "title": "ماسح عناوين IP المضاد للجاذبية",
+    "subtitle": "أداة تحسين عناوين Cloudflare IP المتقدمة",
+    "version": "الإصدار 2.5 • مفتوح المصدر",
+    "whatIs": {
+      "title": "ما هو المضاد للجاذبية؟",
+      "p1": "أداة شبكات احترافية مصممة لاكتشاف والتحقق من عناوين IP وتجاوز الفحص العميق للحزم.",
+      "p2": "تختبر أوقات الاستجابة والسرعات للعثور على أفضل الاتصالات.",
+      "cards": {
+        "ping": {
+          "label": "بينج وتقلب",
+          "val": "استجابة في الوقت الفعلي"
+        },
+        "speed": {
+          "label": "اختبار السرعة",
+          "val": "التنزيل والرفع"
+        },
+        "tls": {
+          "label": "تحقق TLS",
+          "val": "حماية ضد MITM"
+        },
+        "proto": {
+          "label": "متعدد البروتوكولات",
+          "val": "VLESS / WARP"
+        }
+      }
+    },
+    "guide": {
+      "title": "دليل البدء السريع",
+      "steps": {
+        "s1": {
+          "title": "احصل على تكوين VLESS",
+          "desc": "تحتاج إلى تكوين للبدء.",
+          "sub": {
+            "0": "الصق تكوينك في المربع",
+            "1": "أدخل رابط اشتراك واجلب التكوينات",
+            "2": "استخدم زر الفحص التلقائي"
+          }
+        },
+        "s2": {
+          "title": "اختر مصدر IP",
+          "desc": "من أين ستحصل على عناوين IP؟",
+          "sub": {
+            "0": "عناوين Cloudflare الرسمية",
+            "1": "السجل الذكي",
+            "2": "عناوين IP الذهبية",
+            "3": "ذهب المجتمع"
+          }
+        },
+        "s3": {
+          "title": "تكوين القيود",
+          "desc": "لتخصيص عملية الفحص:",
+          "sub": {
+            "0": "أقصى بينج",
+            "1": "أقصى تقلب",
+            "2": "أدنى تنزيل",
+            "3": "التزامن"
+          }
+        },
+        "s4": {
+          "title": "بدء الفحص",
+          "desc": "انقر وابدأ الفحص الآن.",
+          "sub": {}
+        },
+        "s5": {
+          "title": "استخدم النتائج",
+          "desc": "انسخ الروابط واستخدمها.",
+          "sub": {
+            "0": "انسخ الروابط",
+            "1": "تصدير الاشتراكات",
+            "2": "مرتبة حسب السرعة"
+          }
+        }
+      }
+    },
+    "features": {
+      "title": "ميزات متقدمة",
+      "tls": {
+        "title": "🔒 تحقق صارم من TLS",
+        "desc": "يمنع هجمات الرجل في المنتصف."
+      },
+      "dpi": {
+        "title": "🧩 تحليل الأجزاء",
+        "desc": "تجاوز فحص الحزم العميق."
+      },
+      "tcp": {
+        "title": "⚡ مرشح TCP المسبق",
+        "desc": "يسرع الفحص عن طريق إسقاط العناوين الميتة."
+      },
+      "queue": {
+        "title": "💾 طابور خلفية دائم",
+        "desc": "يحفظ تقدم الفحص حتى إذا تم إغلاق التطبيق."
+      },
+      "fastly": {
+        "title": "⚡ دعم Fastly CDN",
+        "desc": "يكتشف عناوين شبكة Fastly."
+      },
+      "dnstt": {
+        "title": "🛡️ نفق DNS وتجزئة TLS",
+        "desc": "لتحطيم طبقات الحجب."
+      },
+      "sni": {
+        "title": "🌐 واجهة SNI",
+        "desc": "للعثور على نطاقات غير محظورة."
+      },
+      "warp": {
+        "title": "📡 ماسح WARP",
+        "desc": "البحث عن عقد WARP."
+      },
+      "map": {
+        "title": "📊 تحليلات عالمية",
+        "desc": "خريطة تفاعلية لنتائج الفحص."
+      },
+      "retry": {
+        "title": "🔄 إعادة محاولة ذكية",
+        "desc": "إعادة المحاولة بإعدادات أخف إذا فشل البحث الصارم."
+      },
+      "dns_override": {
+        "title": "🌐 تجاوز DNS",
+        "desc": "استخدام خوادم DNS مشفرة."
+      },
+      "macos": {
+        "title": "🍎 دعم macOS",
+        "desc": "متاح لنظام ماك."
+      }
+    },
+    "tips": {
+      "title": "نصائح للحصول على أفضل النتائج",
+      "list": {
+        "0": "قم بتمكين وكيل النظام",
+        "1": "استخدم الفحص التلقائي",
+        "2": "تغيير المصدر إلى Cloudflare إذا لم تجد نتائج",
+        "3": "تقليل سرعة التحميل إلى 1 ميجابت",
+        "4": "الفحص في أوقات خارج الذروة",
+        "5": "تصدير الاشتراكات بسهولة",
+        "6": "شارك النتائج مع المجتمع",
+        "7": "تطبيق WARP يعمل بشكل ممتاز"
+      }
+    },
+    "faq": {
+      "title": "الأسئلة الشائعة",
+      "items": {
+        "0": {
+          "q": "ما هو عنوان IP النظيف؟",
+          "a": "عنوان غير محظور ويعمل بسرعة."
+        },
+        "1": {
+          "q": "هل التطبيق آمن؟",
+          "a": "نعم، التكوينات تبقى محلية 100٪."
+        },
+        "2": {
+          "q": "لماذا الفحوصات بطيئة؟",
+          "a": "تتطلب عملية الفحص العديد من خطوات التحقق والاتصال."
+        },
+        "3": {
+          "q": "ماذا يعني 'لا يمكن الوصول إليه'؟",
+          "a": "لم يتمكن من الاتصال بالخادم."
+        },
+        "4": {
+          "q": "VLESS أم WARP؟",
+          "a": "VLESS بروتوكول وكيل، بينما WARP خدمة VPN من Cloudflare."
+        },
+        "5": {
+          "q": "هل يمكنني استخدامه على هاتفي؟",
+          "a": "نعم، يمكنك تصدير الروابط للهاتف."
+        }
+      }
+    },
+    "sysReq": {
+      "title": "متطلبات النظام",
+      "min": {
+        "title": "الحد الأدنى",
+        "items": {
+          "0": "Windows 10/11",
+          "1": "4 جيجابايت رام",
+          "2": "اتصال بالإنترنت",
+          "3": "Xray-core"
+        }
+      },
+      "rec": {
+        "title": "الموصى به",
+        "items": {
+          "0": "8 جيجابايت رام",
+          "1": "تخزين SSD",
+          "2": "VPN مفعل للإعداد الأولي",
+          "3": "سرعة اتصال جيدة"
+        }
+      }
+    },
+    "privacy": {
+      "title": "الخصوصية والأمان",
+      "items": {
+        "0": "لا يتم تحميل تكوينات VLESS الخاصة بك أبداً",
+        "1": "تتم مشاركة سرعات الفحص لمساعدة المجتمع",
+        "2": "نستخدم بنية Cloudflare",
+        "3": "بدون إعلانات وتتبع",
+        "4": "مفتوح المصدر بالكامل"
+      }
+    },
+    "author": "المؤلف والاتصال",
+    "community": "الدعم والمجتمع",
+    "starGithub": "اترك نجمة على GitHub",
+    "supportProject": "ادعم المشروع مفتوح المصدر",
+    "freeBot": "بوت Telegram لـ VPN مجاني",
+    "getBotConfigs": "احصل على تكوينات مجانية",
+    "joinTelegram": "انضم إلى مجموعة Telegram",
+    "shareFeedback": "شارك بتعليقاتك",
+    "footer": "🕊️ من أجل إنترنت حر ومفتوح",
+    "copyright": "ماسح IP المضاد للجاذبية • GNU AGPLv3",
+    "openSource": "مفتوح المصدر"
+  },
+  "freevpn": {
+    "title": "Community VPN Ecosystem",
+    "subtitle": "Access free community configs or earn dedicated VIP servers by contributing to the network.",
+    "loginTelegram": "Login with Telegram",
+    "authenticated": "Authenticated",
+    "tabFree": "Free Community Configs",
+    "tabVip": "Claim VIP Server",
+    "authRequired": "Authentication Required",
+    "authDesc": "You must join our Telegram community and authenticate via the bot to access the free VPN ecosystem.",
+    "joinChannelTitle": "Join Our Telegram Community",
+    "joinChannelDesc": "Membership is required. The bot will verify your subscription before authenticating.",
+    "joinChannel": "Join @ANTIGRAVITY_IP",
+    "iJoined": "I've joined the channel",
+    "loginStepTitle": "Authenticate via Bot",
+    "loginStepDesc": "After joining, click \"Login with Telegram\" above to get a 6-digit code and send it to the bot.",
+    "scanRequired": "Contribution Required",
+    "scanDesc": "To unlock access to the community configs, you must give back to the network. Please run an IP scan and find at least 10 Clean IPs within the last 3 days.",
+    "goToScanner": "Go to Scanner",
+    "vipTitle": "Earn a Dedicated VIP Server",
+    "vipDesc": "Contribute 10,000 successful IP scans to the global database to earn a private 10GB high-speed VIP Config valid for 7 days.",
+    "yourProgress": "Your Progress",
+    "claimBtn": "Claim VIP Config",
+    "scanToEarn": "Scan IPs to Earn VIP",
+    "messageBot": "أرسل هذا الرمز للبوت",
+    "copy": "نسخ",
+    "openApp": "فتح التطبيق وإرسال",
+    "waitingForYou": "في انتظارك...",
+    "scanContributions": "مساهمات الفحص الخاصة بك",
+    "total": "الإجمالي",
+    "recentScans": "حديث (آخر 3 أيام)",
+    "ips": "عناوين IP",
+    "loginToUnlock": "سجل الدخول باستخدام تيليجرام أعلاه لفتح التكوينات",
+    "recentContribution": "مساهمتك الأخيرة",
+    "almostThere": "قربت جدًا! استمر في العثور على تلك العناوين الجيدة...",
+    "mixTitle": "تكوينات المجتمع — خلط واختبار",
+    "mixDesc": "يختار أسرع 5 تكوينات",
+    "available": "متاحة",
+    "mixDesc2": "يخلطها مع أفضل 3 عناوين IP",
+    "mixDesc3": "يختبر جميع الـ",
+    "mixDesc4": "تركيبات.",
+    "testing": "جاري الاختبار...",
+    "retestAll": "إعادة اختبار الكل",
+    "mixAndTestAll": "خلط واختبار الكل",
+    "fetching": "جاري جلب أفضل 5 تكوينات و 3 عناوين IP...",
+    "quickPing": "اختبار البينج السريع —",
+    "combos": "تركيبات",
+    "speedTest": "جاري اختبار سرعة أفضل المرشحين...",
+    "topConfigsPrefix": "أفضل",
+    "topConfigsSuffix": "تكوينات (مرتبة حسب الجودة)",
+    "score": "النتيجة",
+    "copyConfig": "نسخ التكوين",
+    "copyAll": "نسخ الكل",
+    "configs": "تكوينات",
+    "browsePreInjected": "أو استعرض التكوينات المحقونة مسبقًا (غير مختبرة السرعة):",
+    "source": "المصدر",
+    "injectedIp": "IP المحقون",
+    "copyOptimized": "نسخ التكوين المحسن",
+    "loadingConfigs": "جاري تحميل التكوينات من تجمع المسؤول..."
+  },
+  "geomap": {
+    "target": "الهدف",
+    "global": "عالمي (أي)"
+  },
+  "freedom": {
+    "invalidConfig": "يرجى لصق تكوين VLESS صالح",
+    "configSubmitted": "تم إرسال التكوين! سيتم استئناف التعدين...",
+    "submitFailed": "فشل في إرسال التكوين",
+    "playFreedom": "Play Freedom",
+    "subtitle": "عامل منجم بروكسي مستقل ومضاد للحجب بالكامل",
+    "startAutopilot": "بدء الطيار الآلي",
+    "stop": "إيقاف",
+    "currentPhase": "المرحلة الحالية",
+    "ready": "جاهز",
+    "noConfig": "⚠️ لم يتم العثور على تكوين عامل. الصق تكوين VLESS للعمل:",
+    "sending": "جاري الإرسال...",
+    "submit": "إرسال",
+    "vanillaSub": "Vanilla Sub OK",
+    "cfSub": "CF Sub OK",
+    "spliced": "مضاعفات مركبة",
+    "cleanIps": "تم تعدين عناوين IP نظيفة",
+    "foundConfigs": "التكوينات التي تم العثور عليها",
+    "allCopied": "تم نسخ جميع التكوينات!",
+    "copyAll": "نسخ الكل",
+    "configCopied": "تم نسخ التكوين!",
+    "copy": "نسخ"
+  },
+  "frag": {
+    "length": "الطول",
+    "interval": "الفاصل",
+    "status": "الحالة",
+    "ping": "بينج",
+    "mapTitle": "خريطة اختراق الجدار الناري DPI",
+    "success": "تجاوز ناجح",
+    "fail": "تم اكتشاف اعتراض"
+  },
+  "debug": {
+    "backendNotRunning": "الواجهة الخلفية لا تعمل. تحقق من تعطل backend.exe.",
+    "connecting": "⏳ جاري الاتصال...",
+    "backendApi": "🟢 واجهة برمجة تطبيقات الخلفية",
+    "electronLog": "📄 ملف سجل Electron",
+    "backendOffline": "🔴 الواجهة الخلفية غير متصلة",
+    "closeDebug": "▼ إغلاق التصحيح",
+    "openDebug": "▲ وحدة تحكم التصحيح",
+    "logTitle": "سجل التصحيح",
+    "waiting": "في انتظار السجلات...",
+    "entries": "${logs.length} إدخال"
+  },
+  "db": {
+    "layer1": "الطبقة 1: MySQL مباشر",
+    "layer1Desc": "الأسرع ولكن يمكن حجبه",
+    "layer2": "الطبقة 2: وكيل العامل",
+    "layer2Desc": "شبكة حافة Cloudflare",
+    "layer3": "الطبقة 3: واجهة IP نظيفة",
+    "layer3Desc": "تجاوز عبر واجهة النطاق",
+    "layer4": "الطبقة 4: نفق VLESS",
+    "layer4Desc": "شبكة التوجيه الاحتياطية",
+    "layer5": "الطبقة 5: SQLite محلي",
+    "layer5Desc": "شبكة أمان وضع عدم الاتصال",
+    "unblockableLink": "رابط قاعدة بيانات لا يمكن حجبه",
+    "activeMode": "الوضع النشط",
+    "testingDb": "جاري اختبار الاتصال بقاعدة البيانات...",
+    "dbLinkOnline": "رابط قاعدة البيانات: ${onlineLayers}/5 متصل"
+  },
+  "data": {
+    "offlineSync": "مزامنة البيانات دون اتصال",
+    "syncDesc": "قم بتصدير قاعدة بياناتك الكاملة لمشاركتها مع الآخرين في المناطق المحظورة. الحزمة مشفرة بواسطة AES.",
+    "exportDb": "تصدير قاعدة البيانات",
+    "exportDesc": "حزم جميع بيانات التطبيق.",
+    "packaging": "جاري التحزيم...",
+    "downloadBundle": "تنزيل حزمة .agdb",
+    "encrypted": "مشفر بـ AES-256 ومضغوط بـ ZLib",
+    "importDb": "استيراد قاعدة البيانات",
+    "importDesc": "حدد ملف .agdb مشترك لملء تطبيقك محليًا.",
+    "processing": "جاري المعالجة...",
+    "uploadFile": "رفع ملف .agdb",
+    "syncComplete": "اكتملت المزامنة دون اتصال بنجاح!",
+    "scans": "الفحوصات",
+    "configs": "التكوينات",
+    "cfSub": "اشتراك CF",
+    "vanilla": "عادي",
+    "recs": "التوصيات",
+    "settings": "الإعدادات",
+    "analytics": "التحليلات",
+    "geoData": "البيانات الجغرافية",
+    "regions": "المناطق",
+    "bypasses": "عمليات التخطي",
+    "overwriteWarn": "يقوم بالكتابة فوق عناوين IP المكررة الموجودة بصمت"
+  }
+}
