@@ -97,19 +97,19 @@ const UTLS_FINGERPRINTS = [
 
 const QUICK_SAMPLE_CONFIGS = [
     {
-        id: 'slipnet',
-        label: 'SlipNet sample',
-        value: 'slipnet://MTd8c3NofGNvbmZpZ3JheWdhbnw5Mi4xMTMuMTUwLjk4fDguOC44Ljg6NTM6MHwwfDUwMDB8YmJyfDEwODB8MTI3LjAuMC4xfDB8fGlyYW51eHxpcmFudXh8MXxpcmFudXh8aXJhbnV4fDg0NDN8MHwxMjcuMC4wLjF8MHx8dWRwfHBhc3N3b3JkfHx8fDB8NDQzfHx8MHx8MHwwfHwwfA==',
-    },
-    {
         id: 'vless',
-        label: 'VLESS sample',
-        value: 'vless://27741e38-11ee-4d56-97e2-e1b37b3c17ab@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#Finland-IP-66.81.247.143',
+        label: 'VLESS example',
+        value: 'vless://uuid@example.com:443?encryption=none&security=tls&type=ws&host=example.com&path=%2F#example',
     },
     {
         id: 'trojan',
-        label: 'Trojan sample',
-        value: 'trojan://319a3190-4418-4ed0-89d8-c770087383fa@23.227.38.33:443?security=tls&sni=Usa1p.aDPAYs.Ir&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=USa1p.adPAYS.IR&path=%2F1kVa5HXWchklyChrOQ707ONj0lhz#usa1p.adpays.ir%20tls%20WS%20CDN%20trojan',
+        label: 'Trojan example',
+        value: 'trojan://password@example.com:443?security=tls&type=ws&host=example.com&path=%2F#example',
+    },
+    {
+        id: 'slipnet',
+        label: 'SlipNet placeholder',
+        value: 'slipnet://PASTE_YOUR_PROFILE_HERE',
     },
 ];
 
