@@ -579,20 +579,64 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             except TimeoutError:
                 dnstm_code = 1
             if dnstm_code != 0:
+                # Try installer #1: net2share/dnstm install.sh in --mode multi
+                install_ok = False
                 try:
                     out, err, code = _exec(
                         "curl -fsSL --max-time 60 --connect-timeout 8 "
                         "https://raw.githubusercontent.com/net2share/dnstm/master/install.sh "
-                        "| bash -s -- install --mode multi",
-                        timeout=180
+                        "-o /tmp/dnstm-install.sh && bash /tmp/dnstm-install.sh install --mode multi 2>&1",
+                        timeout=240
                     )
+                    state.log((out or err or '')[-800:] or f"installer #1 exit={code}")
+                    if code == 0:
+                        install_ok = True
                 except TimeoutError as te:
-                    state.update(status="failed", error=f"dnstm install timed out: {te}")
+                    state.log(f"installer #1 timed out: {te}", "warn")
+
+                # Verify dnstm landed on PATH
+                if install_ok:
+                    try:
+                        _, _, c2 = _exec("which dnstm", 5)
+                        install_ok = (c2 == 0)
+                    except TimeoutError:
+                        install_ok = False
+
+                # Fallback installer #2: bundled dnstm-setup.sh in non-interactive mode
+                if not install_ok:
+                    state.log("Installer #1 did not place dnstm on PATH — trying dnstm-setup.sh fallback...", "warn")
+                    try:
+                        out, err, code = _exec(
+                            "chmod +x /tmp/dnstm-setup.sh && "
+                            "DEBIAN_FRONTEND=noninteractive bash /tmp/dnstm-setup.sh --auto --mode multi 2>&1 || "
+                            "DEBIAN_FRONTEND=noninteractive bash /tmp/dnstm-setup.sh 2>&1 < /dev/null",
+                            timeout=300
+                        )
+                        state.log((out or err or '')[-800:] or f"installer #2 exit={code}")
+                    except TimeoutError as te:
+                        state.log(f"installer #2 timed out: {te}", "warn")
+
+                # Final verification — DO NOT proceed if dnstm is still missing.
+                # The previous version printed "✓ dnstm installed" unconditionally,
+                # then every subsequent `dnstm tunnel add` failed with
+                # "bash: line 1: dnstm: command not found".
+                try:
+                    out, _, c3 = _exec("which dnstm || command -v dnstm || ls /usr/local/bin/dnstm 2>/dev/null", 5)
+                except TimeoutError:
+                    out, c3 = "", 1
+                if c3 != 0 or not out:
+                    state.update(
+                        status="failed",
+                        error=(
+                            "dnstm install completed but the `dnstm` binary is not on PATH. "
+                            "This usually means the upstream installer failed silently (e.g. apt missing, "
+                            "Go toolchain missing, or the script needs interactive input). "
+                            "SSH into the VPS and run manually:  bash /tmp/dnstm-setup.sh   "
+                            "— follow the prompts, then click Deploy again."
+                        ),
+                    )
                     return
-                if code != 0:
-                    state.log("Direct install failed, trying dnstm-setup script...", "warn")
-                    state.log("Installing via dnstm-setup automatic mode...")
-                state.log("✓ dnstm installed", "success")
+                state.log(f"✓ dnstm installed at {out.splitlines()[0]}", "success")
             else:
                 state.log("✓ dnstm already installed", "success")
 
