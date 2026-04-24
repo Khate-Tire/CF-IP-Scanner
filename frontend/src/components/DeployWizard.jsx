@@ -1,5 +1,6 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n/LanguageContext';
 import { tunnelConnect, tunnelDisconnect, tunnelPreflight, tunnelVerifyDns, tunnelCloudflareDns, tunnelDeploy, tunnelDeployStatus, tunnelDeployCancel, tunnelGetConfigs } from '../api';
 import { getBridgePayload, subscribeBridge, clearBridgePayload } from '../state/optimizerBridge';
@@ -449,15 +450,41 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
           </div>
           {configs && (
             <div className="space-y-3">
-              {Object.entries(configs.share_urls||{}).map(([tag,url])=>(
-                <div key={tag} className="p-3 rounded-lg bg-black/40 border border-gray-800">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-emerald-400 font-bold text-sm">{tag}</span>
-                    <button onClick={()=>{navigator.clipboard.writeText(url)}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy</button>
-                  </div>
-                  <p className="font-mono text-[10px] text-gray-500 break-all">{url}</p>
+              {Object.keys(configs.share_urls||{}).length > 0 && (
+                <div>
+                  <p className="text-emerald-400 font-bold text-xs uppercase tracking-wider mb-2">🔗 {t('dnsTunnel.socksTunnels','SOCKS Tunnels — share URLs')}</p>
+                  {Object.entries(configs.share_urls||{}).map(([tag,url])=>(
+                    <div key={tag} className="p-3 rounded-lg bg-black/40 border border-gray-800 mb-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-emerald-400 font-bold text-sm">{tag}</span>
+                        <button onClick={()=>{navigator.clipboard.writeText(url); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy</button>
+                      </div>
+                      <p className="font-mono text-[10px] text-gray-500 break-all">{url}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
+              {Object.keys(configs.ssh_endpoints||{}).length > 0 && (
+                <div>
+                  <p className="text-cyan-400 font-bold text-xs uppercase tracking-wider mb-2">🔐 {t('dnsTunnel.sshTunnels','SSH-over-DNS Tunnels')}</p>
+                  <p className="text-gray-500 text-[10px] mb-2">{t('dnsTunnel.sshTunnelsHint','Configure your SSH-over-DNS client (HTTP Injector, SlipNet) with the values below.')}</p>
+                  {Object.entries(configs.ssh_endpoints||{}).map(([tag, ep])=>{
+                    const block = `Tag:        ${tag}\nTransport:  ${ep.transport}\nDomain:     ${ep.domain}\nServer:     ${ep.host}:${ep.port||'?'}\nSSH user:   ${ep.ssh_user}\nSSH pass:   ${ep.ssh_pass||'(not set)'}`;
+                    return (
+                      <div key={tag} className="p-3 rounded-lg bg-black/40 border border-cyan-900/40 mb-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-cyan-400 font-bold text-sm">{tag} <span className="text-gray-500 font-normal">({ep.transport})</span></span>
+                          <button onClick={()=>{navigator.clipboard.writeText(block); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy</button>
+                        </div>
+                        <pre className="font-mono text-[10px] text-gray-300 whitespace-pre-wrap leading-relaxed">{block}</pre>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {Object.keys(configs.ssh_endpoints||{}).length === 0 && (configs.ssh_tunnel?.enabled === false) && (
+                <p className="text-gray-500 text-[11px] italic">{t('dnsTunnel.sshDisabledNote','SSH-over-DNS tunnels were deployed but no SSH user was configured — re-run the wizard with “Create SSH tunnel user” enabled to get connection details.')}</p>
+              )}
               <div className="p-4 rounded-lg bg-violet-500/5 border border-violet-500/20">
                 <p className="text-violet-400 font-bold text-sm mb-2">📱 {t('dnsTunnel.clientApps','Download Client Apps:')}</p>
                 <div className="space-y-1 text-xs">

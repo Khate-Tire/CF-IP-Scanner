@@ -114,6 +114,7 @@ class DeploymentState:
 # Global deployment state
 _deploy_state = DeploymentState()
 _ssh_client = None  # Optional[paramiko.SSHClient] when paramiko is available
+_ssh_host: str = ""  # remembered so we can build client connection details after deploy
 _ssh_lock = threading.Lock()
 
 
@@ -171,6 +172,7 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
 
             client.connect(**connect_kwargs)
             _ssh_client = client
+            globals()["_ssh_host"] = host
 
         # Gather server info
         info = {}
@@ -792,19 +794,64 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 if out.strip():
                     pubkeys[key_type] = out.strip()
 
-            # Get share URLs
+            # Get share URLs (only meaningful for socks-backend tunnels;
+            # ssh-backend tunnels are exposed via SSH-over-DNS, see ssh_endpoints below)
             share_urls = {}
-            for tag, _, _, subdomain in tunnel_configs:
+            for tag, _, backend, subdomain in tunnel_configs:
+                if backend != "socks":
+                    continue
                 out, _, code = _exec(f"dnstm tunnel share -t {tag} 2>/dev/null", 10)
                 if code == 0 and out.strip():
                     share_urls[tag] = out.strip()
 
+            # Parse `dnstm tunnel list` to extract per-tunnel ports so we can
+            # surface SSH connection details for the *-ssh tunnels.
+            #   TAG       TRANSPORT  BACKEND  PORT  DOMAIN              STATUS
+            #   slip-ssh  Slipstream ssh      5313  s.matrus.exchange   Running
+            tunnel_ports: Dict[str, int] = {}
+            try:
+                for line in (tunnel_out or "").splitlines():
+                    parts = line.split()
+                    if len(parts) >= 5 and parts[0] in {t[0] for t in tunnel_configs}:
+                        for token in parts[1:]:
+                            if token.isdigit() and 1 <= int(token) <= 65535:
+                                tunnel_ports[parts[0]] = int(token)
+                                break
+            except Exception:
+                pass
+
+            # Build SSH endpoint info for ssh-backend tunnels. Clients connect
+            # to the dnstm DNS port (the VPS public IP at the parsed PORT) and
+            # authenticate with the sshtun-user credentials configured in Phase 7.
+            host_ip = globals().get("_ssh_host") or "<your-server-ip>"
+            ssh_endpoints = {}
+            if ssh_tunnel_user and ssh_user:
+                for tag, transport, backend, subdomain in tunnel_configs:
+                    if backend != "ssh":
+                        continue
+                    ssh_endpoints[tag] = {
+                        "transport": transport,           # slipstream / dnstt / vaydns
+                        "domain": subdomain,              # e.g. s.matrus.exchange
+                        "host": host_ip,                  # VPS public IP
+                        "port": tunnel_ports.get(tag),    # e.g. 5313
+                        "ssh_user": ssh_user,
+                        "ssh_pass": ssh_pass,
+                        "hint": (
+                            f"Use an SSH-over-DNS client (HTTP Injector / SlipNet) with "
+                            f"transport={transport}, domain={subdomain}, server={host_ip}:"
+                            f"{tunnel_ports.get(tag, '?')}, ssh user={ssh_user}."
+                        ),
+                    }
+
             # Build config output
             configs = {
                 "domain": domain,
+                "server_host": globals().get("_ssh_host") or "",
                 "tunnels": tunnel_out,
+                "tunnel_ports": tunnel_ports,
                 "pubkeys": pubkeys,
                 "share_urls": share_urls,
+                "ssh_endpoints": ssh_endpoints,
                 "socks_auth": {"enabled": socks_auth, "user": socks_user} if socks_auth else {"enabled": False},
                 "ssh_tunnel": {"enabled": ssh_tunnel_user, "user": ssh_user} if ssh_tunnel_user else {"enabled": False},
                 "client_links": {
