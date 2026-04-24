@@ -5,6 +5,7 @@ import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X, Settings2, Shie
 import { useTranslation } from '../i18n/LanguageContext';
 import { testConfigRemote, dnsQuickTest, dnsE2ETest } from '../api';
 import { parseSlipnetUri, encodeSlipnetUri, normalize as normalizeSlipnet } from '../utils/slipnetUri';
+import { getBridgePayload, subscribeBridge, clearBridgePayload } from '../state/optimizerBridge';
 
 // Curated DNS resolvers — covers global + Iran/China-friendly options
 const PRESET_RESOLVERS = [
@@ -128,7 +129,7 @@ function Score({ value, max = 6 }) {
     );
 }
 
-export default function ConfigLab() {
+export default function ConfigLab({ onSendToDeploy, onGoToOptimizer } = {}) {
     const { t } = useTranslation();
     const [config, setConfig] = useState('');
     const [customResolver, setCustomResolver] = useState('');
@@ -546,6 +547,58 @@ export default function ConfigLab() {
         setDnsResults([]);
     };
 
+    // ── Bridge: pre-load resolvers/host coming from DNS Optimizer handoff ──
+    const [bridgePayload, setBridgePayloadState] = useState(() => getBridgePayload());
+    const consumedBridgeRef = useRef(false);
+    useEffect(() => {
+        const off = subscribeBridge((p) => {
+            setBridgePayloadState(p);
+            consumedBridgeRef.current = false;
+        });
+        return off;
+    }, []);
+
+    // When a bridge payload from DNS Optimizer arrives, pre-add its resolvers and
+    // arm the auto-run pipeline. Runs once per payload.
+    useEffect(() => {
+        if (!bridgePayload || bridgePayload.source !== 'optimizer') return;
+        if (consumedBridgeRef.current) return;
+        consumedBridgeRef.current = true;
+
+        const ips = (bridgePayload.resolvers || []).filter(ip => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip));
+        if (ips.length) {
+            setExtraResolvers(prev => Array.from(new Set([...prev, ...ips.filter(ip => !PRESET_RESOLVERS.some(r => r.ip === ip))])));
+            setSelectedResolvers(prev => Array.from(new Set([...prev, ...ips])));
+        }
+        if (bridgePayload.transport && bridgePayload.transport !== 'auto') {
+            setDnsTransport(bridgePayload.transport);
+        }
+        if (bridgePayload.mode && PROTOCOL_MODES.some(m => m.id === bridgePayload.mode)) {
+            setTunnelMode(bridgePayload.mode);
+        }
+        toast.success(t('configLab.bridgeReceived', 'Resolvers received from DNS Optimizer — paste a config and click Smart Test (or enable auto-run).'));
+    }, [bridgePayload, t]);
+
+    const applyBestToDeploy = () => {
+        if (!bestDns || !onSendToDeploy) return;
+        const payload = {
+            winner: {
+                resolver: bestDns.resolver,
+                transport: bestDns.protocol || dnsTransport,
+                latency: bestDns.latency,
+                score: bestDns.score,
+                host: effectiveTestHost,
+            },
+            resolvers: selectedResolvers,
+            host: effectiveTestHost,
+            domain: parsedSlipnet?.domain || effectiveTestHost,
+            transport: bestDns.protocol || dnsTransport,
+            mode: tunnelMode === 'auto' ? (parsedSlipnet?.mode || 'dnstt') : tunnelMode,
+        };
+        onSendToDeploy(payload);
+        toast.success(t('configLab.appliedToDeploy', 'Best settings sent to Deploy Wizard'));
+    };
+
     useEffect(() => {
         if (!autoRunOnPaste || running || !config.trim()) return;
         const signature = `${config.trim()}::${protocol}`;
@@ -703,6 +756,56 @@ export default function ConfigLab() {
                     </div>
                 )}
             </div>
+
+            {/* DNS Optimizer handoff banner */}
+            {bridgePayload && bridgePayload.source === 'optimizer' && (
+                <div className="bg-gradient-to-r from-violet-500/10 to-indigo-500/10 border border-violet-500/30 rounded-2xl p-4 flex items-start gap-3 flex-wrap">
+                    <div className="text-2xl">🔬</div>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-sm font-bold text-violet-300">
+                            {t('configLab.bridgeBannerTitle', 'Top resolvers received from DNS Optimizer')}
+                        </div>
+                        <div className="text-xs text-violet-100/85 mt-1">
+                            {t('configLab.bridgeBannerBody', 'These resolvers have been pre-selected. Paste your real config above and run Smart Test to validate them end-to-end against your network.')}
+                        </div>
+                        {Array.isArray(bridgePayload.resolvers) && bridgePayload.resolvers.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                                {bridgePayload.resolvers.slice(0, 10).map(ip => (
+                                    <span key={ip} className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-200 border border-violet-500/30 font-mono text-[11px]">{ip}</span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex flex-col items-stretch gap-2">
+                        {config.trim() && (
+                            <button
+                                onClick={runSmartAnyConfigTest}
+                                disabled={running}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-100 text-xs font-bold border border-emerald-400/40 disabled:opacity-50"
+                            >
+                                {t('configLab.bridgeRunNow', 'Run Smart Test now')}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => { clearBridgePayload(); setBridgePayloadState(null); }}
+                            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-bold border border-white/10"
+                        >
+                            {t('configLab.dismiss', 'Dismiss')}
+                        </button>
+                    </div>
+                </div>
+            )}
+            {!bridgePayload && onGoToOptimizer && (
+                <div className="text-xs text-gray-400 flex items-center gap-2 justify-center">
+                    <span>💡 {t('configLab.tipUseOptimizer', 'Want the fastest 10 resolvers for your network?')}</span>
+                    <button
+                        onClick={onGoToOptimizer}
+                        className="px-2.5 py-1 rounded-md bg-violet-500/15 hover:bg-violet-500/25 text-violet-200 text-xs font-bold border border-violet-500/30"
+                    >
+                        {t('configLab.openOptimizer', 'Run DNS Optimizer first →')}
+                    </button>
+                </div>
+            )}
 
             {/* Resolver picker */}
             <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5 space-y-4">
@@ -1031,6 +1134,15 @@ export default function ConfigLab() {
                             >
                                 <Copy className="w-3 h-3" /> {t('configLab.copyDns', 'Copy DNS')}
                             </button>
+                            {onSendToDeploy && (
+                                <button
+                                    onClick={applyBestToDeploy}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-200 text-xs font-bold flex items-center gap-1 border border-emerald-500/40"
+                                    title={t('configLab.applyBestTip', 'Send these settings to the Deploy Wizard and switch to that tab')}
+                                >
+                                    🚀 {t('configLab.applyBest', 'Apply best to Deploy Wizard')}
+                                </button>
+                            )}
                         </div>
                     )}
 

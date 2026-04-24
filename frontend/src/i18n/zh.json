@@ -749,7 +749,18 @@
     "add": "Add",
     "backupDomainsHint": "If the primary domain is blocked or its NS delegation is filtered, clients will rotate to these.",
     "sshTransport": "SSH transport",
-    "payloadHint": "Use placeholders [host] [port] [crlf] [lf]. Sent before SSH banner exchange."
+    "payloadHint": "Use placeholders [host] [port] [crlf] [lf]. Sent before SSH banner exchange.",
+    "sendToLabTip": "Send the top 10 resolvers to Config Lab and validate them against your real config",
+    "sendToLab": "Validate Top 10 in Config Lab",
+    "validateInLab": "Validate this winner in Config Lab",
+    "labHandoffTitle": "Validated settings received from Config Lab",
+    "transport": "Transport",
+    "labHandoffHint": "The tunnel domain has been pre-filled. Resolver/transport recommendations will be embedded in the generated client configs.",
+    "useDomain": "Use this domain",
+    "dismiss": "Dismiss",
+    "integrationHintTitle": "Pro tip",
+    "integrationHintBody": "Run DNS Optimizer first to find the fastest resolvers, then validate them in Config Lab against your config — the result auto-flows back here.",
+    "openOptimizer": "Open DNS Optimizer →"
   },
   "configLab": {
     "invalidIp": "Invalid IPv4 address",
@@ -838,6 +849,16 @@
     "smartGuideAnyBody": "Auto-add baseline resolvers, run all transports (UDP/TCP/DoT/DoH), then rank by score and latency.",
     "smartTestAnyButton": "Auto setup + run smart test",
     "autoRunOnPaste": "Auto-run smart test after paste",
-    "autoRunOnPasteHint": "When enabled, a test starts automatically ~0.6s after config changes"
+    "autoRunOnPasteHint": "When enabled, a test starts automatically ~0.6s after config changes",
+    "bridgeReceived": "Resolvers received from DNS Optimizer — paste a config and click Smart Test (or enable auto-run).",
+    "appliedToDeploy": "Best settings sent to Deploy Wizard",
+    "bridgeBannerTitle": "Top resolvers received from DNS Optimizer",
+    "bridgeBannerBody": "These resolvers have been pre-selected. Paste your real config above and run Smart Test to validate them end-to-end against your network.",
+    "bridgeRunNow": "Run Smart Test now",
+    "dismiss": "Dismiss",
+    "tipUseOptimizer": "Want the fastest 10 resolvers for your network?",
+    "openOptimizer": "Run DNS Optimizer first →",
+    "applyBestTip": "Send these settings to the Deploy Wizard and switch to that tab",
+    "applyBest": "Apply best to Deploy Wizard"
   }
 }

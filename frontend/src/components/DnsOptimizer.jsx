@@ -27,7 +27,7 @@ function ScoreBadge({ score }) {
   );
 }
 
-export default function DnsOptimizer({ onSendToAdvanced }) {
+export default function DnsOptimizer({ onSendToAdvanced, onSendToLab }) {
   const { t } = useTranslation();
   const [domain, setDomain] = useState('');
   const [selectedCountries, setSelectedCountries] = useState(['global']);
@@ -334,6 +334,32 @@ export default function DnsOptimizer({ onSendToAdvanced }) {
                 }} className="flex-1 py-2 bg-gray-800 text-gray-300 border border-gray-700 rounded-lg text-sm font-bold hover:bg-gray-700 transition-colors">
                   📋 Copy Top 10
                 </button>
+                {onSendToLab && (
+                  <button
+                    onClick={() => {
+                      const top = getFilteredSorted().slice(0, 10);
+                      if (!top.length) return;
+                      onSendToLab({
+                        resolvers: top.map(r => r.resolver),
+                        winner: top[0] ? {
+                          resolver: top[0].resolver,
+                          transport: protocol,
+                          latency: top[0].latency_ms,
+                          score: top[0].score,
+                          host: domain || null,
+                        } : null,
+                        host: domain || null,
+                        domain: domain || null,
+                        transport: 'sweep',
+                        mode: 'auto',
+                      });
+                    }}
+                    className="flex-1 py-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 border border-indigo-500/40 rounded-lg text-sm font-bold hover:from-indigo-500/30 hover:to-purple-500/30 transition-colors"
+                    title={t('dnsTunnel.sendToLabTip', 'Send the top 10 resolvers to Config Lab and validate them against your real config')}
+                  >
+                    🧪 {t('dnsTunnel.sendToLab', 'Validate Top 10 in Config Lab')}
+                  </button>
+                )}
               </div>
             )}
 
@@ -388,6 +414,31 @@ export default function DnsOptimizer({ onSendToAdvanced }) {
                         className="w-full py-2.5 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/40 hover:to-teal-500/40 border border-emerald-500/40 text-emerald-400 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2"
                       >
                         🚀 Test in Advanced Scanners
+                      </button>
+                    )}
+                    {onSendToLab && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const top = getFilteredSorted().slice(0, 10).map(r => r.resolver);
+                          onSendToLab({
+                            resolvers: top.length ? top : [bestConfig.best_resolver],
+                            winner: {
+                              resolver: bestConfig.best_resolver,
+                              transport: protocol,
+                              latency: bestConfig.best_latency,
+                              score: bestConfig.best_score,
+                              host: domain || null,
+                            },
+                            host: domain || null,
+                            domain: domain || null,
+                            transport: 'sweep',
+                            mode: bestConfig?.recommendation?.tunnel_type || 'auto',
+                          });
+                        }}
+                        className="w-full py-2.5 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/40 hover:to-purple-500/40 border border-indigo-500/40 text-indigo-300 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                      >
+                        🧪 {t('dnsTunnel.validateInLab', 'Validate this winner in Config Lab')}
                       </button>
                     )}
                   </div>

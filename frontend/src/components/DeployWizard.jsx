@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { tunnelConnect, tunnelDisconnect, tunnelPreflight, tunnelVerifyDns, tunnelCloudflareDns, tunnelDeploy, tunnelDeployStatus, tunnelDeployCancel, tunnelGetConfigs } from '../api';
+import { getBridgePayload, subscribeBridge, clearBridgePayload } from '../state/optimizerBridge';
 
 const STEPS = ['connect','preflight','domain','configure','deploy','results'];
 
@@ -27,7 +28,7 @@ const loadPersisted = () => {
   try { return JSON.parse(localStorage.getItem(PERSIST_KEY)) || {}; } catch (_e) { void _e; return {}; }
 };
 
-export default function DeployWizard({ onSendToAdvanced }) {
+export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoToLab }) {
   const { t } = useTranslation();
   const persisted = loadPersisted();
   const [step, setStep] = useState(0);
@@ -44,6 +45,20 @@ export default function DeployWizard({ onSendToAdvanced }) {
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [domain, setDomain] = useState(persisted.domain || '');
   const [backupDomains, setBackupDomains] = useState(persisted.backupDomains || []);
+  const [bridgePayload, setBridgePayloadState] = useState(() => getBridgePayload());
+
+  // Subscribe to optimizer/lab handoffs and prefill domain on first arrival.
+  useEffect(() => {
+    const apply = (p) => {
+      setBridgePayloadState(p);
+      if (p && p.source === 'lab' && p.domain && !domain) {
+        setDomain(p.domain);
+      }
+    };
+    apply(getBridgePayload());
+    return subscribeBridge(apply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [newBackupDomain, setNewBackupDomain] = useState('');
   const [dnsMode, setDnsMode] = useState('manual');
   const [cfToken, setCfToken] = useState('');
@@ -170,6 +185,57 @@ export default function DeployWizard({ onSendToAdvanced }) {
         </div>
       </div>
       <StepIndicator current={step} steps={STEPS}/>
+      {bridgePayload && bridgePayload.source === 'lab' && (
+        <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 to-emerald-500/10 border border-indigo-500/30">
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="text-2xl">🧪</div>
+            <div className="flex-1 min-w-[200px]">
+              <div className="text-sm font-bold text-indigo-300">{t('dnsTunnel.labHandoffTitle', 'Validated settings received from Config Lab')}</div>
+              <div className="text-xs text-gray-300 mt-1 space-x-3">
+                {bridgePayload.winner?.resolver && (
+                  <span>{t('dnsTunnel.bestResolver', 'Best resolver')}: <span className="font-mono text-emerald-300">{bridgePayload.winner.resolver}</span></span>
+                )}
+                {bridgePayload.winner?.transport && (
+                  <span>{t('dnsTunnel.transport', 'Transport')}: <span className="font-bold uppercase text-yellow-300">{bridgePayload.winner.transport}</span></span>
+                )}
+                {bridgePayload.domain && (
+                  <span>{t('dnsTunnel.tunnelDomain', 'Tunnel Domain')}: <span className="font-mono text-white">{bridgePayload.domain}</span></span>
+                )}
+              </div>
+              <div className="text-[11px] text-indigo-200/70 mt-1">
+                {t('dnsTunnel.labHandoffHint', 'The tunnel domain has been pre-filled. Resolver/transport recommendations will be embedded in the generated client configs.')}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {bridgePayload.domain && bridgePayload.domain !== domain && (
+                <button
+                  onClick={() => setDomain(bridgePayload.domain)}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/40"
+                >
+                  {t('dnsTunnel.useDomain', 'Use this domain')}
+                </button>
+              )}
+              <button
+                onClick={() => { clearBridgePayload(); setBridgePayloadState(null); }}
+                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold border border-white/10"
+              >
+                {t('dnsTunnel.dismiss', 'Dismiss')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!bridgePayload && (onGoToOptimizer || onGoToLab) && (
+        <div className="mb-4 p-3 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-200/90 flex items-center gap-3 flex-wrap">
+          <span className="font-bold text-violet-300">💡 {t('dnsTunnel.integrationHintTitle', 'Pro tip')}:</span>
+          <span>{t('dnsTunnel.integrationHintBody', 'Run DNS Optimizer first to find the fastest resolvers, then validate them in Config Lab against your config — the result auto-flows back here.')}</span>
+          {onGoToOptimizer && (
+            <button onClick={onGoToOptimizer} className="ml-auto px-3 py-1 rounded-md bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 text-xs font-bold border border-violet-500/30">
+              {t('dnsTunnel.openOptimizer', 'Open DNS Optimizer →')}
+            </button>
+          )}
+        </div>
+      )}
       {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">{error}</div>}
 
       {/* STEP 0: Connect */}

@@ -1,13 +1,26 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import DeployWizard from './DeployWizard';
 import DnsOptimizer from './DnsOptimizer';
 import ConfigLab from './ConfigLab';
+import { sendToConfigLab, sendToDeployWizard } from '../state/optimizerBridge';
 
 export default function DnsTunnelTab({ onSendToAdvanced }) {
     const { t } = useTranslation();
     const [subTab, setSubTab] = useState('deploy');
+
+    const goToConfigLab = useCallback((payload) => {
+        if (payload) sendToConfigLab(payload);
+        setSubTab('lab');
+    }, []);
+
+    const goToDeployWizard = useCallback((payload) => {
+        if (payload) sendToDeployWizard(payload);
+        setSubTab('deploy');
+    }, []);
+
+    const goToOptimizer = useCallback(() => setSubTab('optimizer'), []);
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in duration-500">
@@ -53,9 +66,9 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
                 </div>
             </div>
 
-            {subTab === 'deploy' && <DeployWizard onSendToAdvanced={onSendToAdvanced} />}
-            {subTab === 'optimizer' && <DnsOptimizer onSendToAdvanced={onSendToAdvanced} />}
-            {subTab === 'lab' && <ConfigLab />}
+            {subTab === 'deploy' && <DeployWizard onSendToAdvanced={onSendToAdvanced} onGoToOptimizer={goToOptimizer} onGoToLab={goToConfigLab} />}
+            {subTab === 'optimizer' && <DnsOptimizer onSendToAdvanced={onSendToAdvanced} onSendToLab={goToConfigLab} />}
+            {subTab === 'lab' && <ConfigLab onSendToDeploy={goToDeployWizard} onGoToOptimizer={goToOptimizer} />}
         </div>
     );
 }
