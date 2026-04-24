@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X, Settings2, ShieldAlert, Share2, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
-import { testConfigRemote, dnsQuickTest } from '../api';
+import { testConfigRemote, dnsQuickTest, dnsE2ETest } from '../api';
 import { parseSlipnetUri, encodeSlipnetUri, normalize as normalizeSlipnet } from '../utils/slipnetUri';
 
 // Curated DNS resolvers — covers global + Iran/China-friendly options
@@ -76,6 +76,25 @@ const PROTOCOL_MODES = [
     { id: 'slipstream', label: 'Slipstream (QUIC)' },
 ];
 
+// DNS transport actually used to talk to the resolver during the test
+const DNS_TRANSPORTS = [
+    { id: 'udp', label: 'UDP', tip: 'Plain DNS port 53 (fastest, most blockable)' },
+    { id: 'tcp', label: 'TCP', tip: 'TCP port 53 (avoids UDP filtering)' },
+    { id: 'tls', label: 'DoT', tip: 'DNS-over-TLS port 853 (encrypted)' },
+    { id: 'https', label: 'DoH', tip: 'DNS-over-HTTPS port 443 (most stealthy)' },
+    { id: 'sweep', label: 'Sweep ALL', tip: 'Run UDP+TCP+DoT+DoH and pick the best per resolver' },
+];
+
+// uTLS fingerprints — metadata hint passed to backend & saved in slipnet:// URI
+const UTLS_FINGERPRINTS = [
+    { id: '', label: 'Default' },
+    { id: 'chrome_120', label: 'Chrome 120' },
+    { id: 'firefox_120', label: 'Firefox 120' },
+    { id: 'safari_16', label: 'Safari 16' },
+    { id: 'ios_15', label: 'iOS 15' },
+    { id: 'random', label: 'Random' },
+];
+
 function Score({ value, max = 6 }) {
     const pct = Math.round((value / max) * 100);
     const cls =
@@ -118,6 +137,10 @@ export default function ConfigLab() {
     const [vayMaxQname, setVayMaxQname] = useState(101);
     const [vayRps, setVayRps] = useState(0);
     const [vayClientIdSize, setVayClientIdSize] = useState(2);
+    const [dnsTransport, setDnsTransport] = useState('udp');
+    const [utlsFingerprint, setUtlsFingerprint] = useState('');
+    const [e2eMode, setE2eMode] = useState(false);
+    const [e2eTarget, setE2eTarget] = useState('https://www.cloudflare.com/cdn-cgi/trace');
 
     // slipnet:// share modal
     const [parsedSlipnet, setParsedSlipnet] = useState(null);
@@ -207,27 +230,57 @@ export default function ConfigLab() {
 
         // 2) Test each selected DNS resolver against the config's host
         const results = [];
+        const transports = dnsTransport === 'sweep' ? ['udp', 'tcp', 'tls', 'https'] : [dnsTransport];
         for (let i = 0; i < selectedResolvers.length; i++) {
             if (cancelRef.current) break;
             const ip = selectedResolvers[i];
             const meta = allResolvers.find(r => r.ip === ip) || { name: 'Custom' };
-            try {
-                const res = await dnsQuickTest(ip, host);
-                results.push({
-                    resolver: ip,
-                    name: meta.name,
-                    tag: meta.tag,
-                    latency: res?.latency_ms ?? res?.latency ?? null,
-                    score: res?.score ?? 0,
-                    edns: res?.edns_support ?? res?.edns ?? false,
-                    hijack: res?.nxdomain_hijack === true,
-                    answers: res?.answers ?? [],
-                    ok: res?.ok !== false && (res?.latency_ms ?? res?.latency) != null,
-                    raw: res,
-                });
-            } catch (e) {
-                results.push({ resolver: ip, name: meta.name, tag: meta.tag, ok: false, error: String(e?.message || e) });
+
+            // For sweep mode: test all transports, keep the best one
+            let best = null;
+            for (const proto of transports) {
+                if (cancelRef.current) break;
+                try {
+                    let res;
+                    if (e2eMode) {
+                        res = await dnsE2ETest(ip, { domain: host, target_url: e2eTarget, protocol: proto });
+                        const ok = res?.dns_ok && res?.http_ok && !res?.poisoned;
+                        const cand = {
+                            resolver: ip, name: meta.name, tag: meta.tag, protocol: proto,
+                            latency: res?.total_latency_ms ?? res?.dns_latency_ms ?? null,
+                            score: ok ? 6 : (res?.dns_ok ? 2 : 0),
+                            edns: false,
+                            hijack: !!res?.poisoned,
+                            httpStatus: res?.http_status,
+                            ok,
+                            e2e: true,
+                            raw: res,
+                        };
+                        if (!best || (cand.ok && !best.ok) || (cand.ok === best.ok && (cand.latency ?? 99999) < (best.latency ?? 99999))) {
+                            best = cand;
+                        }
+                    } else {
+                        res = await dnsQuickTest(ip, host, { protocol: proto, utls_fingerprint: utlsFingerprint || null });
+                        const cand = {
+                            resolver: ip, name: meta.name, tag: meta.tag, protocol: proto,
+                            latency: res?.latency_ms ?? res?.latency ?? null,
+                            score: res?.score ?? 0,
+                            edns: res?.edns_support ?? res?.edns ?? false,
+                            hijack: res?.nxdomain_hijack === true,
+                            answers: res?.answers ?? [],
+                            ok: res?.ok !== false && (res?.latency_ms ?? res?.latency) != null,
+                            raw: res,
+                        };
+                        if (!best || cand.score > best.score || (cand.score === best.score && (cand.latency ?? 99999) < (best.latency ?? 99999))) {
+                            best = cand;
+                        }
+                    }
+                } catch (_e) {
+                    void _e;
+                    if (!best) best = { resolver: ip, name: meta.name, tag: meta.tag, ok: false, protocol: proto };
+                }
             }
+            results.push(best);
             setDnsResults([...results]);
             setProgress(p => ({ ...p, done: 2 + i }));
         }
@@ -317,6 +370,8 @@ export default function ConfigLab() {
             maxQuerySize: stealthCfg.size,
             queryPadding: stealthCfg.padding,
             direct: directMode,
+            dnsTransport,
+            utlsFingerprint,
         };
         const uri = encodeSlipnetUri(fields, 'slipnet');
         setShareUri(uri);
@@ -481,13 +536,61 @@ export default function ConfigLab() {
                         <Settings2 className="w-4 h-4 text-indigo-400" />
                         {t('configLab.advancedSettings', 'Advanced settings')}
                         <span className="text-xs font-normal text-gray-500">
-                            ({tunnelMode}, {stealthPreset === 'off' ? 'no stealth' : stealthCfg.size + 'B'}{directMode ? ', direct' : ''})
+                            ({tunnelMode}, {dnsTransport.toUpperCase()}{utlsFingerprint ? `, ${utlsFingerprint}` : ''}{e2eMode ? ', E2E' : ''}, {stealthPreset === 'off' ? 'no stealth' : stealthCfg.size + 'B'}{directMode ? ', direct' : ''})
                         </span>
                     </span>
                     {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {showAdvanced && (
                     <div className="px-4 pb-4 space-y-5 border-t border-white/[0.05] pt-4">
+                        {/* DNS transport (UDP/TCP/DoT/DoH/Sweep) */}
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('configLab.dnsTransport', 'DNS transport')}</label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {DNS_TRANSPORTS.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setDnsTransport(p.id)}
+                                        title={p.tip}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${dnsTransport === p.id ? 'bg-emerald-500/25 border-emerald-500/50 text-emerald-200' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-white/20'}`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* uTLS fingerprint */}
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('configLab.utlsFingerprint', 'uTLS fingerprint (DoT/DoH only)')}</label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {UTLS_FINGERPRINTS.map(f => (
+                                    <button
+                                        key={f.id || 'default'}
+                                        onClick={() => setUtlsFingerprint(f.id)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${utlsFingerprint === f.id ? 'bg-rose-500/25 border-rose-500/50 text-rose-200' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-white/20'}`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="mt-1 text-[11px] text-rose-200/60">{t('configLab.utlsHint', 'Saved with the slipnet:// export. Forwarded to compatible tunnel clients.')}</div>
+                        </div>
+
+                        {/* E2E mode */}
+                        <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                            <label className="flex items-center gap-2 text-sm text-gray-200 cursor-pointer select-none font-bold">
+                                <input type="checkbox" checked={e2eMode} onChange={e => setE2eMode(e.target.checked)} className="accent-amber-500" />
+                                <span>{t('configLab.e2eMode', 'E2E mode')} <span className="text-xs font-normal text-amber-200/70">— {t('configLab.e2eModeHint', 'Resolve a target host through each DNS, then HTTP-fetch one of the IPs to validate full path')}</span></span>
+                            </label>
+                            {e2eMode && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <label className="text-xs text-amber-300">{t('configLab.e2eTarget', 'Target URL')}:</label>
+                                    <input type="url" value={e2eTarget} onChange={e => setE2eTarget(e.target.value)} className="flex-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white font-mono" />
+                                </div>
+                            )}
+                        </div>
+
                         {/* Tunnel mode */}
                         <div>
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('configLab.tunnelMode', 'Tunnel mode')}</label>
@@ -653,7 +756,8 @@ export default function ConfigLab() {
                                 <div className="text-xs uppercase tracking-wider text-yellow-300 font-bold">{t('configLab.bestPairing', 'Recommended pairing')}</div>
                                 <div className="text-sm text-white">
                                     {t('configLab.useDns', 'Use DNS')} <span className="font-mono font-bold text-yellow-200">{bestDns.resolver}</span> ({bestDns.name})
-                                    {' '}— {bestDns.latency ?? '?'} ms, score {bestDns.score}/6
+                                    {bestDns.protocol && <> {t('configLab.via', 'via')} <span className="font-bold uppercase text-yellow-200">{bestDns.protocol}</span></>}
+                                    {' '}— {bestDns.latency ?? '?'} ms{bestDns.e2e ? ` (HTTP ${bestDns.httpStatus})` : `, score ${bestDns.score}/6`}
                                 </div>
                             </div>
                             <button
@@ -672,6 +776,7 @@ export default function ConfigLab() {
                                     <th className="text-left py-2 px-2">#</th>
                                     <th className="text-left py-2 px-2">{t('configLab.resolver', 'Resolver')}</th>
                                     <th className="text-left py-2 px-2">{t('configLab.name', 'Name')}</th>
+                                    <th className="text-center py-2 px-2">{t('configLab.proto', 'Proto')}</th>
                                     <th className="text-right py-2 px-2">{t('configLab.latency', 'Latency')}</th>
                                     <th className="text-center py-2 px-2">{t('configLab.score', 'Score')}</th>
                                     <th className="text-center py-2 px-2">{t('configLab.edns', 'EDNS')}</th>
@@ -685,6 +790,11 @@ export default function ConfigLab() {
                                         <td className="py-2 px-2 text-gray-500">{i + 1}</td>
                                         <td className="py-2 px-2 font-mono text-indigo-300">{r.resolver}</td>
                                         <td className="py-2 px-2 text-gray-300">{r.name}</td>
+                                        <td className="py-2 px-2 text-center">
+                                            {r.protocol ? (
+                                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 uppercase">{r.protocol}</span>
+                                            ) : '—'}
+                                        </td>
                                         <td className="py-2 px-2 text-right tabular-nums text-gray-200">{r.latency != null ? `${r.latency} ms` : '—'}</td>
                                         <td className="py-2 px-2 text-center">{r.ok ? <Score value={r.score || 0} /> : <span className="text-gray-600">—</span>}</td>
                                         <td className="py-2 px-2 text-center">{r.edns ? '✓' : '—'}</td>

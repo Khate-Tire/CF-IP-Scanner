@@ -2575,6 +2575,15 @@ class DnsScanRequest(BaseModel):
 class DnsQuickTestRequest(BaseModel):
     resolver: str
     domain: str = "example.com"
+    protocol: str = "udp"
+    utls_fingerprint: Optional[str] = None
+
+class DnsE2ETestRequest(BaseModel):
+    resolver: str
+    domain: str = "www.cloudflare.com"
+    target_url: str = "https://www.cloudflare.com/cdn-cgi/trace"
+    timeout_ms: int = 8000
+    protocol: str = "udp"
 
 class DnsBestConfigRequest(BaseModel):
     scan_id: str
@@ -2675,7 +2684,12 @@ async def dns_scan_stop(scan_id: str):
 @app.post('/api/dns-scan/quick-test')
 async def dns_quick_test(req: DnsQuickTestRequest):
     """Test a single resolver immediately."""
-    return dns_scanner_engine.quick_test_resolver(req.resolver, req.domain)
+    return dns_scanner_engine.quick_test_resolver(req.resolver, req.domain, req.protocol, req.utls_fingerprint)
+
+@app.post('/api/dns-scan/e2e-test')
+async def dns_e2e_test(req: DnsE2ETestRequest):
+    """End-to-end test: resolve a target host through the resolver, then HTTP-fetch one of the IPs."""
+    return dns_scanner_engine.e2e_test_resolver(req.resolver, req.domain, req.target_url, req.timeout_ms, req.protocol)
 
 @app.post('/api/dns-scan/best-config')
 async def dns_best_config(req: DnsBestConfigRequest):

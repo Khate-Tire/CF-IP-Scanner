@@ -43,6 +43,8 @@ export default function DeployWizard({ onSendToAdvanced }) {
   const [preflightChecks, setPreflightChecks] = useState(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [domain, setDomain] = useState(persisted.domain || '');
+  const [backupDomains, setBackupDomains] = useState(persisted.backupDomains || []);
+  const [newBackupDomain, setNewBackupDomain] = useState('');
   const [dnsMode, setDnsMode] = useState('manual');
   const [cfToken, setCfToken] = useState('');
   const [dnsResults, setDnsResults] = useState(null);
@@ -54,18 +56,26 @@ export default function DeployWizard({ onSendToAdvanced }) {
   const [sshTunnel, setSshTunnel] = useState(false);
   const [sshUser, setSshUser] = useState('tunnel');
   const [sshPass, setSshPass] = useState('');
+  const [sshTransport, setSshTransport] = useState('plain'); // plain|tls|ws|http|payload
+  const [sshTlsSni, setSshTlsSni] = useState('');
+  const [sshWsPath, setSshWsPath] = useState('/ssh');
+  const [sshWsTls, setSshWsTls] = useState(true);
+  const [sshWsHost, setSshWsHost] = useState('');
+  const [sshHttpProxyHost, setSshHttpProxyHost] = useState('');
+  const [sshHttpProxyPort, setSshHttpProxyPort] = useState(8080);
+  const [sshPayload, setSshPayload] = useState('CONNECT [host]:[port] HTTP/1.1[crlf]Host: [host][crlf][crlf]');
   const [addXray, setAddXray] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState(null);
   const [configs, setConfigs] = useState(null);
   const [scanVlessConfig, setScanVlessConfig] = useState('');
 
-  // Persist non-sensitive form fields (host/port/username/authMode/domain)
+  // Persist non-sensitive form fields (host/port/username/authMode/domain/backupDomains)
   useEffect(() => {
     try {
-      localStorage.setItem(PERSIST_KEY, JSON.stringify({ host, port, username, authMode, domain }));
+      localStorage.setItem(PERSIST_KEY, JSON.stringify({ host, port, username, authMode, domain, backupDomains }));
     } catch (_e) { void _e; /* localStorage may be unavailable in private mode */ }
-  }, [host, port, username, authMode, domain]);
+  }, [host, port, username, authMode, domain, backupDomains]);
 
   // Poll deploy status
   useEffect(() => {
@@ -118,10 +128,32 @@ export default function DeployWizard({ onSendToAdvanced }) {
   const doDeploy = async () => {
     setDeploying(true); setError(null);
     try {
-      await tunnelDeploy({ domain, mtu, socks_auth: socksAuth, socks_user: socksUser, socks_pass: socksPass, ssh_tunnel_user: sshTunnel, ssh_user: sshUser, ssh_pass: sshPass, add_xray: addXray });
+      await tunnelDeploy({
+        domain, mtu,
+        backup_domains: backupDomains,
+        socks_auth: socksAuth, socks_user: socksUser, socks_pass: socksPass,
+        ssh_tunnel_user: sshTunnel, ssh_user: sshUser, ssh_pass: sshPass,
+        ssh_transport: sshTransport,
+        ssh_tls_sni: sshTlsSni,
+        ssh_ws_path: sshWsPath, ssh_ws_tls: sshWsTls, ssh_ws_host: sshWsHost,
+        ssh_http_proxy_host: sshHttpProxyHost, ssh_http_proxy_port: sshHttpProxyPort,
+        ssh_payload: sshPayload,
+        add_xray: addXray,
+      });
       setStep(4);
     } catch(e) { setError(e.message); setDeploying(false); }
   };
+
+  const addBackupDomain = () => {
+    const d = newBackupDomain.trim().toLowerCase();
+    if (!d) return;
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)) { setError(t('dnsTunnel.invalidDomain', 'Invalid domain name')); return; }
+    if (d === domain || backupDomains.includes(d)) return;
+    setBackupDomains([...backupDomains, d]);
+    setNewBackupDomain('');
+    setError(null);
+  };
+  const removeBackupDomain = (d) => setBackupDomains(backupDomains.filter(x => x !== d));
 
   const ic = "w-full bg-[#0d0d12] border border-gray-700 rounded-lg px-4 py-2.5 text-white text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none font-mono transition-all";
 
@@ -193,6 +225,25 @@ export default function DeployWizard({ onSendToAdvanced }) {
         <div className="space-y-4 animate-in fade-in duration-300">
           <h3 className="text-lg font-bold text-white">{t('dnsTunnel.step3Title','Step 3: Domain & DNS Records')}</h3>
           <div><label className="block text-gray-400 text-xs font-bold uppercase mb-1">{t('dnsTunnel.domain','Your Domain')}</label><input className={ic} value={domain} onChange={e=>setDomain(e.target.value)} placeholder="example.com"/></div>
+          {/* Backup / failover domains */}
+          <div className="p-3 rounded-lg bg-purple-500/5 border border-purple-500/20">
+            <label className="block text-purple-300 text-xs font-bold uppercase mb-2">{t('dnsTunnel.backupDomains','Backup domains (auto-failover)')}</label>
+            <div className="flex gap-2">
+              <input className={ic} value={newBackupDomain} onChange={e=>setNewBackupDomain(e.target.value)} onKeyDown={e=>{ if (e.key === 'Enter') addBackupDomain(); }} placeholder="backup.example.net"/>
+              <button onClick={addBackupDomain} className="px-3 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 text-sm font-bold hover:bg-purple-500/30">+ {t('dnsTunnel.add','Add')}</button>
+            </div>
+            {backupDomains.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {backupDomains.map(d => (
+                  <span key={d} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
+                    <span className="font-mono">{d}</span>
+                    <button onClick={()=>removeBackupDomain(d)} className="text-red-400 hover:text-red-300" aria-label={`remove ${d}`}>×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-purple-200/60 mt-2">{t('dnsTunnel.backupDomainsHint','If the primary domain is blocked or its NS delegation is filtered, clients will rotate to these.')}</p>
+          </div>
           <div className="flex gap-3">
             <button onClick={()=>setDnsMode('manual')} className={`flex-1 py-2 rounded-lg border text-sm font-bold transition-all ${dnsMode==='manual'?'bg-emerald-500/20 border-emerald-500 text-emerald-400':'bg-black/40 border-gray-700 text-gray-400'}`}>📋 {t('dnsTunnel.manualDns','Manual Setup')}</button>
             <button onClick={()=>setDnsMode('auto')} className={`flex-1 py-2 rounded-lg border text-sm font-bold transition-all ${dnsMode==='auto'?'bg-emerald-500/20 border-emerald-500 text-emerald-400':'bg-black/40 border-gray-700 text-gray-400'}`}>⚡ {t('dnsTunnel.autoDns','Cloudflare API')}</button>
@@ -242,6 +293,45 @@ export default function DeployWizard({ onSendToAdvanced }) {
           <div className="p-3 rounded-lg bg-black/40 border border-gray-800 space-y-3">
             <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={sshTunnel} onChange={e=>setSshTunnel(e.target.checked)} className="accent-emerald-500"/><span className="text-sm text-white font-bold">{t('dnsTunnel.sshTunnelUser','Create SSH Tunnel User')}</span></label>
             {sshTunnel && <div className="grid grid-cols-2 gap-2"><input className={ic} placeholder="Username" value={sshUser} onChange={e=>setSshUser(e.target.value)}/><input type="password" className={ic} placeholder="Password" value={sshPass} onChange={e=>setSshPass(e.target.value)}/></div>}
+            {sshTunnel && (
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <label className="block text-gray-400 text-[10px] font-bold uppercase">{t('dnsTunnel.sshTransport','SSH transport')}</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'plain', label: 'Plain SSH' },
+                    { id: 'tls', label: 'SSH-over-TLS (SNI)' },
+                    { id: 'ws', label: 'SSH-over-WS' },
+                    { id: 'http', label: 'SSH-over-HTTP-CONNECT' },
+                    { id: 'payload', label: 'Payload Injection' },
+                  ].map(p => (
+                    <button key={p.id} onClick={()=>setSshTransport(p.id)}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition ${sshTransport===p.id?'bg-cyan-500/25 border-cyan-500/50 text-cyan-200':'bg-black/40 border-gray-700 text-gray-400 hover:text-white'}`}>{p.label}</button>
+                  ))}
+                </div>
+                {sshTransport === 'tls' && (
+                  <input className={ic} value={sshTlsSni} onChange={e=>setSshTlsSni(e.target.value)} placeholder="SNI host (e.g. www.cloudflare.com)"/>
+                )}
+                {sshTransport === 'ws' && (
+                  <div className="grid grid-cols-3 gap-2">
+                    <input className={ic} value={sshWsPath} onChange={e=>setSshWsPath(e.target.value)} placeholder="Path (/ssh)"/>
+                    <input className={ic} value={sshWsHost} onChange={e=>setSshWsHost(e.target.value)} placeholder="Host header"/>
+                    <label className="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" checked={sshWsTls} onChange={e=>setSshWsTls(e.target.checked)} className="accent-cyan-500"/>wss (TLS)</label>
+                  </div>
+                )}
+                {sshTransport === 'http' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input className={ic} value={sshHttpProxyHost} onChange={e=>setSshHttpProxyHost(e.target.value)} placeholder="Upstream proxy host"/>
+                    <input type="number" className={ic} value={sshHttpProxyPort} onChange={e=>setSshHttpProxyPort(+e.target.value)} placeholder="Port"/>
+                  </div>
+                )}
+                {sshTransport === 'payload' && (
+                  <div>
+                    <textarea rows={3} className={`${ic} font-mono text-xs`} value={sshPayload} onChange={e=>setSshPayload(e.target.value)} placeholder="CONNECT [host]:[port] HTTP/1.1[crlf]Host: [host][crlf][crlf]"/>
+                    <p className="text-[10px] text-gray-500 mt-1">{t('dnsTunnel.payloadHint','Use placeholders [host] [port] [crlf] [lf]. Sent before SSH banner exchange.')}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="p-3 rounded-lg bg-black/40 border border-gray-800">
             <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked={addXray} onChange={e=>setAddXray(e.target.checked)} className="accent-violet-500"/><span className="text-sm text-white font-bold">{t('dnsTunnel.addXray','Add Xray Backend (VLESS/VMess/SS/Trojan)')}</span></label>

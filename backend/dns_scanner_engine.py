@@ -368,8 +368,79 @@ def stop_scan(scan_id: str) -> Dict:
     state.cancelled = True
     return {"success": True}
 
-def quick_test_resolver(resolver_ip: str, domain: str = "example.com") -> Dict:
-    return _test_resolver(resolver_ip, domain, timeout_ms=5000, rounds=5)
+def quick_test_resolver(resolver_ip: str, domain: str = "example.com", protocol: str = "udp", utls_fingerprint: Optional[str] = None) -> Dict:
+    # utls_fingerprint is metadata only — dnspython doesn't perform JA3/uTLS forging.
+    # We pass it through so the result records the requested fingerprint hint for
+    # downstream tunnel clients (slipnet://, dnstt) and so the UI can display it.
+    out = _test_resolver(resolver_ip, domain, timeout_ms=5000, rounds=5, protocol=protocol)
+    if utls_fingerprint:
+        out["utls_fingerprint"] = utls_fingerprint
+    out["protocol"] = protocol
+    return out
+
+
+def e2e_test_resolver(resolver_ip: str, domain: str, target_url: str = "https://www.cloudflare.com/cdn-cgi/trace", timeout_ms: int = 8000, protocol: str = "udp") -> Dict:
+    """E2E test: resolve target via the resolver, then HTTP GET to one of its IPs.
+
+    Validates that the resolver is not poisoning A records for tunnel-relevant
+    hosts AND that an actual end-to-end fetch succeeds through that resolver's
+    answer. Returns combined timing.
+    """
+    from urllib.parse import urlparse
+    out = {
+        "resolver": resolver_ip, "target_url": target_url, "protocol": protocol,
+        "dns_ok": False, "http_ok": False, "resolved_ips": [],
+        "dns_latency_ms": None, "http_latency_ms": None, "http_status": None,
+        "total_latency_ms": None, "error": None, "poisoned": False,
+    }
+    timeout_sec = timeout_ms / 1000.0
+    parsed = urlparse(target_url)
+    host = parsed.hostname or domain or "www.cloudflare.com"
+
+    # 1) DNS resolve
+    try:
+        qname = dns.name.from_text(host)
+        request = dns.message.make_query(qname, dns.rdatatype.A)
+        t0 = time.time()
+        resp = _exec_query(request, resolver_ip, timeout_sec, protocol, None)
+        out["dns_latency_ms"] = round((time.time() - t0) * 1000, 1)
+        ips = []
+        for ans in resp.answer or []:
+            for item in ans.items:
+                txt = item.to_text()
+                if txt.count(".") == 3 and all(p.isdigit() for p in txt.split(".")):
+                    ips.append(txt)
+        out["resolved_ips"] = ips
+        out["dns_ok"] = len(ips) > 0
+        # Heuristic poison check — known sinkhole / RFC1918 ranges
+        for ip in ips:
+            if ip.startswith("10.") or ip.startswith("127.") or ip.startswith("0.") or ip.startswith("192.168."):
+                out["poisoned"] = True
+    except Exception as e:
+        out["error"] = f"dns: {e}"
+        return out
+
+    if not out["dns_ok"] or out["poisoned"]:
+        out["error"] = out["error"] or ("poisoned answers" if out["poisoned"] else "no A records")
+        return out
+
+    # 2) HTTP fetch (force connect to first resolved IP, with Host header)
+    try:
+        import httpx
+        ip = out["resolved_ips"][0]
+        url = target_url.replace(host, ip, 1)
+        t0 = time.time()
+        with httpx.Client(verify=False, timeout=timeout_sec, headers={"Host": host}) as c:
+            r = c.get(url)
+        out["http_latency_ms"] = round((time.time() - t0) * 1000, 1)
+        out["http_status"] = r.status_code
+        out["http_ok"] = 200 <= r.status_code < 400
+    except Exception as e:
+        out["error"] = f"http: {e}"
+        return out
+
+    out["total_latency_ms"] = round((out["dns_latency_ms"] or 0) + (out["http_latency_ms"] or 0), 1)
+    return out
 
 def get_scan_history() -> List[Dict]:
     try:

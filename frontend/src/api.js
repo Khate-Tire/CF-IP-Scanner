@@ -397,11 +397,26 @@ export const dnsStopScan = async (scanId) => {
     return res.json();
 };
 
-export const dnsQuickTest = async (resolver, domain) => {
+export const dnsQuickTest = async (resolver, domain, opts = {}) => {
     const res = await fetch(`${API_URL}/api/dns-scan/quick-test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resolver, domain })
+        body: JSON.stringify({ resolver, domain, protocol: opts.protocol || 'udp', utls_fingerprint: opts.utls_fingerprint || null })
+    });
+    return res.json();
+};
+
+export const dnsE2ETest = async (resolver, opts = {}) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/e2e-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            resolver,
+            domain: opts.domain || 'www.cloudflare.com',
+            target_url: opts.target_url || 'https://www.cloudflare.com/cdn-cgi/trace',
+            timeout_ms: opts.timeout_ms || 8000,
+            protocol: opts.protocol || 'udp',
+        })
     });
     return res.json();
 };

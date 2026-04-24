@@ -743,7 +743,13 @@
     "quickTest": "快速测试单个解析器",
     "history": "History",
     "scanHistory": "Scan History",
-    "labTab": "Config Lab"
+    "labTab": "Config Lab",
+    "invalidDomain": "Invalid domain name",
+    "backupDomains": "Backup domains (auto-failover)",
+    "add": "Add",
+    "backupDomainsHint": "If the primary domain is blocked or its NS delegation is filtered, clients will rotate to these.",
+    "sshTransport": "SSH transport",
+    "payloadHint": "Use placeholders [host] [port] [crlf] [lf]. Sent before SSH banner exchange."
   },
   "configLab": {
     "invalidIp": "Invalid IPv4 address",
@@ -811,6 +817,14 @@
     "vaydnsHint": "0 = unlimited. These knobs are saved with the slipnet:// export and forwarded to compatible servers.",
     "exportSlipnet": "Export as slipnet:// (copy)",
     "hijack": "Hijack",
-    "hijackTip": "NXDOMAIN hijacking detected — ISP redirects bad lookups (unsafe for tunneling)"
+    "hijackTip": "NXDOMAIN hijacking detected — ISP redirects bad lookups (unsafe for tunneling)",
+    "dnsTransport": "DNS transport",
+    "utlsFingerprint": "uTLS fingerprint (DoT/DoH only)",
+    "utlsHint": "Saved with the slipnet:// export. Forwarded to compatible tunnel clients.",
+    "e2eMode": "E2E mode",
+    "e2eModeHint": "Resolve a target host through each DNS, then HTTP-fetch one of the IPs to validate full path",
+    "e2eTarget": "Target URL",
+    "via": "via",
+    "proto": "Proto"
   }
 }
