@@ -794,15 +794,34 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 if out.strip():
                     pubkeys[key_type] = out.strip()
 
-            # Get share URLs (only meaningful for socks-backend tunnels;
-            # ssh-backend tunnels are exposed via SSH-over-DNS, see ssh_endpoints below)
+            # Get share URLs.
+            #   - SOCKS tunnels: dnstm tunnel share -t <tag>
+            #   - SSH  tunnels: dnstm tunnel share -t <tag> --user <u> --password <p>
+            #     (the SSH share URL needs creds because it embeds the connection block)
             share_urls = {}
-            for tag, _, backend, subdomain in tunnel_configs:
-                if backend != "socks":
+            for tag, _, backend, _ in tunnel_configs:
+                if backend == "ssh":
+                    if not (ssh_tunnel_user and ssh_user and ssh_pass):
+                        continue  # no creds -> dnstm won't emit a usable URL
+                    cmd = (
+                        f"dnstm tunnel share -t {tag} "
+                        f"--user '{ssh_user}' --password '{ssh_pass}' 2>/dev/null"
+                    )
+                else:
+                    cmd = f"dnstm tunnel share -t {tag} 2>/dev/null"
+                try:
+                    out, _, code = _exec(cmd, 10)
+                except TimeoutError:
                     continue
-                out, _, code = _exec(f"dnstm tunnel share -t {tag} 2>/dev/null", 10)
                 if code == 0 and out.strip():
-                    share_urls[tag] = out.strip()
+                    # share output sometimes includes a header line; pick the dnst:// line
+                    for line in out.splitlines():
+                        line = line.strip()
+                        if line.startswith("dnst://"):
+                            share_urls[tag] = line
+                            break
+                    else:
+                        share_urls[tag] = out.strip()
 
             # Parse `dnstm tunnel list` to extract per-tunnel ports so we can
             # surface SSH connection details for the *-ssh tunnels.
@@ -843,6 +862,56 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                         ),
                     }
 
+            # Build a SlipNet-friendly manual config block per tunnel by decoding
+            # the dnst:// share URL (base64url JSON payload). SlipNet doesn't
+            # accept dnst:// directly, so we surface the same fields ready to
+            # paste into its 'New Profile' form.
+            import base64 as _b64, json as _json
+            def _decode_dnst(url: str) -> Dict:
+                try:
+                    payload = url.split("dnst://", 1)[1].split("#", 1)[0]
+                    pad = "=" * (-len(payload) % 4)
+                    raw = _b64.urlsafe_b64decode((payload + pad).encode("ascii"))
+                    return _json.loads(raw.decode("utf-8", errors="ignore"))
+                except Exception:
+                    return {}
+
+            manual_configs: Dict[str, Dict] = {}
+            for tag, transport, backend, subdomain in tunnel_configs:
+                url = share_urls.get(tag, "")
+                decoded = _decode_dnst(url) if url else {}
+                tr = (decoded.get("transport") or {})
+                mc = {
+                    "slipnet_tunnel_type": {
+                        ("slipstream", "socks"): "Slipstream",
+                        ("slipstream", "ssh"):   "Slipstream + SSH",
+                        ("dnstt", "socks"):      "DNSTT",
+                        ("dnstt", "ssh"):        "DNSTT + SSH",
+                        ("vaydns", "socks"):     "VayDNS",
+                        ("vaydns", "ssh"):       "VayDNS + SSH",
+                    }.get((transport, backend), transport),
+                    "transport": transport,
+                    "backend": backend,
+                    "domain": tr.get("domain") or subdomain,
+                    "server_host": host_ip,
+                    "server_port": tunnel_ports.get(tag),
+                }
+                if tr.get("pubkey"):                 # dnstt / vaydns
+                    mc["pubkey_hex"] = tr["pubkey"]
+                if tr.get("cert"):                   # slipstream PEM cert
+                    mc["tls_cert_pem"] = tr["cert"]
+                # VayDNS specifics
+                for k in ("clientid_size", "idle_timeout", "keepalive",
+                          "record_type", "dnstt_compat", "mtu"):
+                    if k in tr:
+                        mc[f"vaydns_{k}" if transport == "vaydns" else k] = tr[k]
+                if backend == "ssh" and ssh_tunnel_user and ssh_user:
+                    mc["ssh_host"] = host_ip
+                    mc["ssh_port"] = tunnel_ports.get(tag)
+                    mc["ssh_user"] = ssh_user
+                    mc["ssh_pass"] = ssh_pass
+                manual_configs[tag] = mc
+
             # Build config output
             configs = {
                 "domain": domain,
@@ -852,6 +921,7 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 "pubkeys": pubkeys,
                 "share_urls": share_urls,
                 "ssh_endpoints": ssh_endpoints,
+                "manual_configs": manual_configs,
                 "socks_auth": {"enabled": socks_auth, "user": socks_user} if socks_auth else {"enabled": False},
                 "ssh_tunnel": {"enabled": ssh_tunnel_user, "user": ssh_user} if ssh_tunnel_user else {"enabled": False},
                 "client_links": {
