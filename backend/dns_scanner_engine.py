@@ -19,6 +19,15 @@ except ImportError:
 def _dns_unavailable_error() -> str:
     return "dnspython is not installed in backend environment. Install backend/requirements.txt and restart backend."
 
+
+def get_dependency_status() -> dict:
+    """Health probe for DNS scanner dependencies."""
+    return {
+        "ok": dns is not None,
+        "missing": [] if dns is not None else ["dnspython"],
+        "have": {"dnspython": dns is not None},
+    }
+
 # ─── Built-in Resolver Database (200+) ────────────────────────────────────────
 
 BUILTIN_RESOLVERS = {

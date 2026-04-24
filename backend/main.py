@@ -2593,6 +2593,29 @@ class DnsBestConfigRequest(BaseModel):
 
 # --- Tunnel Deployment ---
 
+@app.get('/api/tunnel/health')
+async def tunnel_health():
+    """Report DNS Tunnel backend dependency status (paramiko/dnspython/requests).
+
+    Frontend uses this to show a clear banner if a Python dep is missing,
+    instead of the user seeing cryptic 404/500 errors per click.
+    """
+    try:
+        deps = tunnel_deployer.get_dependency_status()
+    except Exception as e:
+        deps = {"ok": False, "missing": [f"tunnel_deployer ({e.__class__.__name__})"], "have": {}}
+    try:
+        scan_deps = dns_scanner_engine.get_dependency_status() if hasattr(dns_scanner_engine, 'get_dependency_status') else {"ok": True}
+    except Exception as e:
+        scan_deps = {"ok": False, "missing": [f"dns_scanner_engine ({e.__class__.__name__})"]}
+    return {
+        "ok": bool(deps.get("ok")) and bool(scan_deps.get("ok", True)),
+        "deployer": deps,
+        "scanner": scan_deps,
+        "hint": "If 'ok' is false, run: pip install -r backend/requirements.txt and rebuild the bundled backend."
+    }
+
+
 @app.post('/api/tunnel/connect')
 async def tunnel_connect(req: TunnelConnectRequest):
     """Test SSH connection to the target server."""

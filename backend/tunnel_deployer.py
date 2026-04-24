@@ -11,11 +11,65 @@ import json
 import time
 import threading
 import traceback
-import paramiko
-import dns.resolver
-import dns.rdatatype
-import requests
 from typing import Optional, Dict, List, Any
+
+# Defensive optional imports — DNS Tunnel must not crash the whole backend
+# if a single dependency is missing. Each function checks these flags and
+# returns a clear, user-facing error instead of a 500.
+_MISSING: List[str] = []
+try:
+    import paramiko
+except Exception as _e:  # pragma: no cover
+    paramiko = None  # type: ignore
+    _MISSING.append(f"paramiko ({_e.__class__.__name__})")
+try:
+    import dns.resolver  # type: ignore
+    import dns.rdatatype  # type: ignore
+    _HAS_DNS = True
+except Exception as _e:  # pragma: no cover
+    _HAS_DNS = False
+    _MISSING.append(f"dnspython ({_e.__class__.__name__})")
+try:
+    import requests
+except Exception as _e:  # pragma: no cover
+    requests = None  # type: ignore
+    _MISSING.append(f"requests ({_e.__class__.__name__})")
+
+
+def _require(*deps: str) -> Optional[Dict]:
+    """Return an error payload if any required dep is missing, else None."""
+    missing = []
+    if "paramiko" in deps and paramiko is None:
+        missing.append("paramiko")
+    if "dns" in deps and not _HAS_DNS:
+        missing.append("dnspython")
+    if "requests" in deps and requests is None:
+        missing.append("requests")
+    if missing:
+        return {
+            "success": False,
+            "error": "missing_dependency",
+            "missing": missing,
+            "message": (
+                "Backend is missing required Python packages: "
+                + ", ".join(missing)
+                + ". Install with:  pip install -r backend/requirements.txt"
+            ),
+        }
+    return None
+
+
+def get_dependency_status() -> Dict:
+    """Health probe used by /api/tunnel/health."""
+    return {
+        "ok": not _MISSING,
+        "missing": list(_MISSING),
+        "have": {
+            "paramiko": paramiko is not None,
+            "dnspython": _HAS_DNS,
+            "requests": requests is not None,
+        },
+    }
 
 # ─── Deployment State Machine ──────────────────────────────────────────────────
 
@@ -59,7 +113,7 @@ class DeploymentState:
 
 # Global deployment state
 _deploy_state = DeploymentState()
-_ssh_client: Optional[paramiko.SSHClient] = None
+_ssh_client = None  # Optional[paramiko.SSHClient] when paramiko is available
 _ssh_lock = threading.Lock()
 
 
@@ -71,6 +125,9 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
     Establish SSH connection to the target server.
     Returns: {"success": bool, "message": str, "server_info": dict}
     """
+    err = _require("paramiko")
+    if err:
+        return err
     global _ssh_client
     try:
         with _ssh_lock:
@@ -173,6 +230,9 @@ def run_preflight() -> Dict:
     Run pre-flight checks on the connected server.
     Returns: {"success": bool, "checks": dict}
     """
+    err = _require("paramiko")
+    if err:
+        return err
     checks = {}
 
     # 1. Root check
@@ -240,6 +300,9 @@ def verify_dns_records(domain: str, server_ip: str = None) -> Dict:
     Verify that all required DNS records are properly configured.
     Checks: 1 A record (ns.domain) + 8 NS records (t/d/n/v/s/ds/z/vz).
     """
+    err = _require("dns")
+    if err:
+        return err
     if not server_ip:
         try:
             out, _, _ = _exec("curl -4 -s --max-time 5 https://api.ipify.org", 10)
@@ -303,7 +366,14 @@ def verify_dns_records(domain: str, server_ip: str = None) -> Dict:
 
 # ─── Cloudflare API DNS Management ────────────────────────────────────────────
 
-def cloudflare_create_dns_records(api_token: str, domain: str, server_ip: str) -> Dict:
+def cloudflare_create_dns_records(api_token: str, domain: str, server_ip: str) -> Dict:  # noqa: D401
+    err = _require("requests")
+    if err:
+        return err
+    return _cloudflare_create_dns_records_impl(api_token, domain, server_ip)
+
+
+def _cloudflare_create_dns_records_impl(api_token: str, domain: str, server_ip: str) -> Dict:
     """
     Auto-create all 9 DNS records (1 A + 8 NS) in Cloudflare via API.
     Requires a Cloudflare API token with DNS edit permissions.
@@ -379,7 +449,15 @@ def cloudflare_create_dns_records(api_token: str, domain: str, server_ip: str) -
 
 # ─── Deployment Engine ─────────────────────────────────────────────────────────
 
-def start_deployment(domain: str, mtu: int = 1232,
+def start_deployment(domain: str, mtu: int = 1232,  # noqa: D401
+                     *args, **kwargs) -> Dict:
+    err = _require("paramiko")
+    if err:
+        return err
+    return _start_deployment_impl(domain, mtu, *args, **kwargs)
+
+
+def _start_deployment_impl(domain: str, mtu: int = 1232,
                      socks_auth: bool = False, socks_user: str = "proxy", socks_pass: str = "",
                      ssh_tunnel_user: bool = False, ssh_user: str = "tunnel", ssh_pass: str = "",
                      add_xray: bool = False, xray_protocol: str = "vless") -> Dict:

@@ -374,6 +374,16 @@ export const tunnelGetConfigs = async () => {
     return res.json();
 };
 
+export const tunnelHealth = async () => {
+    try {
+        const res = await fetch(`${API_URL}/api/tunnel/health`);
+        if (!res.ok) return { ok: false, missing: [`HTTP ${res.status}`], reason: 'endpoint_unavailable' };
+        return await res.json();
+    } catch (e) {
+        return { ok: false, missing: ['backend unreachable'], reason: 'network', error: String(e?.message || e) };
+    }
+};
+
 // ==========================================
 // DNS RESOLVER SCANNER API
 // ==========================================

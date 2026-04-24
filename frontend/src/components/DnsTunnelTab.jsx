@@ -1,14 +1,27 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import DeployWizard from './DeployWizard';
 import DnsOptimizer from './DnsOptimizer';
 import ConfigLab from './ConfigLab';
 import { sendToConfigLab, sendToDeployWizard } from '../state/optimizerBridge';
+import { tunnelHealth } from '../api';
 
 export default function DnsTunnelTab({ onSendToAdvanced }) {
     const { t } = useTranslation();
     const [subTab, setSubTab] = useState('deploy');
+    const [health, setHealth] = useState(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        const check = async () => {
+            const h = await tunnelHealth();
+            if (!cancelled) setHealth(h);
+        };
+        check();
+        const id = setInterval(check, 30000);
+        return () => { cancelled = true; clearInterval(id); };
+    }, []);
 
     const goToConfigLab = useCallback((payload) => {
         if (payload) sendToConfigLab(payload);
@@ -24,6 +37,25 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+            {health && health.ok === false && (
+                <div className="bg-red-500/10 border border-red-500/40 text-red-200 rounded-2xl p-4 flex items-start gap-3">
+                    <svg className="w-6 h-6 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z"/>
+                    </svg>
+                    <div className="flex-1 text-sm">
+                        <div className="font-bold mb-1">{t('dnsTunnel.healthFail', 'DNS Tunnel backend is degraded')}</div>
+                        <div className="opacity-80">
+                            {t('dnsTunnel.missingDeps', 'Missing Python packages')}:{' '}
+                            <span className="font-mono text-red-300">
+                                {[...(health.deployer?.missing || []), ...(health.scanner?.missing || [])].join(', ') || (health.missing || []).join(', ') || 'unknown'}
+                            </span>
+                        </div>
+                        <div className="opacity-70 mt-1 text-xs">
+                            {health.hint || t('dnsTunnel.fixHint', 'Run: pip install -r backend/requirements.txt and restart the backend.')}
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Sub-tab Navigation */}
             <div className="flex justify-center">
                 <div className="bg-white/[0.03] backdrop-blur-xl border border-white/[0.08] rounded-2xl p-1.5 flex gap-1 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
