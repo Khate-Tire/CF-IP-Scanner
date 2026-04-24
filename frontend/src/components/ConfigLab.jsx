@@ -149,6 +149,7 @@ export default function ConfigLab() {
     const detectedHost = useMemo(() => extractHostFromConfig(config), [config]);
     const protocol = useMemo(() => detectProtocol(config), [config]);
     const isSlipnetUri = useMemo(() => /^(slipnet|slipnet-enc|dnst|noiz|vay):\/\//i.test(config.trim()), [config]);
+    const isEncryptedSlipnet = useMemo(() => /^slipnet-enc:\/\//i.test(config.trim()), [config]);
     const stealthCfg = useMemo(() => {
         if (stealthPreset === 'custom') {
             return { size: parseInt(customQuerySize, 10) || 0, padding: parseInt(customPadding, 10) || 0 };
@@ -209,22 +210,37 @@ export default function ConfigLab() {
             toast.error(t('configLab.noResolvers', 'Select at least one DNS resolver'));
             return;
         }
-        const host = detectedHost || 'cloudflare.com';
+        // For slipnet:// profiles use the tunnel domain (or fall back); v2ray/xray use detectedHost.
+        const host =
+            (isSlipnetUri && (parsedSlipnet?.domain || '')) ||
+            detectedHost ||
+            'cloudflare.com';
         cancelRef.current = false;
         setRunning(true);
         setConfigResult(null);
         setDnsResults([]);
         setProgress({ done: 0, total: selectedResolvers.length + 1, label: t('configLab.testingConfig', 'Testing config…') });
 
-        // 1) Test the config itself (full speed test via backend)
-        try {
-            const r = await testConfigRemote(config.trim());
-            setConfigResult(r);
-            if (!r.success) {
-                toast.error(`${t('configLab.configFailed', 'Config test failed')}: ${r.error || r.message || 'unknown'}`);
+        // 1) Test the config itself — only meaningful for v2ray/xray-style URIs.
+        if (isSlipnetUri) {
+            setConfigResult({
+                success: true,
+                skipped: true,
+                message: t(
+                    'configLab.slipnetSkipConfigTest',
+                    'SlipNet profile detected — skipping v2ray/xray config test. Only DNS resolver tests will run.'
+                ),
+            });
+        } else {
+            try {
+                const r = await testConfigRemote(config.trim());
+                setConfigResult(r);
+                if (!r.success) {
+                    toast.error(`${t('configLab.configFailed', 'Config test failed')}: ${r.error || r.message || 'unknown'}`);
+                }
+            } catch (e) {
+                setConfigResult({ success: false, error: String(e?.message || e) });
             }
-        } catch (e) {
-            setConfigResult({ success: false, error: String(e?.message || e) });
         }
         setProgress(p => ({ ...p, done: 1, label: t('configLab.testingDns', 'Testing DNS resolvers…') }));
 
@@ -321,12 +337,42 @@ export default function ConfigLab() {
     // ── slipnet:// URI handlers ──
     const importSlipnet = () => {
         const parsed = parseSlipnetUri(config.trim());
-        if (!parsed) {
-            toast.error(t('configLab.invalidSlipnet', 'Not a valid slipnet:// URI'));
+        if (!parsed || parsed.ok === false) {
+            if (parsed && parsed.encrypted) {
+                toast.error(
+                    t(
+                        'configLab.encryptedSlipnet',
+                        'Encrypted (locked) SlipNet config — cannot decode. Re-export from the SlipNet app with "Lock config" turned OFF.'
+                    ),
+                    { duration: 9000 }
+                );
+            } else {
+                toast.error(
+                    (parsed && parsed.error) ||
+                    t('configLab.invalidSlipnet', 'Not a valid slipnet:// URI')
+                );
+            }
             return;
         }
         const norm = normalizeSlipnet(parsed);
         setParsedSlipnet(norm);
+        // Pull in additional resolvers if the profile carried a comma-separated list.
+        if (Array.isArray(parsed.resolvers)) {
+            for (const ip of parsed.resolvers) {
+                if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) continue;
+                if (!extraResolvers.includes(ip) && !PRESET_RESOLVERS.some(r => r.ip === ip)) {
+                    setExtraResolvers(prev => prev.includes(ip) ? prev : [...prev, ip]);
+                }
+                if (!selectedResolvers.includes(ip)) {
+                    setSelectedResolvers(prev => prev.includes(ip) ? prev : [...prev, ip]);
+                }
+            }
+        }
+        if (norm.dnsTransport) {
+            const tx = String(norm.dnsTransport).toLowerCase();
+            const map = { udp: 'udp', tcp: 'tcp', tls: 'tls', dot: 'tls', https: 'https', doh: 'https' };
+            if (map[tx]) setDnsTransport(map[tx]);
+        }
         // Auto-apply known fields
         if (norm.resolver && /^(\d{1,3}\.){3}\d{1,3}$/.test(norm.resolver)) {
             if (!extraResolvers.includes(norm.resolver) && !PRESET_RESOLVERS.some(r => r.ip === norm.resolver)) {
@@ -435,6 +481,20 @@ export default function ConfigLab() {
                         >
                             <Trash2 className="w-3 h-3" /> {t('configLab.clear', 'Clear')}
                         </button>
+                    </div>
+                )}
+                {isEncryptedSlipnet && (
+                    <div className="mt-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-200 space-y-1">
+                        <div className="font-bold flex items-center gap-2">
+                            <Wand2 className="w-3 h-3" />
+                            {t('configLab.encryptedSlipnetTitle', 'Encrypted (locked) SlipNet profile')}
+                        </div>
+                        <div className="text-yellow-100/90 leading-relaxed">
+                            {t(
+                                'configLab.encryptedSlipnetBody',
+                                'slipnet-enc:// configs are AES-256-GCM encrypted with a private key compiled into the official SlipNet binary. Third-party tools cannot decode them. Open SlipNet → edit profile → turn OFF "Lock config" / "Encrypted export" and re-share — you will get a regular slipnet:// URI we can read. The DNS resolver tests below will still run against your selected resolvers using cloudflare.com as the probe host.'
+                            )}
+                        </div>
                     </div>
                 )}
                 {parsedSlipnet && (

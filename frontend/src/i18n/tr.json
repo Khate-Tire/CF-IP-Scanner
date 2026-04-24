@@ -825,6 +825,8 @@
     "e2eModeHint": "Resolve a target host through each DNS, then HTTP-fetch one of the IPs to validate full path",
     "e2eTarget": "Target URL",
     "via": "via",
-    "proto": "Proto"
+    "proto": "Proto",
+    "slipnetSkipConfigTest": "SlipNet profile detected — skipping v2ray/xray config test. Only DNS resolver tests will run.",
+    "encryptedSlipnetTitle": "Encrypted (locked) SlipNet profile"
   }
 }
