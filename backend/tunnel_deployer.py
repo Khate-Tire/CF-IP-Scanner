@@ -2,7 +2,7 @@
 """
 DNS Tunnel Deployer — SSH-based server deployment for dnstm-setup.
 Handles connection, pre-flight checks, DNS verification, deployment,
-and config generation for Slipstream/DNSTT/NoizDNS/VayDNS tunnels.
+and config generation for Slipstream/DNSTT/VayDNS tunnels.
 """
 
 import io
@@ -707,16 +707,18 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                         state.log("  ⏱ multi-mode switch timed out", "warn")
 
             # Phase 4: Create tunnels
+            #
+            # dnstm only supports three transports: slipstream, dnstt, vaydns.
+            # (Earlier versions of this code also tried 'noizdns' which the CLI
+            # rejects with: "invalid transport type: noizdns".)
             state.update(phase="Creating tunnels...", progress=40)
             tunnel_configs = [
-                ("slip1", "slipstream", "socks", f"t.{domain}"),
-                ("dnstt1", "dnstt", "socks", f"d.{domain}"),
-                ("noiz1", "noizdns", "socks", f"n.{domain}"),
-                ("vay1", "vaydns", "socks", f"v.{domain}"),
-                ("slip-ssh", "slipstream", "ssh", f"s.{domain}"),
-                ("dnstt-ssh", "dnstt", "ssh", f"ds.{domain}"),
-                ("noiz-ssh", "noizdns", "ssh", f"z.{domain}"),
-                ("vay-ssh", "vaydns", "ssh", f"vz.{domain}"),
+                ("slip1",    "slipstream", "socks", f"t.{domain}"),
+                ("dnstt1",   "dnstt",      "socks", f"d.{domain}"),
+                ("vay1",     "vaydns",     "socks", f"v.{domain}"),
+                ("slip-ssh", "slipstream", "ssh",   f"s.{domain}"),
+                ("dnstt-ssh","dnstt",      "ssh",   f"ds.{domain}"),
+                ("vay-ssh",  "vaydns",     "ssh",   f"vz.{domain}"),
             ]
 
             for i, (tag, transport, backend, subdomain) in enumerate(tunnel_configs):
@@ -785,7 +787,7 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
 
             # Extract public keys
             pubkeys = {}
-            for key_type in ["dnstt", "noizdns", "vaydns"]:
+            for key_type in ["dnstt", "vaydns"]:
                 out, _, _ = _exec(f"cat /etc/dnstm/keys/{key_type}/server.pub 2>/dev/null || echo ''", 5)
                 if out.strip():
                     pubkeys[key_type] = out.strip()
