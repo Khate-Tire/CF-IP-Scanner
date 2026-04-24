@@ -572,103 +572,139 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 state.log("✓ Port 53 is available", "success")
 
             # Phase 3: Install dnstm
-            state.update(phase="Installing dnstm...", progress=20)
-            state.log("Running dnstm install --mode multi...")
+            #
+            # We deliberately bypass the upstream wrapper installers
+            # (install.sh / dnstm-setup.sh). Both read from /dev/tty for
+            # confirmation prompts, which fails over a non-PTY SSH exec
+            # channel with:
+            #   "install.sh: line 104: /dev/tty: No such device or address"
+            #
+            # Instead we mirror what SamNet/dnstm-setup's `step_install_dnstm`
+            # actually does internally:
+            #   1. detect arch  (uname -m -> amd64/arm64/armv7)
+            #   2. curl the release binary directly to /usr/local/bin/dnstm
+            #   3. chmod +x
+            #   4. run `dnstm install --mode multi --force`
+            #      (Go binary, does NOT touch /dev/tty)
+            #   5. verify with `dnstm --version` and `which dnstm`
+            state.update(phase="Installing dnstm...", progress=18)
             try:
                 _, _, dnstm_code = _exec("which dnstm", 5)
             except TimeoutError:
                 dnstm_code = 1
-            if dnstm_code != 0:
-                # NOTE: upstream installers (install.sh / dnstm-setup.sh) read from
-                # /dev/tty for confirmation prompts. Without a PTY this fails with:
-                #   "/tmp/dnstm-install.sh: line 104: /dev/tty: No such device or address"
-                # We work around it by:
-                #   (a) wrapping with `script -qec '...' /dev/null` to allocate a pty
-                #       (util-linux `script` ships on every supported distro), and
-                #   (b) piping `yes ''` so any read accepts the default.
-                # If `script` is missing we fall back to a `setsid` + here-doc form.
-                install_ok = False
 
-                # Installer #1: net2share/dnstm install.sh in --mode multi
-                inst1 = (
-                    "if command -v script >/dev/null 2>&1; then "
-                    "  yes '' 2>/dev/null | script -qec "
-                    "    \"bash /tmp/dnstm-install.sh install --mode multi\" /dev/null; "
-                    "else "
-                    "  yes '' 2>/dev/null | setsid bash /tmp/dnstm-install.sh install --mode multi; "
-                    "fi"
+            if dnstm_code != 0:
+                # 3a. Detect architecture
+                state.log("Detecting server architecture...")
+                try:
+                    arch_raw, _, _ = _exec("uname -m", 5)
+                except TimeoutError:
+                    arch_raw = ""
+                arch_map = {
+                    "x86_64": "amd64", "amd64": "amd64",
+                    "aarch64": "arm64", "arm64": "arm64",
+                    "armv7l": "armv7", "armv6l": "armv7",
+                }
+                arch = arch_map.get(arch_raw.strip(), "amd64")
+                state.log(f"  Architecture: {arch_raw or '?'} -> dnstm-linux-{arch}")
+
+                # 3b. Ensure curl exists (most distros have it)
+                try:
+                    _, _, has_curl = _exec("command -v curl", 5)
+                except TimeoutError:
+                    has_curl = 1
+                if has_curl != 0:
+                    state.log("Installing curl...")
+                    try:
+                        _exec("apt-get update -qq && apt-get install -y -qq curl", 120)
+                    except TimeoutError:
+                        state.log("  ⏱ apt-get install curl timed out", "warn")
+
+                # 3c. Download binary directly from GitHub releases
+                bin_url = (
+                    f"https://github.com/net2share/dnstm/releases/latest/"
+                    f"download/dnstm-linux-{arch}"
                 )
+                state.update(phase="Downloading dnstm binary...", progress=22)
+                state.log(f"Downloading {bin_url}...")
                 try:
                     out, err, code = _exec(
-                        "curl -fsSL --max-time 60 --connect-timeout 8 "
-                        "https://raw.githubusercontent.com/net2share/dnstm/master/install.sh "
-                        "-o /tmp/dnstm-install.sh && chmod +x /tmp/dnstm-install.sh && " + inst1 + " 2>&1 | tail -80",
-                        timeout=300
+                        f"curl -fsSL --max-time 120 --connect-timeout 10 -o /usr/local/bin/dnstm '{bin_url}' "
+                        f"&& chmod +x /usr/local/bin/dnstm "
+                        f"&& test -s /usr/local/bin/dnstm && echo OK",
+                        timeout=180,
                     )
-                    state.log((out or err or '')[-800:] or f"installer #1 exit={code}")
-                    if code == 0:
-                        install_ok = True
                 except TimeoutError as te:
-                    state.log(f"installer #1 timed out: {te}", "warn")
-
-                # Verify dnstm landed on PATH
-                if install_ok:
-                    try:
-                        _, _, c2 = _exec("which dnstm", 5)
-                        install_ok = (c2 == 0)
-                    except TimeoutError:
-                        install_ok = False
-
-                # Fallback installer #2: bundled dnstm-setup.sh under a pty
-                if not install_ok:
-                    state.log("Installer #1 did not place dnstm on PATH — trying dnstm-setup.sh fallback...", "warn")
-                    inst2 = (
-                        "chmod +x /tmp/dnstm-setup.sh && "
-                        "if command -v script >/dev/null 2>&1; then "
-                        "  yes '' 2>/dev/null | script -qec "
-                        "    \"DEBIAN_FRONTEND=noninteractive bash /tmp/dnstm-setup.sh\" /dev/null; "
-                        "else "
-                        "  yes '' 2>/dev/null | setsid bash /tmp/dnstm-setup.sh; "
-                        "fi"
-                    )
-                    try:
-                        out, err, code = _exec(inst2 + " 2>&1 | tail -80", timeout=360)
-                        state.log((out or err or '')[-800:] or f"installer #2 exit={code}")
-                    except TimeoutError as te:
-                        state.log(f"installer #2 timed out: {te}", "warn")
-
-                # Final verification — DO NOT proceed if dnstm is still missing.
-                try:
-                    out, _, c3 = _exec(
-                        "which dnstm 2>/dev/null || command -v dnstm 2>/dev/null || "
-                        "ls /usr/local/bin/dnstm 2>/dev/null || ls /usr/bin/dnstm 2>/dev/null || "
-                        "ls /root/go/bin/dnstm 2>/dev/null",
-                        5,
-                    )
-                except TimeoutError:
-                    out, c3 = "", 1
-                if c3 != 0 or not out:
+                    state.update(status="failed", error=f"dnstm binary download timed out: {te}")
+                    return
+                if code != 0 or "OK" not in out:
                     state.update(
                         status="failed",
                         error=(
-                            "dnstm install completed but the `dnstm` binary is not on PATH. "
-                            "Common cause: the upstream installer needs an interactive prompt "
-                            "or a missing prerequisite (curl/Go/apt). SSH into the VPS and run: "
-                            "  bash /tmp/dnstm-setup.sh   "
-                            "— answer the prompts manually, then click Deploy again."
+                            f"Failed to download dnstm binary for {arch}. "
+                            f"URL: {bin_url}\n"
+                            f"curl: {(err or out)[-300:]}\n"
+                            f"Verify the VPS can reach github.com (try: curl -I https://github.com)."
                         ),
                     )
                     return
-                # If found via ls fallback, ensure it's symlinked into PATH
-                bin_path = out.splitlines()[0].strip()
-                if bin_path and bin_path != "/usr/local/bin/dnstm":
-                    try:
-                        _exec(f"ln -sf {bin_path} /usr/local/bin/dnstm", 5)
-                    except TimeoutError:
-                        pass
-                state.log(f"✓ dnstm installed at {bin_path}", "success")
+                state.log(f"✓ Downloaded dnstm binary for {arch}", "success")
+
+                # 3d. Run `dnstm install --mode multi --force` (the Go CLI itself,
+                # NOT the wrapper script — does not need a PTY).
+                state.update(phase="Running dnstm install --mode multi...", progress=28)
+                state.log("Running: dnstm install --mode multi --force")
+                # Save iptables before install (dnstm install resets firewall rules).
+                try: _exec("iptables-save > /tmp/iptables-pre-dnstm 2>/dev/null || true", 10)
+                except TimeoutError: pass
+                try:
+                    out, err, code = _exec(
+                        "dnstm install --mode multi --force 2>&1 | tail -80",
+                        timeout=240,
+                    )
+                except TimeoutError as te:
+                    state.update(status="failed", error=f"`dnstm install` timed out: {te}")
+                    return
+                state.log((out or err or '')[-800:] or f"dnstm install exit={code}")
+                # Restore iptables
+                try: _exec("test -s /tmp/iptables-pre-dnstm && iptables-restore < /tmp/iptables-pre-dnstm 2>/dev/null; rm -f /tmp/iptables-pre-dnstm", 10)
+                except TimeoutError: pass
+
+                # 3e. Verify
+                try:
+                    ver, _, vc = _exec("dnstm --version 2>&1", 10)
+                except TimeoutError:
+                    ver, vc = "", 1
+                if vc != 0:
+                    state.update(
+                        status="failed",
+                        error=(
+                            "dnstm binary downloaded but `dnstm --version` failed. "
+                            f"Output: {ver[:300]}. The binary may be incompatible with this "
+                            "system (wrong arch or missing GLIBC). SSH in and run "
+                            "`dnstm --version` manually for details."
+                        ),
+                    )
+                    return
+                state.log(f"✓ dnstm installed: {ver.splitlines()[0] if ver else 'ok'}", "success")
             else:
-                state.log("✓ dnstm already installed", "success")
+                try:
+                    ver, _, _ = _exec("dnstm --version 2>&1", 5)
+                except TimeoutError:
+                    ver = "unknown"
+                state.log(f"✓ dnstm already installed ({ver.splitlines()[0] if ver else 'ok'})", "success")
+
+                # Ensure router is in multi mode even when reusing existing install
+                try:
+                    mode_out, _, _ = _exec("dnstm router mode 2>&1", 10)
+                except TimeoutError:
+                    mode_out = ""
+                if "multi" not in mode_out.lower():
+                    state.log("Switching router to multi mode...")
+                    try:
+                        _exec("dnstm install --mode multi --force 2>&1 | tail -20", 180)
+                    except TimeoutError:
+                        state.log("  ⏱ multi-mode switch timed out", "warn")
 
             # Phase 4: Create tunnels
             state.update(phase="Creating tunnels...", progress=40)
