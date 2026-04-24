@@ -831,6 +831,13 @@
     "smartReady": "Smart test enabled: Sweep ALL + E2E + imported resolvers",
     "smartGuideTitle": "One-click SlipNet test (recommended)",
     "smartGuideBody": "Use Smart Test to auto-import profile values, add fallback resolvers, enable Sweep ALL transports, run E2E checks, and rank the best resolver for real-world performance.",
-    "smartTestButton": "Auto setup + run real test"
+    "smartTestButton": "Auto setup + run real test",
+    "smartReadyAny": "Smart test enabled: Sweep ALL + baseline resolvers",
+    "quickSamples": "Quick samples",
+    "smartGuideAnyTitle": "One-click smart test",
+    "smartGuideAnyBody": "Auto-add baseline resolvers, run all transports (UDP/TCP/DoT/DoH), then rank by score and latency.",
+    "smartTestAnyButton": "Auto setup + run smart test",
+    "autoRunOnPaste": "Auto-run smart test after paste",
+    "autoRunOnPasteHint": "When enabled, a test starts automatically ~0.6s after config changes"
   }
 }

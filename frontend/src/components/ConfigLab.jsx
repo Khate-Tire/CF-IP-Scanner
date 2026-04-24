@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X, Settings2, ShieldAlert, Share2, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -95,6 +95,26 @@ const UTLS_FINGERPRINTS = [
     { id: 'random', label: 'Random' },
 ];
 
+const QUICK_SAMPLE_CONFIGS = [
+    {
+        id: 'slipnet',
+        label: 'SlipNet sample',
+        value: 'slipnet://MTd8c3NofGNvbmZpZ3JheWdhbnw5Mi4xMTMuMTUwLjk4fDguOC44Ljg6NTM6MHwwfDUwMDB8YmJyfDEwODB8MTI3LjAuMC4xfDB8fGlyYW51eHxpcmFudXh8MXxpcmFudXh8aXJhbnV4fDg0NDN8MHwxMjcuMC4wLjF8MHx8dWRwfHBhc3N3b3JkfHx8fDB8NDQzfHx8MHx8MHwwfHwwfA==',
+    },
+    {
+        id: 'vless',
+        label: 'VLESS sample',
+        value: 'vless://27741e38-11ee-4d56-97e2-e1b37b3c17ab@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#Finland-IP-66.81.247.143',
+    },
+    {
+        id: 'trojan',
+        label: 'Trojan sample',
+        value: 'trojan://319a3190-4418-4ed0-89d8-c770087383fa@23.227.38.33:443?security=tls&sni=Usa1p.aDPAYs.Ir&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=USa1p.adPAYS.IR&path=%2F1kVa5HXWchklyChrOQ707ONj0lhz#usa1p.adpays.ir%20tls%20WS%20CDN%20trojan',
+    },
+];
+
+const AUTO_RUN_KEY = 'config_lab_auto_run_v1';
+
 function Score({ value, max = 6 }) {
     const pct = Math.round((value / max) * 100);
     const cls =
@@ -145,6 +165,16 @@ export default function ConfigLab() {
     // slipnet:// share modal
     const [parsedSlipnet, setParsedSlipnet] = useState(null);
     const [shareUri, setShareUri] = useState('');
+    const [autoRunOnPaste, setAutoRunOnPaste] = useState(() => {
+        try {
+            const raw = localStorage.getItem(AUTO_RUN_KEY);
+            return raw ? raw === '1' : false;
+        } catch {
+            return false;
+        }
+    });
+    const autoRunTimerRef = useRef(null);
+    const lastAutoRunSignatureRef = useRef('');
 
     const detectedHost = useMemo(() => extractHostFromConfig(config), [config]);
     const protocol = useMemo(() => detectProtocol(config), [config]);
@@ -160,6 +190,14 @@ export default function ConfigLab() {
         }
         return 'cloudflare.com';
     }, [isSlipnetUri, parsedSlipnet, config, detectedHost]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(AUTO_RUN_KEY, autoRunOnPaste ? '1' : '0');
+        } catch {
+            // ignore storage failures
+        }
+    }, [autoRunOnPaste]);
     const stealthCfg = useMemo(() => {
         if (stealthPreset === 'custom') {
             return { size: parseInt(customQuerySize, 10) || 0, padding: parseInt(customPadding, 10) || 0 };
@@ -211,25 +249,26 @@ export default function ConfigLab() {
 
     const clearSelection = () => setSelectedResolvers([]);
 
-    const runBattery = async () => {
+    const runBatteryInternal = async ({ resolverOverride = null, hostOverride = null, skipConfigTest = false } = {}) => {
         if (!config.trim()) {
             toast.error(t('configLab.noConfig', 'Paste a config first'));
             return;
         }
-        if (selectedResolvers.length === 0) {
+        const activeResolvers = Array.isArray(resolverOverride) && resolverOverride.length ? resolverOverride : selectedResolvers;
+        if (activeResolvers.length === 0) {
             toast.error(t('configLab.noResolvers', 'Select at least one DNS resolver'));
             return;
         }
         // For slipnet:// profiles use profile domain; for others use extracted host.
-        const host = effectiveTestHost;
+        const host = hostOverride || effectiveTestHost;
         cancelRef.current = false;
         setRunning(true);
         setConfigResult(null);
         setDnsResults([]);
-        setProgress({ done: 0, total: selectedResolvers.length + 1, label: t('configLab.testingConfig', 'Testing config…') });
+        setProgress({ done: 0, total: activeResolvers.length + 1, label: t('configLab.testingConfig', 'Testing config…') });
 
         // 1) Test the config itself — only meaningful for v2ray/xray-style URIs.
-        if (isSlipnetUri) {
+        if (skipConfigTest || isSlipnetUri) {
             setConfigResult({
                 success: true,
                 skipped: true,
@@ -254,9 +293,9 @@ export default function ConfigLab() {
         // 2) Test each selected DNS resolver against the config's host
         const results = [];
         const transports = dnsTransport === 'sweep' ? ['udp', 'tcp', 'tls', 'https'] : [dnsTransport];
-        for (let i = 0; i < selectedResolvers.length; i++) {
+        for (let i = 0; i < activeResolvers.length; i++) {
             if (cancelRef.current) break;
-            const ip = selectedResolvers[i];
+            const ip = activeResolvers[i];
             const meta = allResolvers.find(r => r.ip === ip) || { name: 'Custom' };
 
             // For sweep mode: test all transports, keep the best one
@@ -313,6 +352,10 @@ export default function ConfigLab() {
         if (!cancelRef.current) {
             toast.success(t('configLab.batteryDone', 'Battery test complete'));
         }
+    };
+
+    const runBattery = async () => {
+        await runBatteryInternal();
     };
 
     const stopBattery = () => {
@@ -470,11 +513,64 @@ export default function ConfigLab() {
         setE2eMode(true);
         toast.success(t('configLab.smartReady', 'Smart test enabled: Sweep ALL + E2E + imported resolvers'));
 
-        // Let state settle before starting network tests.
-        setTimeout(() => {
-            runBattery();
-        }, 100);
+        const normalized = normalizeSlipnet(parsed);
+        const host = normalized?.domain || effectiveTestHost;
+        await runBatteryInternal({ resolverOverride: mergedResolvers, hostOverride: host, skipConfigTest: true });
     };
+
+    const runSmartAnyConfigTest = async () => {
+        if (!config.trim()) {
+            toast.error(t('configLab.noConfig', 'Paste a config first'));
+            return;
+        }
+
+        if (isSlipnetUri) {
+            await runSmartSlipnetTest();
+            return;
+        }
+
+        const baselineResolvers = ['1.1.1.1', '8.8.8.8', '9.9.9.9'];
+        const mergedResolvers = Array.from(new Set([...selectedResolvers, ...baselineResolvers]));
+        setSelectedResolvers(mergedResolvers);
+        setShowAdvanced(true);
+        setDnsTransport('sweep');
+        setE2eMode(false);
+        toast.success(t('configLab.smartReadyAny', 'Smart test enabled: Sweep ALL + baseline resolvers'));
+        await runBatteryInternal({ resolverOverride: mergedResolvers });
+    };
+
+    const fillSampleConfig = (raw) => {
+        setConfig(raw);
+        setParsedSlipnet(null);
+        setConfigResult(null);
+        setDnsResults([]);
+    };
+
+    useEffect(() => {
+        if (!autoRunOnPaste || running || !config.trim()) return;
+        const signature = `${config.trim()}::${protocol}`;
+        if (signature === lastAutoRunSignatureRef.current) return;
+
+        if (autoRunTimerRef.current) {
+            clearTimeout(autoRunTimerRef.current);
+            autoRunTimerRef.current = null;
+        }
+
+        autoRunTimerRef.current = setTimeout(async () => {
+            if (running) return;
+            lastAutoRunSignatureRef.current = signature;
+            await runSmartAnyConfigTest();
+        }, 600);
+
+        return () => {
+            if (autoRunTimerRef.current) {
+                clearTimeout(autoRunTimerRef.current);
+                autoRunTimerRef.current = null;
+            }
+        };
+        // We intentionally avoid depending on selectedResolvers to prevent loops after smart setup.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [autoRunOnPaste, config, protocol, isSlipnetUri, running]);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -504,6 +600,18 @@ export default function ConfigLab() {
                     rows={4}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white font-mono placeholder-gray-600 focus:border-indigo-500/50 focus:outline-none resize-y"
                 />
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-gray-500">{t('configLab.quickSamples', 'Quick samples')}:</span>
+                    {QUICK_SAMPLE_CONFIGS.map(s => (
+                        <button
+                            key={s.id}
+                            onClick={() => fillSampleConfig(s.value)}
+                            className="px-2.5 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 border border-cyan-500/30 font-bold"
+                        >
+                            {s.label}
+                        </button>
+                    ))}
+                </div>
                 {config.trim() && (
                     <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
@@ -561,6 +669,21 @@ export default function ConfigLab() {
                             className="px-3 py-1.5 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-100 text-xs font-bold border border-emerald-400/40 disabled:opacity-50"
                         >
                             {t('configLab.smartTestButton', 'Auto setup + run real test')}
+                        </button>
+                    </div>
+                )}
+                {!isSlipnetUri && config.trim() && (
+                    <div className="mt-3 p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs text-indigo-100 space-y-2">
+                        <div className="font-bold text-indigo-300">{t('configLab.smartGuideAnyTitle', 'One-click smart test')}</div>
+                        <div className="leading-relaxed text-indigo-100/90">
+                            {t('configLab.smartGuideAnyBody', 'Auto-add baseline resolvers, run all transports (UDP/TCP/DoT/DoH), then rank by score and latency.')}
+                        </div>
+                        <button
+                            onClick={runSmartAnyConfigTest}
+                            disabled={running}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-500/25 hover:bg-indigo-500/35 text-indigo-100 text-xs font-bold border border-indigo-400/40 disabled:opacity-50"
+                        >
+                            {t('configLab.smartTestAnyButton', 'Auto setup + run smart test')}
                         </button>
                     </div>
                 )}
@@ -835,6 +958,21 @@ export default function ConfigLab() {
                         {t('configLab.stop', 'Stop')} ({progress.done}/{progress.total})
                     </button>
                 )}
+            </div>
+
+            <div className="flex items-center justify-center">
+                <label className="text-xs text-gray-300 flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={autoRunOnPaste}
+                        onChange={(e) => setAutoRunOnPaste(e.target.checked)}
+                        className="accent-emerald-500"
+                    />
+                    <span>
+                        {t('configLab.autoRunOnPaste', 'Auto-run smart test after paste')}
+                        <span className="text-gray-500"> — {t('configLab.autoRunOnPasteHint', 'When enabled, a test starts automatically ~0.6s after config changes')}</span>
+                    </span>
+                </label>
             </div>
 
             {running && (
