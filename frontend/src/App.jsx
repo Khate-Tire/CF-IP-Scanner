@@ -75,7 +75,9 @@ function App() {
   const [latestVersion, setLatestVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);
 
-  // Poll backend health until it's ready (max 60 retries = ~60s, then surface error)
+  // Poll backend liveness until it's ready (max 60 retries = ~60s, then surface error).
+  // We hit /ping (zero I/O) instead of /health (which does network checks) so a
+  // blocked ISP never delays the splash.
   const [bootElapsed, setBootElapsed] = useState(0);
   useEffect(() => {
     let cancelled = false;
@@ -84,12 +86,12 @@ function App() {
       let attempts = 0;
       while (!cancelled && attempts < 60) {
         try {
-          const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(2000) });
+          const res = await fetch(`${API_URL}/ping`, { signal: AbortSignal.timeout(1500) });
           if (res.ok) { setBackendReady(true); return; }
         } catch (e) { /* backend not ready yet */ }
         attempts++;
         setBootElapsed(Math.floor((Date.now() - startedAt) / 1000));
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 500));
       }
       if (!cancelled) {
         toast.error('Backend failed to start after 60s. Please restart the application.');
@@ -294,10 +296,10 @@ function App() {
             </svg>
             <span className="text-cyan-400 font-mono text-sm tracking-wider">{t('app.startingEngine', 'Starting engine...')}</span>
           </div>
-          {bootElapsed >= 8 && (
+          {bootElapsed >= 5 && (
             <div className="mt-6 max-w-md text-center text-xs text-amber-300/80 font-mono leading-relaxed px-4">
               {t('app.startupSlow',
-                'Engine is taking longer than usual. This usually means your ISP is blocking github.com (used to fetch the Xray core on first run). The app will continue once the backend responds — or restart it if this persists.')}
+                'Engine is taking longer than usual. If your ISP is blocking the internet the app will still start — give it a moment, or restart it if this persists.')}
             </div>
           )}
         </div>

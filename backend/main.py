@@ -644,8 +644,10 @@ async def startup_event():
     # before each scan and surfaces a clear error if it's still missing.
     asyncio.get_event_loop().run_in_executor(None, download_xray)
 
-    # Load unfinished scans from queue
-    await _load_unfinished_scans_on_startup()
+    # Load unfinished scans from queue — DO NOT await. On a fresh DB or slow
+    # disk this can take a few hundred ms and used to delay /health
+    # accepting connections, leaving the splash stuck on "Starting engine...".
+    asyncio.create_task(_load_unfinished_scans_on_startup())
 
     # Launch heavy DB/network work as background task so server starts immediately
     asyncio.create_task(_background_init())
@@ -844,6 +846,15 @@ def update_settings(settings: Settings):
     save_settings(settings)
     return {'status': 'ok'}
 print("DEBUG: Successfully registered POST settings")
+
+@app.get('/ping')
+async def ping():
+    """Liveness probe used by the splash screen. Must NEVER do I/O — it
+    only confirms that the FastAPI event loop is up and accepting requests.
+    The splash hangs were caused by the frontend probing /health, which
+    does network calls that stall for seconds when the ISP blocks the
+    internet."""
+    return {"ok": True}
 
 @app.get('/health')
 async def check_health():
