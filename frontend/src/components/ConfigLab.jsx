@@ -1,9 +1,10 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X } from 'lucide-react';
+import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X, Settings2, ShieldAlert, Share2, Wand2, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { testConfigRemote, dnsQuickTest } from '../api';
+import { parseSlipnetUri, encodeSlipnetUri, normalize as normalizeSlipnet } from '../utils/slipnetUri';
 
 // Curated DNS resolvers — covers global + Iran/China-friendly options
 const PRESET_RESOLVERS = [
@@ -59,6 +60,22 @@ function detectProtocol(raw) {
     return m ? m[1].toLowerCase() : 'unknown';
 }
 
+const RECORD_TYPES = ['TXT', 'CNAME', 'A', 'AAAA', 'MX', 'NS', 'SRV'];
+const STEALTH_PRESETS = [
+    { id: 'off', label: 'Off', size: 0, padding: 0 },
+    { id: 'large', label: 'Large (100)', size: 100, padding: 0 },
+    { id: 'medium', label: 'Medium (80)', size: 80, padding: 10 },
+    { id: 'small', label: 'Small (60)', size: 60, padding: 15 },
+    { id: 'minimum', label: 'Minimum (50)', size: 50, padding: 20 },
+];
+const PROTOCOL_MODES = [
+    { id: 'auto', label: 'Auto-detect' },
+    { id: 'dnstt', label: 'DNSTT (classic)' },
+    { id: 'noizdns', label: 'NoizDNS (DPI-resistant)' },
+    { id: 'vaydns', label: 'VayDNS (optimized)' },
+    { id: 'slipstream', label: 'Slipstream (QUIC)' },
+];
+
 function Score({ value, max = 6 }) {
     const pct = Math.round((value / max) * 100);
     const cls =
@@ -89,8 +106,33 @@ export default function ConfigLab() {
     const [dnsResults, setDnsResults] = useState([]); // [{ resolver, name, latency, score, edns, ok }]
     const cancelRef = useRef(false);
 
+    // Advanced settings
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [tunnelMode, setTunnelMode] = useState('auto');
+    const [directMode, setDirectMode] = useState(false);
+    const [stealthPreset, setStealthPreset] = useState('off');
+    const [customQuerySize, setCustomQuerySize] = useState('');
+    const [customPadding, setCustomPadding] = useState('');
+    // VayDNS knobs
+    const [vayRecordType, setVayRecordType] = useState('TXT');
+    const [vayMaxQname, setVayMaxQname] = useState(101);
+    const [vayRps, setVayRps] = useState(0);
+    const [vayClientIdSize, setVayClientIdSize] = useState(2);
+
+    // slipnet:// share modal
+    const [parsedSlipnet, setParsedSlipnet] = useState(null);
+    const [shareUri, setShareUri] = useState('');
+
     const detectedHost = useMemo(() => extractHostFromConfig(config), [config]);
     const protocol = useMemo(() => detectProtocol(config), [config]);
+    const isSlipnetUri = useMemo(() => /^(slipnet|slipnet-enc|dnst|noiz|vay):\/\//i.test(config.trim()), [config]);
+    const stealthCfg = useMemo(() => {
+        if (stealthPreset === 'custom') {
+            return { size: parseInt(customQuerySize, 10) || 0, padding: parseInt(customPadding, 10) || 0 };
+        }
+        const p = STEALTH_PRESETS.find(p => p.id === stealthPreset);
+        return { size: p?.size || 0, padding: p?.padding || 0 };
+    }, [stealthPreset, customQuerySize, customPadding]);
     const allResolvers = useMemo(() => {
         const set = new Map();
         PRESET_RESOLVERS.forEach(r => set.set(r.ip, r));
@@ -177,7 +219,8 @@ export default function ConfigLab() {
                     tag: meta.tag,
                     latency: res?.latency_ms ?? res?.latency ?? null,
                     score: res?.score ?? 0,
-                    edns: res?.edns ?? false,
+                    edns: res?.edns_support ?? res?.edns ?? false,
+                    hijack: res?.nxdomain_hijack === true,
                     answers: res?.answers ?? [],
                     ok: res?.ok !== false && (res?.latency_ms ?? res?.latency) != null,
                     raw: res,
@@ -222,6 +265,64 @@ export default function ConfigLab() {
         );
     };
 
+    // ── slipnet:// URI handlers ──
+    const importSlipnet = () => {
+        const parsed = parseSlipnetUri(config.trim());
+        if (!parsed) {
+            toast.error(t('configLab.invalidSlipnet', 'Not a valid slipnet:// URI'));
+            return;
+        }
+        const norm = normalizeSlipnet(parsed);
+        setParsedSlipnet(norm);
+        // Auto-apply known fields
+        if (norm.resolver && /^(\d{1,3}\.){3}\d{1,3}$/.test(norm.resolver)) {
+            if (!extraResolvers.includes(norm.resolver) && !PRESET_RESOLVERS.some(r => r.ip === norm.resolver)) {
+                setExtraResolvers(prev => [...prev, norm.resolver]);
+            }
+            if (!selectedResolvers.includes(norm.resolver)) {
+                setSelectedResolvers(prev => [...prev, norm.resolver]);
+            }
+        }
+        if (norm.mode && PROTOCOL_MODES.some(m => m.id === norm.mode.toLowerCase())) {
+            setTunnelMode(norm.mode.toLowerCase());
+        }
+        if (norm.recordType && RECORD_TYPES.includes(norm.recordType.toUpperCase())) {
+            setVayRecordType(norm.recordType.toUpperCase());
+        }
+        if (norm.maxQname) setVayMaxQname(parseInt(norm.maxQname, 10) || 101);
+        if (norm.rps) setVayRps(parseInt(norm.rps, 10) || 0);
+        if (norm.clientIdSize) setVayClientIdSize(parseInt(norm.clientIdSize, 10) || 2);
+        if (norm.maxQuerySize) {
+            const sz = parseInt(norm.maxQuerySize, 10);
+            const preset = STEALTH_PRESETS.find(p => p.size === sz);
+            if (preset) setStealthPreset(preset.id);
+            else { setStealthPreset('custom'); setCustomQuerySize(String(sz)); }
+        }
+        if (norm.direct === true || norm.direct === 'true' || norm.direct === '1') setDirectMode(true);
+        toast.success(t('configLab.slipnetImported', 'slipnet:// profile imported'));
+        setShowAdvanced(true);
+    };
+
+    const exportSlipnet = () => {
+        const fields = {
+            name: parsedSlipnet?.name || `cf-ip-scanner-${Date.now()}`,
+            domain: detectedHost || parsedSlipnet?.domain || '',
+            resolver: selectedResolvers[0] || '',
+            mode: tunnelMode === 'auto' ? 'dnstt' : tunnelMode,
+            pubkey: parsedSlipnet?.pubkey || '',
+            recordType: vayRecordType,
+            maxQname: vayMaxQname,
+            rps: vayRps,
+            clientIdSize: vayClientIdSize,
+            maxQuerySize: stealthCfg.size,
+            queryPadding: stealthCfg.padding,
+            direct: directMode,
+        };
+        const uri = encodeSlipnetUri(fields, 'slipnet');
+        setShareUri(uri);
+        copyText(uri);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             {/* Header */}
@@ -264,12 +365,36 @@ export default function ConfigLab() {
                                 {t('configLab.opaqueConfig', 'Opaque config — DNS tests will use cloudflare.com as proxy host')}
                             </span>
                         )}
+                        {isSlipnetUri && (
+                            <button
+                                onClick={importSlipnet}
+                                className="px-2.5 py-1 rounded-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold flex items-center gap-1"
+                                title={t('configLab.importSlipnetTip', 'Decode the slipnet:// URI and auto-fill resolver, mode, VayDNS settings')}
+                            >
+                                <Wand2 className="w-3 h-3" /> {t('configLab.importSlipnet', 'Import slipnet:// profile')}
+                            </button>
+                        )}
                         <button
                             onClick={() => setConfig('')}
                             className="ml-auto text-xs text-gray-500 hover:text-red-400 flex items-center gap-1"
                         >
                             <Trash2 className="w-3 h-3" /> {t('configLab.clear', 'Clear')}
                         </button>
+                    </div>
+                )}
+                {parsedSlipnet && (
+                    <div className="mt-3 p-3 rounded-lg bg-purple-500/5 border border-purple-500/20 text-xs space-y-1">
+                        <div className="font-bold text-purple-300 flex items-center gap-2">
+                            <Share2 className="w-3 h-3" /> {t('configLab.slipnetProfile', 'slipnet:// profile')}
+                            {parsedSlipnet.name && <span className="text-white">— {parsedSlipnet.name}</span>}
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-gray-400 font-mono">
+                            {parsedSlipnet.domain && <div>domain: <span className="text-white">{parsedSlipnet.domain}</span></div>}
+                            {parsedSlipnet.resolver && <div>resolver: <span className="text-white">{parsedSlipnet.resolver}</span></div>}
+                            {parsedSlipnet.mode && <div>mode: <span className="text-white">{parsedSlipnet.mode}</span></div>}
+                            {parsedSlipnet.pubkey && <div className="col-span-2 truncate">pubkey: <span className="text-white">{String(parsedSlipnet.pubkey).slice(0, 24)}…</span></div>}
+                            {parsedSlipnet.sshHost && <div>ssh: <span className="text-white">{parsedSlipnet.sshHost}:{parsedSlipnet.sshPort || 22}</span></div>}
+                        </div>
                     </div>
                 )}
             </div>
@@ -344,6 +469,123 @@ export default function ConfigLab() {
                         {t('configLab.clearSelection', 'Clear')}
                     </button>
                 </div>
+            </div>
+
+            {/* Advanced settings (SlipNet/dnstm-style) */}
+            <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl">
+                <button
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="w-full flex items-center justify-between p-4 text-sm font-bold text-gray-200 hover:text-white"
+                >
+                    <span className="flex items-center gap-2">
+                        <Settings2 className="w-4 h-4 text-indigo-400" />
+                        {t('configLab.advancedSettings', 'Advanced settings')}
+                        <span className="text-xs font-normal text-gray-500">
+                            ({tunnelMode}, {stealthPreset === 'off' ? 'no stealth' : stealthCfg.size + 'B'}{directMode ? ', direct' : ''})
+                        </span>
+                    </span>
+                    {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showAdvanced && (
+                    <div className="px-4 pb-4 space-y-5 border-t border-white/[0.05] pt-4">
+                        {/* Tunnel mode */}
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('configLab.tunnelMode', 'Tunnel mode')}</label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {PROTOCOL_MODES.map(m => (
+                                    <button
+                                        key={m.id}
+                                        onClick={() => setTunnelMode(m.id)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${tunnelMode === m.id ? 'bg-indigo-500/25 border-indigo-500/50 text-indigo-200' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-white/20'}`}
+                                    >
+                                        {m.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Stealth presets */}
+                        <div>
+                            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('configLab.stealthPreset', 'Stealth (DNS query size + padding)')}</label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {STEALTH_PRESETS.map(p => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setStealthPreset(p.id)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${stealthPreset === p.id ? 'bg-purple-500/25 border-purple-500/50 text-purple-200' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-white/20'}`}
+                                    >
+                                        {p.label}{p.padding ? ` +${p.padding} pad` : ''}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setStealthPreset('custom')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${stealthPreset === 'custom' ? 'bg-purple-500/25 border-purple-500/50 text-purple-200' : 'bg-white/[0.02] border-white/10 text-gray-400 hover:border-white/20'}`}
+                                >
+                                    {t('configLab.custom', 'Custom')}
+                                </button>
+                            </div>
+                            {stealthPreset === 'custom' && (
+                                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                                    <label className="text-xs text-gray-500">{t('configLab.querySize', 'Query size (B)')}</label>
+                                    <input type="number" value={customQuerySize} onChange={e => setCustomQuerySize(e.target.value)} min={20} max={250} className="w-20 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+                                    <label className="text-xs text-gray-500">{t('configLab.padding', 'Padding (B)')}</label>
+                                    <input type="number" value={customPadding} onChange={e => setCustomPadding(e.target.value)} min={0} max={100} className="w-20 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Direct mode */}
+                        <div>
+                            <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none">
+                                <input type="checkbox" checked={directMode} onChange={e => setDirectMode(e.target.checked)} className="accent-indigo-500" />
+                                <span><strong>{t('configLab.directMode', 'Direct mode')}</strong> — <span className="text-xs text-gray-500">{t('configLab.directModeHint', 'Bypass recursive resolver, query authoritative NS directly (DNSTT/VayDNS only)')}</span></span>
+                            </label>
+                        </div>
+
+                        {/* VayDNS knobs */}
+                        {(tunnelMode === 'vaydns' || tunnelMode === 'auto') && (
+                            <div className="p-3 rounded-lg bg-cyan-500/5 border border-cyan-500/15">
+                                <div className="text-xs font-bold text-cyan-300 mb-2">{t('configLab.vaydnsTuning', 'VayDNS tuning')}</div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-500">{t('configLab.recordType', 'Record type')}</div>
+                                        <select value={vayRecordType} onChange={e => setVayRecordType(e.target.value)} className="mt-1 w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white">
+                                            {RECORD_TYPES.map(rt => <option key={rt} value={rt}>{rt}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-500">{t('configLab.maxQname', 'Max QNAME')}</div>
+                                        <input type="number" min={50} max={253} value={vayMaxQname} onChange={e => setVayMaxQname(parseInt(e.target.value, 10) || 101)} className="mt-1 w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-500">{t('configLab.rps', 'Rate (RPS)')}</div>
+                                        <input type="number" min={0} max={1000} value={vayRps} onChange={e => setVayRps(parseInt(e.target.value, 10) || 0)} className="mt-1 w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+                                    </div>
+                                    <div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-500">{t('configLab.clientIdSize', 'ClientID (B)')}</div>
+                                        <input type="number" min={1} max={8} value={vayClientIdSize} onChange={e => setVayClientIdSize(parseInt(e.target.value, 10) || 2)} className="mt-1 w-full bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+                                    </div>
+                                </div>
+                                <div className="mt-2 text-[11px] text-cyan-200/70">
+                                    {t('configLab.vaydnsHint', '0 = unlimited. These knobs are saved with the slipnet:// export and forwarded to compatible servers.')}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Export slipnet:// */}
+                        <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-white/[0.05]">
+                            <button
+                                onClick={exportSlipnet}
+                                className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 text-xs font-bold flex items-center gap-1 border border-purple-500/30"
+                            >
+                                <Share2 className="w-3 h-3" /> {t('configLab.exportSlipnet', 'Export as slipnet:// (copy)')}
+                            </button>
+                            {shareUri && (
+                                <code className="text-[10px] text-purple-300/80 truncate max-w-md">{shareUri.slice(0, 60)}…</code>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Run button */}
@@ -433,6 +675,7 @@ export default function ConfigLab() {
                                     <th className="text-right py-2 px-2">{t('configLab.latency', 'Latency')}</th>
                                     <th className="text-center py-2 px-2">{t('configLab.score', 'Score')}</th>
                                     <th className="text-center py-2 px-2">{t('configLab.edns', 'EDNS')}</th>
+                                    <th className="text-center py-2 px-2">{t('configLab.hijack', 'Hijack')}</th>
                                     <th className="text-left py-2 px-2">{t('configLab.status', 'Status')}</th>
                                 </tr>
                             </thead>
@@ -445,6 +688,15 @@ export default function ConfigLab() {
                                         <td className="py-2 px-2 text-right tabular-nums text-gray-200">{r.latency != null ? `${r.latency} ms` : '—'}</td>
                                         <td className="py-2 px-2 text-center">{r.ok ? <Score value={r.score || 0} /> : <span className="text-gray-600">—</span>}</td>
                                         <td className="py-2 px-2 text-center">{r.edns ? '✓' : '—'}</td>
+                                        <td className="py-2 px-2 text-center">
+                                            {r.hijack ? (
+                                                <span title={t('configLab.hijackTip', 'NXDOMAIN hijacking detected — ISP redirects bad lookups (unsafe for tunneling)')} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-bold">
+                                                    <ShieldAlert className="w-3 h-3" /> HIJACK
+                                                </span>
+                                            ) : r.ok ? (
+                                                <span className="text-emerald-400/60 text-[10px]">✓ clean</span>
+                                            ) : '—'}
+                                        </td>
                                         <td className="py-2 px-2">
                                             {r.ok ? (
                                                 <span className="text-emerald-400 text-xs">{t('configLab.ok', 'OK')}</span>
