@@ -76,9 +76,11 @@ function App() {
   const [updateUrl, setUpdateUrl] = useState(null);
 
   // Poll backend health until it's ready (max 60 retries = ~60s, then surface error)
+  const [bootElapsed, setBootElapsed] = useState(0);
   useEffect(() => {
     let cancelled = false;
     const checkBackend = async () => {
+      const startedAt = Date.now();
       let attempts = 0;
       while (!cancelled && attempts < 60) {
         try {
@@ -86,6 +88,7 @@ function App() {
           if (res.ok) { setBackendReady(true); return; }
         } catch (e) { /* backend not ready yet */ }
         attempts++;
+        setBootElapsed(Math.floor((Date.now() - startedAt) / 1000));
         await new Promise(r => setTimeout(r, 1000));
       }
       if (!cancelled) {
@@ -291,6 +294,12 @@ function App() {
             </svg>
             <span className="text-cyan-400 font-mono text-sm tracking-wider">{t('app.startingEngine', 'Starting engine...')}</span>
           </div>
+          {bootElapsed >= 8 && (
+            <div className="mt-6 max-w-md text-center text-xs text-amber-300/80 font-mono leading-relaxed px-4">
+              {t('app.startupSlow',
+                'Engine is taking longer than usual. This usually means your ISP is blocking github.com (used to fetch the Xray core on first run). The app will continue once the backend responds — or restart it if this persists.')}
+            </div>
+          )}
         </div>
       )}
       <Toaster

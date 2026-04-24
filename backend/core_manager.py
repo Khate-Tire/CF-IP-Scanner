@@ -39,21 +39,45 @@ def download_xray():
     
     print("Downloading Xray Core...")
     zip_path = os.path.join(APP_DIR, "xray.zip")
-    
-    with urllib.request.urlopen(_XRAY_DL_URL) as response, open(zip_path, 'wb') as out_file:
-        data = response.read()
-        out_file.write(data)
-            
+
+    # Hard timeout so a censored / blocked GitHub doesn't hang the caller
+    # for minutes. If the download fails, callers should fall back gracefully
+    # (the scanner re-checks get_xray_path() and surfaces a clear error).
+    try:
+        req = urllib.request.Request(_XRAY_DL_URL, headers={"User-Agent": "CF-IP-Scanner"})
+        with urllib.request.urlopen(req, timeout=20) as response, open(zip_path, 'wb') as out_file:
+            # Stream in chunks so a stalled connection trips the socket timeout
+            while True:
+                chunk = response.read(64 * 1024)
+                if not chunk:
+                    break
+                out_file.write(chunk)
+    except Exception as e:
+        print(f"Xray download failed ({type(e).__name__}: {e}). Will retry on next scan.")
+        try:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+        except Exception:
+            pass
+        return
+
     print("Extracting Xray Core...")
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(XRAY_DIR)
-        
-    os.remove(zip_path)
-    
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(XRAY_DIR)
+    except Exception as e:
+        print(f"Xray extract failed: {e}")
+        try: os.remove(zip_path)
+        except Exception: pass
+        return
+
+    try: os.remove(zip_path)
+    except Exception: pass
+
     # Set execute permission on macOS/Linux
     if _system != "windows":
         _ensure_executable(XRAY_EXE)
-    
+
     print("Xray Core ready.")
 
 def _ensure_executable(path):

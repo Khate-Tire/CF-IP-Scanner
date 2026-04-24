@@ -635,12 +635,18 @@ async def startup_event():
     dlog(f"Python: {sys.executable}")
     dlog(f"Frozen: {getattr(sys, 'frozen', False)}")
     dlog(f"CWD: {os.getcwd()}")
-    
-    download_xray()
-    
+
+    # IMPORTANT: never block startup on network. download_xray() reaches out to
+    # GitHub, which is frequently blocked by Iranian ISPs. Doing it inline here
+    # used to leave the splash stuck on "Starting engine..." for minutes because
+    # FastAPI hadn't started serving /health yet. Run it in a thread so the
+    # event loop comes up immediately; the scanner re-checks get_xray_path()
+    # before each scan and surfaces a clear error if it's still missing.
+    asyncio.get_event_loop().run_in_executor(None, download_xray)
+
     # Load unfinished scans from queue
     await _load_unfinished_scans_on_startup()
-    
+
     # Launch heavy DB/network work as background task so server starts immediately
     asyncio.create_task(_background_init())
     asyncio.create_task(update_cf_ranges_periodic())
