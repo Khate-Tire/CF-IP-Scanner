@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import DeployWizard from './DeployWizard';
 import DnsOptimizer from './DnsOptimizer';
+import ConfigLab from './ConfigLab';
 
 export default function DnsTunnelTab({ onSendToAdvanced }) {
     const { t } = useTranslation();
@@ -37,10 +38,24 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
                         </svg>
                         {t('dnsTunnel.optimizerTab', 'DNS Optimizer')}
                     </button>
+                    <button
+                        onClick={() => setSubTab('lab')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${subTab === 'lab'
+                            ? 'bg-indigo-500/15 text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.3)] border border-indigo-500/30'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05]'
+                            }`}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        {t('dnsTunnel.labTab', 'Config Lab')}
+                    </button>
                 </div>
             </div>
 
-            {subTab === 'deploy' ? <DeployWizard onSendToAdvanced={onSendToAdvanced} /> : <DnsOptimizer onSendToAdvanced={onSendToAdvanced} />}
+            {subTab === 'deploy' && <DeployWizard onSendToAdvanced={onSendToAdvanced} />}
+            {subTab === 'optimizer' && <DnsOptimizer onSendToAdvanced={onSendToAdvanced} />}
+            {subTab === 'lab' && <ConfigLab />}
         </div>
     );
 }
