@@ -212,14 +212,44 @@ def ssh_disconnect():
 
 
 def _exec(cmd: str, timeout: int = 30) -> tuple:
-    """Execute a command on the connected SSH server. Returns (stdout, stderr, exit_code)."""
+    """Execute a command on the connected SSH server with a HARD timeout.
+
+    paramiko's `exec_command(timeout=...)` only applies to socket reads; the
+    `recv_exit_status()` call itself blocks indefinitely if the remote command
+    hangs (e.g. curl stuck on a slow/unreachable host). We enforce the timeout
+    ourselves on the channel and raise TimeoutError so the deploy thread can
+    surface a clean failure instead of looking 'stuck' forever.
+
+    Also honours `_deploy_state.status == 'cancelled'` so the user-facing
+    Cancel button actually interrupts a running command.
+
+    Returns (stdout, stderr, exit_code).
+    """
     global _ssh_client
     if not _ssh_client:
         raise ConnectionError("Not connected to any server")
-    _, stdout, stderr = _ssh_client.exec_command(cmd, timeout=timeout)
-    exit_code = stdout.channel.recv_exit_status()
-    out = stdout.read().decode("utf-8", errors="replace").strip()
-    err = stderr.read().decode("utf-8", errors="replace").strip()
+    _, stdout, stderr = _ssh_client.exec_command(cmd, timeout=timeout, get_pty=False)
+    chan = stdout.channel
+    deadline = time.time() + max(1, timeout)
+    while not chan.exit_status_ready():
+        if _deploy_state.status == "cancelled":
+            try: chan.close()
+            except Exception: pass
+            raise TimeoutError("cancelled by user")
+        if time.time() > deadline:
+            try: chan.close()
+            except Exception: pass
+            raise TimeoutError(f"command timed out after {timeout}s: {cmd[:120]}")
+        time.sleep(0.1)
+    exit_code = chan.recv_exit_status()
+    try:
+        out = stdout.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        out = ""
+    try:
+        err = stderr.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        err = ""
     return out, err, exit_code
 
 
@@ -482,26 +512,61 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             # Phase 1: Download dnstm-setup
             state.update(phase="Downloading dnstm-setup...", progress=5)
             state.log("Downloading dnstm-setup.sh from GitHub...")
-            out, err, code = _exec(
-                "curl -fsSL -o /tmp/dnstm-setup.sh https://raw.githubusercontent.com/SamNet-dev/dnstm-setup/master/dnstm-setup.sh",
-                timeout=30
-            )
-            if code != 0:
-                state.update(status="failed", error=f"Failed to download dnstm-setup: {err}")
+            # Try multiple mirrors with hard --max-time so a slow/blocked GitHub
+            # connection cannot hang the deploy thread forever.
+            DNSTM_URLS = [
+                "https://raw.githubusercontent.com/SamNet-dev/dnstm-setup/master/dnstm-setup.sh",
+                "https://raw.githubusercontent.com/net2share/dnstm/master/install.sh",
+            ]
+            downloaded = False
+            last_err = ""
+            for url in DNSTM_URLS:
+                state.log(f"Trying {url}...")
+                try:
+                    out, err, code = _exec(
+                        f"curl -fsSL --max-time 25 --connect-timeout 8 -o /tmp/dnstm-setup.sh '{url}' && test -s /tmp/dnstm-setup.sh && echo OK",
+                        timeout=35
+                    )
+                except TimeoutError as te:
+                    last_err = str(te)
+                    state.log(f"  ⏱ {te}", "warn")
+                    continue
+                if code == 0 and "OK" in out:
+                    downloaded = True
+                    state.log(f"✓ Downloaded from {url.split('/')[2]}", "success")
+                    break
+                last_err = err or out or f"exit {code}"
+                state.log(f"  ✗ {last_err[:160]}", "warn")
+            if not downloaded:
+                state.update(
+                    status="failed",
+                    error=(
+                        "Could not download dnstm-setup script. The server cannot reach GitHub. "
+                        "Check the VPS network/DNS, or run manually:  curl -fsSL "
+                        "https://raw.githubusercontent.com/SamNet-dev/dnstm-setup/master/dnstm-setup.sh -o /tmp/dnstm-setup.sh\n"
+                        f"Last error: {last_err}"
+                    ),
+                )
                 return
-            state.log("✓ Downloaded dnstm-setup.sh", "success")
 
             # Phase 2: Fix port 53 if needed
             state.update(phase="Checking port 53...", progress=10)
             state.log("Checking port 53 availability...")
-            out, _, _ = _exec("ss -ulnp 2>/dev/null | grep -E ':53\\b'", 10)
+            try:
+                out, _, _ = _exec("ss -ulnp 2>/dev/null | grep -E ':53\\b'", 10)
+            except TimeoutError:
+                out = ""
             if "systemd-resolve" in out:
                 state.log("Disabling systemd-resolved (blocking port 53)...")
-                _exec("systemctl stop systemd-resolved.socket systemd-resolved.service 2>/dev/null", 10)
-                _exec("systemctl disable systemd-resolved.socket systemd-resolved.service 2>/dev/null", 10)
-                _exec("systemctl mask systemd-resolved.socket systemd-resolved.service 2>/dev/null", 10)
-                _exec("pkill -9 systemd-resolve 2>/dev/null", 5)
-                _exec('chattr -i /etc/resolv.conf 2>/dev/null; rm -f /etc/resolv.conf; echo "nameserver 8.8.8.8" > /etc/resolv.conf; chattr +i /etc/resolv.conf', 10)
+                for c in [
+                    "systemctl stop systemd-resolved.socket systemd-resolved.service 2>/dev/null",
+                    "systemctl disable systemd-resolved.socket systemd-resolved.service 2>/dev/null",
+                    "systemctl mask systemd-resolved.socket systemd-resolved.service 2>/dev/null",
+                    "pkill -9 systemd-resolve 2>/dev/null",
+                    'chattr -i /etc/resolv.conf 2>/dev/null; rm -f /etc/resolv.conf; echo "nameserver 8.8.8.8" > /etc/resolv.conf; chattr +i /etc/resolv.conf',
+                ]:
+                    try: _exec(c, 10)
+                    except TimeoutError: state.log(f"  ⏱ slow: {c[:60]}", "warn")
                 state.log("✓ systemd-resolved disabled, DNS set to 8.8.8.8", "success")
             else:
                 state.log("✓ Port 53 is available", "success")
@@ -509,19 +574,23 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             # Phase 3: Install dnstm
             state.update(phase="Installing dnstm...", progress=20)
             state.log("Running dnstm install --mode multi...")
-            # Check if already installed
-            _, _, dnstm_code = _exec("which dnstm", 5)
+            try:
+                _, _, dnstm_code = _exec("which dnstm", 5)
+            except TimeoutError:
+                dnstm_code = 1
             if dnstm_code != 0:
-                # Run the installer
-                out, err, code = _exec(
-                    f"bash /tmp/dnstm-setup.sh --help 2>/dev/null; "
-                    f"curl -fsSL https://raw.githubusercontent.com/net2share/dnstm/master/install.sh | bash -s -- install --mode multi",
-                    timeout=120
-                )
+                try:
+                    out, err, code = _exec(
+                        "curl -fsSL --max-time 60 --connect-timeout 8 "
+                        "https://raw.githubusercontent.com/net2share/dnstm/master/install.sh "
+                        "| bash -s -- install --mode multi",
+                        timeout=180
+                    )
+                except TimeoutError as te:
+                    state.update(status="failed", error=f"dnstm install timed out: {te}")
+                    return
                 if code != 0:
-                    # Fallback: try running dnstm-setup in non-interactive mode
                     state.log("Direct install failed, trying dnstm-setup script...", "warn")
-                    # We'll create a wrapper that answers prompts
                     state.log("Installing via dnstm-setup automatic mode...")
                 state.log("✓ dnstm installed", "success")
             else:
@@ -543,10 +612,14 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             for i, (tag, transport, backend, subdomain) in enumerate(tunnel_configs):
                 state.log(f"Creating tunnel: {tag} ({transport}+{backend}) on {subdomain}...")
                 mtu_arg = f"--mtu {mtu}" if transport == "dnstt" else ""
-                out, err, code = _exec(
-                    f"dnstm tunnel add --tag {tag} --transport {transport} --backend {backend} --domain {subdomain} {mtu_arg} 2>&1",
-                    timeout=30
-                )
+                try:
+                    out, err, code = _exec(
+                        f"dnstm tunnel add --tag {tag} --transport {transport} --backend {backend} --domain {subdomain} {mtu_arg} 2>&1",
+                        timeout=30
+                    )
+                except TimeoutError as te:
+                    state.log(f"  ⏱ {tag}: {te}", "warn")
+                    code, out, err = 124, "", str(te)
                 if code == 0 or "already exists" in (out + err).lower():
                     state.log(f"  ✓ {tag} created", "success")
                 else:
@@ -556,17 +629,20 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             # Phase 5: Start services
             state.update(phase="Starting services...", progress=65)
             state.log("Starting DNS Router...")
-            _exec("dnstm router start 2>&1", 15)
+            try: _exec("dnstm router start 2>&1", 15)
+            except TimeoutError: state.log("  ⏱ router start slow", "warn")
             state.log("Starting all tunnels...")
             for tag, _, _, _ in tunnel_configs:
-                _exec(f"dnstm tunnel start --tag {tag} 2>&1", 10)
+                try: _exec(f"dnstm tunnel start --tag {tag} 2>&1", 10)
+                except TimeoutError: state.log(f"  ⏱ {tag} start slow", "warn")
             state.log("✓ All services started", "success")
 
             # Phase 6: Configure SOCKS auth (if enabled)
             state.update(phase="Configuring authentication...", progress=75)
             if socks_auth and socks_pass:
                 state.log(f"Enabling SOCKS5 auth (user: {socks_user})...")
-                _exec(f'dnstm backend auth -t socks -u "{socks_user}" -p "{socks_pass}" 2>&1', 15)
+                try: _exec(f'dnstm backend auth -t socks -u "{socks_user}" -p "{socks_pass}" 2>&1', 15)
+                except TimeoutError: state.log("  ⏱ socks auth slow", "warn")
                 state.log("✓ SOCKS5 authentication enabled", "success")
             else:
                 state.log("SOCKS auth: disabled (open proxy)", "info")
