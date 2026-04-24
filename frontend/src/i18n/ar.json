@@ -827,6 +827,10 @@
     "via": "via",
     "proto": "Proto",
     "slipnetSkipConfigTest": "SlipNet profile detected — skipping v2ray/xray config test. Only DNS resolver tests will run.",
-    "encryptedSlipnetTitle": "Encrypted (locked) SlipNet profile"
+    "encryptedSlipnetTitle": "Encrypted (locked) SlipNet profile",
+    "smartReady": "Smart test enabled: Sweep ALL + E2E + imported resolvers",
+    "smartGuideTitle": "One-click SlipNet test (recommended)",
+    "smartGuideBody": "Use Smart Test to auto-import profile values, add fallback resolvers, enable Sweep ALL transports, run E2E checks, and rank the best resolver for real-world performance.",
+    "smartTestButton": "Auto setup + run real test"
   }
 }

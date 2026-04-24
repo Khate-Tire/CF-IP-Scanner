@@ -15,6 +15,10 @@ try:
 except ImportError:
     dns = None
 
+
+def _dns_unavailable_error() -> str:
+    return "dnspython is not installed in backend environment. Install backend/requirements.txt and restart backend."
+
 # ─── Built-in Resolver Database (200+) ────────────────────────────────────────
 
 BUILTIN_RESOLVERS = {
@@ -211,6 +215,10 @@ def _test_resolver(resolver_ip: str, domain: str, timeout_ms: int = 5000, rounds
     }
     timeout_sec = timeout_ms / 1000.0
 
+    if dns is None:
+        result["error"] = _dns_unavailable_error()
+        return result
+
     # Test 1: Reachability + latency (multiple rounds)
     try:
         qname = dns.name.from_text(domain or "example.com")
@@ -396,6 +404,10 @@ def e2e_test_resolver(resolver_ip: str, domain: str, target_url: str = "https://
     timeout_sec = timeout_ms / 1000.0
     parsed = urlparse(target_url)
     host = parsed.hostname or domain or "www.cloudflare.com"
+
+    if dns is None:
+        out["error"] = _dns_unavailable_error()
+        return out
 
     # 1) DNS resolve
     try:

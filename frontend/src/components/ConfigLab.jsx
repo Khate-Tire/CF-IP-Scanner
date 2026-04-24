@@ -150,6 +150,16 @@ export default function ConfigLab() {
     const protocol = useMemo(() => detectProtocol(config), [config]);
     const isSlipnetUri = useMemo(() => /^(slipnet|slipnet-enc|dnst|noiz|vay):\/\//i.test(config.trim()), [config]);
     const isEncryptedSlipnet = useMemo(() => /^slipnet-enc:\/\//i.test(config.trim()), [config]);
+    const effectiveTestHost = useMemo(() => {
+        if (!isSlipnetUri) return detectedHost || 'cloudflare.com';
+        if (parsedSlipnet?.domain) return parsedSlipnet.domain;
+        const parsed = parseSlipnetUri(config.trim());
+        if (parsed && parsed.ok) {
+            const norm = normalizeSlipnet(parsed);
+            if (norm?.domain) return norm.domain;
+        }
+        return 'cloudflare.com';
+    }, [isSlipnetUri, parsedSlipnet, config, detectedHost]);
     const stealthCfg = useMemo(() => {
         if (stealthPreset === 'custom') {
             return { size: parseInt(customQuerySize, 10) || 0, padding: parseInt(customPadding, 10) || 0 };
@@ -210,11 +220,8 @@ export default function ConfigLab() {
             toast.error(t('configLab.noResolvers', 'Select at least one DNS resolver'));
             return;
         }
-        // For slipnet:// profiles use the tunnel domain (or fall back); v2ray/xray use detectedHost.
-        const host =
-            (isSlipnetUri && (parsedSlipnet?.domain || '')) ||
-            detectedHost ||
-            'cloudflare.com';
+        // For slipnet:// profiles use profile domain; for others use extracted host.
+        const host = effectiveTestHost;
         cancelRef.current = false;
         setRunning(true);
         setConfigResult(null);
@@ -424,6 +431,51 @@ export default function ConfigLab() {
         copyText(uri);
     };
 
+    const runSmartSlipnetTest = async () => {
+        if (!config.trim()) {
+            toast.error(t('configLab.noConfig', 'Paste a config first'));
+            return;
+        }
+        if (!isSlipnetUri) {
+            runBattery();
+            return;
+        }
+        const parsed = parseSlipnetUri(config.trim());
+        if (!parsed || parsed.ok === false) {
+            if (parsed?.encrypted) {
+                toast.error(
+                    t(
+                        'configLab.encryptedSlipnet',
+                        'Encrypted (locked) SlipNet config — cannot decode. Re-export from the SlipNet app with "Lock config" turned OFF.'
+                    ),
+                    { duration: 9000 }
+                );
+            } else {
+                toast.error((parsed && parsed.error) || t('configLab.invalidSlipnet', 'Not a valid slipnet:// URI'));
+            }
+            return;
+        }
+
+        if (!parsedSlipnet || !parsedSlipnet.domain) {
+            importSlipnet();
+        }
+
+        const baselineResolvers = ['1.1.1.1', '8.8.8.8'];
+        const importedResolvers = Array.isArray(parsed.resolvers) ? parsed.resolvers.filter(ip => /^(\d{1,3}\.){3}\d{1,3}$/.test(ip)) : [];
+        const mergedResolvers = Array.from(new Set([...selectedResolvers, ...importedResolvers, ...baselineResolvers]));
+        setSelectedResolvers(mergedResolvers);
+
+        setShowAdvanced(true);
+        setDnsTransport('sweep');
+        setE2eMode(true);
+        toast.success(t('configLab.smartReady', 'Smart test enabled: Sweep ALL + E2E + imported resolvers'));
+
+        // Let state settle before starting network tests.
+        setTimeout(() => {
+            runBattery();
+        }, 100);
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-300">
             {/* Header */}
@@ -495,6 +547,21 @@ export default function ConfigLab() {
                                 'slipnet-enc:// configs are AES-256-GCM encrypted with a private key compiled into the official SlipNet binary. Third-party tools cannot decode them. Open SlipNet → edit profile → turn OFF "Lock config" / "Encrypted export" and re-share — you will get a regular slipnet:// URI we can read. The DNS resolver tests below will still run against your selected resolvers using cloudflare.com as the probe host.'
                             )}
                         </div>
+                    </div>
+                )}
+                {isSlipnetUri && !isEncryptedSlipnet && (
+                    <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-100 space-y-2">
+                        <div className="font-bold text-emerald-300">{t('configLab.smartGuideTitle', 'One-click SlipNet test (recommended)')}</div>
+                        <div className="leading-relaxed text-emerald-100/90">
+                            {t('configLab.smartGuideBody', 'Use Smart Test to auto-import profile values, add fallback resolvers, enable Sweep ALL transports, run E2E checks, and rank the best resolver for real-world performance.')}
+                        </div>
+                        <button
+                            onClick={runSmartSlipnetTest}
+                            disabled={running}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 text-emerald-100 text-xs font-bold border border-emerald-400/40 disabled:opacity-50"
+                        >
+                            {t('configLab.smartTestButton', 'Auto setup + run real test')}
+                        </button>
                     </div>
                 )}
                 {parsedSlipnet && (
@@ -806,7 +873,7 @@ export default function ConfigLab() {
             {sortedDns.length > 0 && (
                 <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl p-5">
                     <h4 className="text-sm font-bold mb-3 text-gray-300">
-                        {t('configLab.dnsResultsTitle', 'DNS resolver results')} ({t('configLab.host', 'Host')}: <span className="font-mono text-indigo-300">{detectedHost || 'cloudflare.com'}</span>)
+                        {t('configLab.dnsResultsTitle', 'DNS resolver results')} ({t('configLab.host', 'Host')}: <span className="font-mono text-indigo-300">{effectiveTestHost}</span>)
                     </h4>
 
                     {bestDns && (
