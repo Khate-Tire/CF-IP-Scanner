@@ -1,10 +1,9 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ConfigInput from './components/ConfigInput';
 import ResultsTable from './components/ResultsTable';
 import LogBox from './components/LogBox';
 import StatsPanel from './components/StatsPanel';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AdvancedScanners from './components/AdvancedScanners';
 import WarpScanner from './components/WarpScanner';
 import AboutBox from './components/AboutBox';
@@ -16,7 +15,7 @@ import DnsScanner from './components/DnsScanner';
 import DnsScannerGuide from './components/DnsScannerGuide';
 import FreeVpnDashboard from './components/FreeVpnDashboard';
 import SmartRecommendationPanel from './components/SmartRecommendationPanel';
-import DataTransferPanel from './components/DataTransferPanel';
+import DnsTunnelTab from './components/DnsTunnelTab';
 import FreedomWidget from './components/FreedomWidget';
 import IranLogo from './components/IranLogo';
 import DBStatusBar from './components/DBStatusBar';
@@ -26,6 +25,17 @@ import { Toaster, toast } from 'react-hot-toast';
 import logoImg from '/logo.png';
 import { scanIPs, getScanStatus, logUsage, scanAdvancedIPs, pauseScan, resumeScan, stopScan, getMyIP, startFreedom, stopFreedom } from './api';
 import { API_URL } from './api';
+
+// Heavy tabs are lazy-loaded to cut initial bundle size (~30%)
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const DataTransferPanel = lazy(() => import('./components/DataTransferPanel'));
+
+const TabFallback = () => (
+  <div className="flex items-center justify-center h-64 text-neon-blue animate-pulse">
+    <svg className="w-8 h-8 animate-spin mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+    Loading...
+  </div>
+);
 
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
@@ -39,6 +49,20 @@ function App() {
   const [activeTab, setActiveTab] = useState('scanner');
   const [autoStartSignal, setAutoStartSignal] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
+  const [advancedPreset, setAdvancedPreset] = useState(null);
+  const [scannerPreset, setScannerPreset] = useState(null);
+  const [scanOriginTab, setScanOriginTab] = useState(null); // which tab launched the active scan
+
+  const handleSendToAdvancedScanner = (preset) => {
+    setAdvancedPreset(preset);
+    setActiveTab('advanced');
+  };
+
+  const handleSendToScanner = (preset) => {
+    setScannerPreset(preset);
+    setActiveTab('scanner');
+    toast.success('Filter applied — review settings and click Start Scan');
+  };
 
   // Use Refs for Scan State to prevent massive re-renders during active polling
   const currentVlessConfig = useRef("");
@@ -51,16 +75,21 @@ function App() {
   const [latestVersion, setLatestVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);
 
-  // Poll backend health until it's ready
+  // Poll backend health until it's ready (max 60 retries = ~60s, then surface error)
   useEffect(() => {
     let cancelled = false;
     const checkBackend = async () => {
-      while (!cancelled) {
+      let attempts = 0;
+      while (!cancelled && attempts < 60) {
         try {
           const res = await fetch(`${API_URL}/health`, { signal: AbortSignal.timeout(2000) });
           if (res.ok) { setBackendReady(true); return; }
         } catch (e) { /* backend not ready yet */ }
+        attempts++;
         await new Promise(r => setTimeout(r, 1000));
+      }
+      if (!cancelled) {
+        toast.error('Backend failed to start after 60s. Please restart the application.');
       }
     };
     checkBackend();
@@ -86,13 +115,15 @@ function App() {
     });
   }, [useSystemProxy]);
 
-  // GitHub Release Version Check — only show update if remote is NEWER
+  // GitHub Release Version Check — only show update if remote is NEWER and user hasn't dismissed it
   useEffect(() => {
     fetch('https://api.github.com/repos/Khate-Tire/CF-IP-Scanner/releases/latest')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data && data.tag_name) {
           const remote = data.tag_name.replace(/^v/, '');
+          const dismissed = localStorage.getItem('dismissed_update_version');
+          if (dismissed === remote) return;
           const rParts = remote.split('.').map(Number);
           const lParts = APP_VERSION.split('.').map(Number);
           let isNewer = false;
@@ -110,8 +141,15 @@ function App() {
       .catch(() => { });
   }, []);
 
+  const dismissUpdate = () => {
+    if (latestVersion) localStorage.setItem('dismissed_update_version', latestVersion);
+    setLatestVersion(null);
+    setUpdateUrl(null);
+  };
+
   const handleStartScan = async (vlessConfig, manualIps, settings, isRetry = false) => {
     setIsScanning(true);
+    setScanOriginTab('scanner');
     if (!isRetry) {
       setResults([]);
       retryCount.current = 0;
@@ -154,6 +192,7 @@ function App() {
 
   const handleStartAdvanced = async (payload) => {
     setIsScanning(true);
+    setScanOriginTab(activeTab); // 'advanced' or 'dns'
     setResults([]);
     let started = false;
     try {
@@ -334,10 +373,13 @@ function App() {
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-500 font-mono">v{APP_VERSION}</span>
               {latestVersion && (
-                <a href={updateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/40 text-green-400 text-[10px] font-bold hover:border-green-400 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all animate-pulse">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                  {t('app.updateAvailable', 'Update to v{version}').replace('{version}', latestVersion)}
-                </a>
+                <div className="inline-flex items-center gap-1">
+                  <a href={updateUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded-l-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/40 text-green-400 text-[10px] font-bold hover:border-green-400 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all animate-pulse">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    {t('app.updateAvailable', 'Update to v{version}').replace('{version}', latestVersion)}
+                  </a>
+                  <button onClick={dismissUpdate} title="Skip this version" className="px-2 py-1 rounded-r-full bg-green-500/10 border border-l-0 border-green-500/40 text-green-400/70 text-[10px] font-bold hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/40 transition-all">✕</button>
+                </div>
               )}
             </div>
           </div>
@@ -403,6 +445,15 @@ function App() {
               {t('app.tabs.freevpn')}
             </button>
 
+            {/* DNS Tunnel */}
+            <button
+              onClick={() => setActiveTab('dnstunnel')}
+              className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all duration-300 ${activeTab === 'dnstunnel' ? 'nav-tab-active text-emerald-400 bg-emerald-500/10 shadow-[0_0_20px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05] hover:-translate-y-[1px]'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+              {t('app.tabs.dnsTunnel', 'DNS Tunnel')}
+            </button>
+
             <div className="w-px bg-white/[0.08] my-1.5"></div>
 
             {/* Data Sync */}
@@ -437,9 +488,9 @@ function App() {
 
         {activeTab === 'scanner' ? (
           <>
-            <ConfigInput onStartScan={handleStartScan} isLoading={isScanning} useSystemProxy={useSystemProxy} autoStartSignal={autoStartSignal} />
+            <ConfigInput onStartScan={handleStartScan} isLoading={isScanning && scanOriginTab === 'scanner'} useSystemProxy={useSystemProxy} autoStartSignal={autoStartSignal} scannerPreset={scannerPreset} onPresetConsumed={() => setScannerPreset(null)} />
 
-            {isScanning && status && (
+            {isScanning && scanOriginTab === 'scanner' && status && (
               <div className="mt-4 flex flex-col items-center justify-center gap-3 mb-6">
                 <div className="text-center text-neon-blue font-bold">
                   {retryCount > 0 && <span className="text-yellow-400 block mb-2">{t('scan.retryMsg', { count: retryCount })}</span>}
@@ -485,14 +536,14 @@ function App() {
               </div>
             )}
 
-            {results.length > 0 && <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />}
+            {results.length > 0 && <ResultsTable results={results} vlessConfig={currentVlessConfig.current} onSendToAdvanced={handleSendToAdvancedScanner} />}
 
           </>
         ) : activeTab === 'advanced' ? (
           <>
-            <AdvancedScanners onStartAdvanced={handleStartAdvanced} isLoading={isScanning} />
+            <AdvancedScanners onStartAdvanced={handleStartAdvanced} isLoading={isScanning && scanOriginTab === 'advanced'} initialDnsConfig={advancedPreset} onPresetConsumed={() => setAdvancedPreset(null)} />
 
-            {isScanning && status && (
+            {isScanning && scanOriginTab === 'advanced' && status && (
               <div className="mt-4 text-center text-white animate-pulse mb-6">
                 {t('advanced.scanningBypass', 'Testing bypass variations...')} {status.completed} / {status.total} {t('advanced.checksComplete', 'checks complete')}
               </div>
@@ -512,14 +563,14 @@ function App() {
               </div>
             )}
 
-            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />
+            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} onSendToAdvanced={handleSendToAdvancedScanner} />
           </>
         ) : activeTab === 'dns' ? (
           <>
-            <DnsScanner onStartAdvanced={handleStartAdvanced} isLoading={isScanning} />
+            <DnsScanner onStartAdvanced={handleStartAdvanced} isLoading={isScanning && scanOriginTab === 'dns'} />
             <DnsScannerGuide />
 
-            {isScanning && status && (
+            {isScanning && scanOriginTab === 'dns' && status && (
               <div className="mt-4 text-center text-white animate-pulse mb-6">
                 {t('dnsScanner.testingParams', 'Testing DNS/Tunnel parameters...')} {status.completed} / {status.total} {t('advanced.checksComplete', 'checks complete')}
               </div>
@@ -537,10 +588,12 @@ function App() {
               </div>
             )}
 
-            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} />
+            <ResultsTable results={results} vlessConfig={currentVlessConfig.current} onSendToAdvanced={handleSendToAdvancedScanner} />
           </>
         ) : activeTab === 'analytics' ? (
-          <AnalyticsDashboard />
+          <Suspense fallback={<TabFallback />}>
+            <AnalyticsDashboard onSendToScanner={handleSendToScanner} />
+          </Suspense>
         ) : activeTab === 'warp' ? (
           <WarpScanner />
         ) : activeTab === 'freevpn' ? (
@@ -548,18 +601,34 @@ function App() {
             setActiveTab('scanner');
             setAutoStartSignal(Date.now());
           }} />
+        ) : activeTab === 'dnstunnel' ? (
+          <DnsTunnelTab onSendToAdvanced={handleSendToAdvancedScanner} />
         ) : activeTab === 'freedom' ? (
           <FreedomWidget onStart={async () => {
             try { await startFreedom(); } catch (e) { console.error(e); }
           }} onStop={async () => {
             try { await stopFreedom(); } catch (e) { console.error(e); }
-          }} />
+          }} onSendToAdvanced={handleSendToAdvancedScanner} />
         ) : activeTab === 'data' ? (
-          <DataTransferPanel />
+          <Suspense fallback={<TabFallback />}>
+            <DataTransferPanel />
+          </Suspense>
         ) : (
           <AboutBox />
         )}
       </div>
+
+      {/* Floating sticky STOP button — visible from any tab while a scan is running */}
+      {isScanning && status && status.status === 'running' && (
+        <button
+          onClick={() => stopScan(scanId)}
+          className="fixed bottom-6 right-6 z-50 px-4 py-3 bg-red-500/90 text-white border-2 border-red-400 rounded-full text-sm font-black shadow-[0_0_30px_rgba(239,68,68,0.6)] hover:scale-110 hover:bg-red-500 transition-transform flex items-center gap-2 animate-pulse"
+          title="Stop scan in progress"
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 5h10v10H5z" /></svg>
+          STOP SCAN ({status.completed}/{status.total})
+        </button>
+      )}
 
       {/* Background ambient glow */}
       <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">

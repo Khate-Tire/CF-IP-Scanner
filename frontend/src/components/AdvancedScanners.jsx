@@ -4,7 +4,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { toast } from 'react-hot-toast';
 import { getMyIP, getBestCommunityBypasses } from '../api';
 
-export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
+export default function AdvancedScanners({ onStartAdvanced, isLoading, initialDnsConfig, onPresetConsumed }) {
     const { t } = useTranslation();
     const [mode, setMode] = useState('fragment'); // fragment | sni
     const [targetIp, setTargetIp] = useState('');
@@ -19,6 +19,15 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
 
     // SNI testing state
     const [snis, setSnis] = useState('yahoo.com, zendesk.com, spotify.com');
+
+    // DNS Tunnel testing state
+    const [dnsTestMode, setDnsTestMode] = useState('dnstt'); // 'dnstt' | 'split'
+    const [nameserver, setNameserver] = useState('8.8.8.8\n1.1.1.1\n8.8.4.4');
+    const [dnsDomain, setDnsDomain] = useState('');
+    const [utlsFingerprint, setUtlsFingerprint] = useState('chrome');
+    const [fragmentSize, setFragmentSize] = useState('100-200');
+    const [fragmentInterval, setFragmentInterval] = useState('10-20');
+    const [fragmentPackets, setFragmentPackets] = useState('tlshello');
 
     useEffect(() => {
         const init = async () => {
@@ -40,6 +49,17 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
         init();
     }, []);
 
+    useEffect(() => {
+        if (!initialDnsConfig) return;
+        if (initialDnsConfig.mode) setMode(initialDnsConfig.mode);
+        if (initialDnsConfig.nameservers) setNameserver(initialDnsConfig.nameservers);
+        if (initialDnsConfig.dnsDomain) setDnsDomain(initialDnsConfig.dnsDomain);
+        if (initialDnsConfig.vlessConfig) setConfig(initialDnsConfig.vlessConfig);
+        if (initialDnsConfig.targetIp) setTargetIp(initialDnsConfig.targetIp);
+        if (initialDnsConfig.dnsTestMode) setDnsTestMode(initialDnsConfig.dnsTestMode);
+        onPresetConsumed?.();
+    }, [initialDnsConfig]);
+
     const loadTopSnis = async () => {
         if (!detectedIsp) return toast.error(t('advanced.waitIsp'));
         toast.loading(t('advanced.loadingSnis'), { id: 'sniload' });
@@ -57,6 +77,12 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
         e.preventDefault();
         if (!config || !targetIp) return toast.error(t('advanced.configRequired'));
 
+        if (mode === 'dns_tunnel' && dnsTestMode === 'dnstt') {
+            if (!dnsDomain) return toast.error('DNS Domain is required for DNS Override mode.');
+            const nsList = nameserver.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+            if (nsList.length === 0) return toast.error('At least one nameserver is required.');
+        }
+
         const payload = {
             vless_config: config,
             target_ip: targetIp,
@@ -66,7 +92,17 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
             fragment_intervals: mode === 'fragment' ? intervals.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : [],
             test_snis: mode === 'sni' ? snis.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : [],
             concurrency: 5,
-            max_ping: 3000
+            max_ping: 3000,
+            // DNS Tunnel specific
+            ...(mode === 'dns_tunnel' && {
+                test_mode: dnsTestMode,
+                nameservers: dnsTestMode === 'dnstt' ? nameserver.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : undefined,
+                dns_domain: dnsTestMode === 'dnstt' ? dnsDomain : undefined,
+                utls_fingerprint: utlsFingerprint || undefined,
+                fragment_size: dnsTestMode === 'split' ? fragmentSize : undefined,
+                fragment_interval: dnsTestMode === 'split' ? fragmentInterval : undefined,
+                fragment_packets: dnsTestMode === 'split' ? fragmentPackets : undefined,
+            })
         };
 
         onStartAdvanced(payload);
@@ -81,6 +117,7 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
                 <div className="flex gap-2">
                     <button type="button" onClick={() => setMode('fragment')} className={`px-4 py-1 rounded text-xs transition-all ${mode === 'fragment' ? 'bg-neon-purple text-white shadow-[0_0_10px_rgba(188,19,254,0.5)]' : 'bg-black text-gray-400 border border-white/10'}`}>{t('advanced.fragment')}</button>
                     <button type="button" onClick={() => setMode('sni')} className={`px-4 py-1 rounded text-xs transition-all ${mode === 'sni' ? 'bg-neon-blue text-black shadow-[0_0_10px_rgba(0,243,255,0.5)] font-bold' : 'bg-black text-gray-400 border border-white/10'}`}>{t('advanced.sni')}</button>
+                    <button type="button" onClick={() => setMode('dns_tunnel')} className={`px-4 py-1 rounded text-xs transition-all ${mode === 'dns_tunnel' ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.5)] font-bold' : 'bg-black text-gray-400 border border-white/10'}`}>DNS Tunnel</button>
                 </div>
             </div>
 
@@ -128,6 +165,127 @@ export default function AdvancedScanners({ onStartAdvanced, isLoading }) {
                     <textarea className="input-field h-24 font-mono text-sm" value={snis} onChange={e => setSnis(e.target.value)} placeholder="domain1.com, domain2.com" />
                     <p className="text-xs text-neon-blue mt-2">
                         {detectedIsp ? '✨ ' + t('advanced.connectedDpi', { isp: detectedIsp }) : t('advanced.sniDesc')}
+                    </p>
+                </div>
+            )}
+
+            {mode === 'dns_tunnel' && (
+                <div className="p-4 border border-emerald-500/30 bg-emerald-500/5 rounded-lg mb-6 space-y-4">
+                    {/* Sub-mode toggle */}
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setDnsTestMode('dnstt')}
+                            className={`flex-1 py-1.5 rounded text-xs font-semibold transition-all ${
+                                dnsTestMode === 'dnstt'
+                                    ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                    : 'bg-black text-gray-400 border border-white/10 hover:text-gray-200'
+                            }`}
+                        >
+                            DNS Override (dnstt)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDnsTestMode('split')}
+                            className={`flex-1 py-1.5 rounded text-xs font-semibold transition-all ${
+                                dnsTestMode === 'split'
+                                    ? 'bg-emerald-500 text-white shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                    : 'bg-black text-gray-400 border border-white/10 hover:text-gray-200'
+                            }`}
+                        >
+                            TLS Split
+                        </button>
+                    </div>
+
+                    {dnsTestMode === 'dnstt' && (
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-gray-400 text-xs mb-1">Nameservers — one per line or comma-separated</label>
+                                <textarea
+                                    className="input-field py-2 font-mono text-sm h-20 resize-none"
+                                    value={nameserver}
+                                    onChange={e => setNameserver(e.target.value)}
+                                    placeholder={"8.8.8.8\n1.1.1.1\n8.8.4.4"}
+                                />
+                                <p className="text-[10px] text-emerald-400/70 mt-1">Each nameserver = 1 test item — creates a grid scan like Fragment mode</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-gray-400 text-xs mb-1">DNS Domain (tunneled via DNS)</label>
+                                    <input
+                                        className="input-field py-2 font-mono text-sm"
+                                        value={dnsDomain}
+                                        onChange={e => setDnsDomain(e.target.value)}
+                                        placeholder="tunnel.yourdomain.com"
+                                        required={mode === 'dns_tunnel' && dnsTestMode === 'dnstt'}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-400 text-xs mb-1">uTLS Fingerprint</label>
+                                    <select
+                                        className="input-field py-2 text-sm"
+                                        value={utlsFingerprint}
+                                        onChange={e => setUtlsFingerprint(e.target.value)}
+                                    >
+                                        {['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random'].map(fp => (
+                                            <option key={fp} value={fp}>{fp}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {dnsTestMode === 'split' && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-gray-400 text-xs mb-1">Fragment Size</label>
+                                <input
+                                    className="input-field py-2 font-mono text-sm"
+                                    value={fragmentSize}
+                                    onChange={e => setFragmentSize(e.target.value)}
+                                    placeholder="100-200"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-xs mb-1">Fragment Interval (ms)</label>
+                                <input
+                                    className="input-field py-2 font-mono text-sm"
+                                    value={fragmentInterval}
+                                    onChange={e => setFragmentInterval(e.target.value)}
+                                    placeholder="10-20"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-xs mb-1">Packets</label>
+                                <select
+                                    className="input-field py-2 text-sm"
+                                    value={fragmentPackets}
+                                    onChange={e => setFragmentPackets(e.target.value)}
+                                >
+                                    <option value="tlshello">tlshello</option>
+                                    <option value="1-3">1-3</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-gray-400 text-xs mb-1">uTLS Fingerprint</label>
+                                <select
+                                    className="input-field py-2 text-sm"
+                                    value={utlsFingerprint}
+                                    onChange={e => setUtlsFingerprint(e.target.value)}
+                                >
+                                    {['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', 'random'].map(fp => (
+                                        <option key={fp} value={fp}>{fp}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    )}
+
+                    <p className="text-xs text-emerald-400">
+                        {dnsTestMode === 'dnstt'
+                            ? 'Tests your config routed through a DNS nameserver tunnel. Requires a deployed DNS tunnel server.'
+                            : 'Tests your config with TLS packet splitting to bypass deep packet inspection.'}
                     </p>
                 </div>
             )}

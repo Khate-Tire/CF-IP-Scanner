@@ -68,3 +68,7 @@ CF-SITES/
 # OS files
 .DS_Store
 Thumbs.db
+
+backend/dns_history.db
+backend/dns_history.db-shm
+backend/dns_history.db-wal

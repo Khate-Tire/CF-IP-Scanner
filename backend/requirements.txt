@@ -13,3 +13,7 @@ aiodns
 pycares
 aiosqlite
 cryptography
+paramiko>=3.4.0
+dnspython>=2.6.0
+aioquic>=0.9.21
+httpx[socks,http2]>=0.25.0

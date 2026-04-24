@@ -41,6 +41,8 @@
 - 🔒 تأیید TLS سخت (ضد حمله وسط)
 - 🏆 سیستم آی‌پی طلایی هوشمند
 - 🌐 پشتیبانی چندزبانه (انگلیسی، فارسی، روسی، چینی، ترکی، عربی)
+- 🚇 ویزارد تونل DNS — ساخت ۸ تونل DNS روی سرور با SSH به صورت گرافیکی
+- 🔬 بهینه‌ساز DNS — اسکن ۲۰۰+ ریزالور عمومی برای یافتن سریع‌ترین اتصال
 
 ### 🚀 شروع سریع
 ```bash
@@ -79,6 +81,8 @@ python run_app.py
 - 🔒 Строгая проверка TLS (защита от MITM)
 - 🏆 Умная система золотых IP
 - 🌐 Мультиязычная поддержка (EN, FA, RU, ZH, TR, AR)
+- 🚇 Мастер DNS-туннелей — разверните 8 DNS-туннелей на VPS через SSH визуально
+- 🔬 Оптимизатор DNS — сканирование 200+ публичных резолверов для быстрейшего подключения
 
 ### 🚀 Быстрый старт
 ```bash
@@ -92,6 +96,126 @@ python run_app.py
 - 🤖 Telegram бот: [@antigravity_ip_bot](https://t.me/antigravity_ip_bot)
 - 💬 Telegram группа: [@ANTIGRAVITY_IP](https://t.me/ANTIGRAVITY_IP)
 - 👨‍💻 Разработчик: [@hossein_shiravani](https://t.me/hossein_shiravani)
+
+</details>
+
+<details>
+<summary>🇨🇳 <strong>中文 (Chinese)</strong> — 点击展开</summary>
+
+## 反重力 IP 扫描器
+
+专业级 Cloudflare IP 优化与审查绕过工具。
+
+### ✨ 功能
+- 📡 真实的延迟、抖动和下载/上传速度测试
+- 🧩 DPI 分片分析和 SNI 前置
+- 📡 WARP 节点扫描器 (Wireguard/UDP)
+- 🎯 Play Freedom 引擎 — 全自动发现可用 VPN 配置
+- 📱 免费 VPN 面板（Telegram 验证）
+- 🧠 基于网络状况的智能扫描建议
+- 💾 AES-256 加密的完整备份和导入 (.agdb 格式)
+- 📴 离线模式 — 分析、地理数据和配置无需联网
+- 🔗 5 层抗封锁数据库 (MySQL → Worker → SQLite)
+- 🔄 一键重新测试失败的 IP
+- 🌍 全球热力图和实时统计
+- 🔒 严格 TLS 验证（防中间人攻击）
+- 🏆 智能黄金 IP 系统
+- 🌐 多语言支持（英语、波斯语、俄语、中文、土耳其语、阿拉伯语）
+- 🚇 DNS 隧道向导 — 通过 SSH 在 VPS 上可视化部署 8 个 DNS 隧道
+- 🔬 DNS 优化器 — 扫描 200+ 公共解析器以找到最快连接
+
+### 🚀 快速入门
+```bash
+git clone https://github.com/Khate-Tire/CF-IP-Scanner.git
+cd CF-IP-Scanner
+pip install -r backend/requirements.txt
+python run_app.py
+```
+
+### 📱 联系方式
+- 🤖 Telegram 机器人: [@antigravity_ip_bot](https://t.me/antigravity_ip_bot)
+- 💬 Telegram 群组: [@ANTIGRAVITY_IP](https://t.me/ANTIGRAVITY_IP)
+- 👨‍💻 开发者: [@hossein_shiravani](https://t.me/hossein_shiravani)
+
+</details>
+
+<details>
+<summary>🇹🇷 <strong>Türkçe (Turkish)</strong> — Tıklayın</summary>
+
+## Antigravity IP Tarayıcı
+
+Gelişmiş Cloudflare IP optimizasyonu ve sansür atlama aracı.
+
+### ✨ Özellikler
+- 📡 Gerçek ping, jitter ve indirme/yükleme hız testleri
+- 🧩 DPI parçalama analizi ve SNI fronting
+- 📡 WARP uç noktası tarayıcı (Wireguard/UDP)
+- 🎯 Play Freedom motoru — kullanıcı müdahalesi olmadan otomatik VPN yapılandırma keşfi
+- 📱 Telegram doğrulama ile ücretsiz VPN paneli
+- 🧠 Ağ profilinize göre akıllı tarama önerileri
+- 💾 AES-256 şifreli tam yedekleme ve içe aktarma (.agdb formatı)
+- 📴 Çevrimdışı mod — analitik, coğrafi veri ve yapılandırmalar internetsiz
+- 🔗 5 katmanlı dayanıklı veritabanı (MySQL → Worker → SQLite)
+- 🔄 Başarısız IP'leri tek tıkla yeniden test etme
+- 🌍 Küresel ısı haritası ve gerçek zamanlı istatistikler
+- 🔒 Sıkı TLS doğrulaması (MITM koruması)
+- 🏆 Akıllı altın IP sistemi
+- 🌐 Çoklu dil desteği (İngilizce, Farsça, Rusça, Çince, Türkçe, Arapça)
+- 🚇 DNS Tünel Sihirbazı — SSH ile VPS'de 8 DNS tüneli görsel olarak kurun
+- 🔬 DNS Optimize Edici — En hızlı bağlantı için 200+ genel çözümleyici taraması
+
+### 🚀 Hızlı Başlangıç
+```bash
+git clone https://github.com/Khate-Tire/CF-IP-Scanner.git
+cd CF-IP-Scanner
+pip install -r backend/requirements.txt
+python run_app.py
+```
+
+### 📱 İletişim
+- 🤖 Telegram botu: [@antigravity_ip_bot](https://t.me/antigravity_ip_bot)
+- 💬 Telegram grubu: [@ANTIGRAVITY_IP](https://t.me/ANTIGRAVITY_IP)
+- 👨‍💻 Geliştirici: [@hossein_shiravani](https://t.me/hossein_shiravani)
+
+</details>
+
+<details>
+<summary>🇦🇪 <strong>العربية (Arabic)</strong> — انقر للعرض</summary>
+
+## ماسح عناوين IP المضاد للجاذبية
+
+أداة احترافية متقدمة لتحسين عناوين Cloudflare IP وتجاوز الرقابة على الإنترنت.
+
+### ✨ المميزات
+- 📡 اختبار حقيقي للبينج والتقلب وسرعة التنزيل/الرفع
+- 🧩 تحليل تجزئة DPI وواجهة SNI
+- 📡 ماسح نقاط نهاية WARP (Wireguard/UDP)
+- 🎯 محرك Play Freedom — اكتشاف تلقائي لتكوينات VPN العاملة بدون تدخل المستخدم
+- 📱 لوحة VPN مجانية مع مصادقة Telegram
+- 🧠 توصيات ذكية لإعدادات الفحص بناءً على ملف شبكتك
+- 💾 نسخ احتياطي كامل واستيراد مع تشفير AES-256 (صيغة .agdb)
+- 📴 وضع عدم الاتصال — تحليلات وبيانات جغرافية وتكوينات بدون إنترنت
+- 🔗 قاعدة بيانات مرنة من 5 طبقات (MySQL → Worker → SQLite)
+- 🔄 إعادة اختبار عناوين IP الفاشلة بنقرة واحدة
+- 🌍 خريطة حرارية عالمية مع إحصائيات مباشرة
+- 🔒 تحقق صارم من TLS (حماية ضد MITM)
+- 🏆 نظام عناوين IP الذهبية الذكي
+- 🌐 دعم متعدد اللغات (الإنجليزية، الفارسية، الروسية، الصينية، التركية، العربية)
+- 🚇 معالج نفق DNS — إنشاء 8 أنفاق DNS على VPS عبر SSH بصريًا
+- 🔬 محسّن DNS — فحص 200+ محلل عام للعثور على أسرع اتصال
+
+### 🚀 البدء السريع
+```bash
+git clone https://github.com/Khate-Tire/CF-IP-Scanner.git
+cd CF-IP-Scanner
+pip install -r backend/requirements.txt
+python run_app.py
+```
+
+### 📱 التواصل
+- 🤖 بوت تيليجرام: [@antigravity_ip_bot](https://t.me/antigravity_ip_bot)
+- 💬 مجموعة تيليجرام: [@ANTIGRAVITY_IP](https://t.me/ANTIGRAVITY_IP)
+- 👨‍💻 المطور: [@hossein_shiravani](https://t.me/hossein_shiravani)
 
 </details>
 
@@ -162,6 +286,8 @@ python run_app.py
 | 📱 **Deep Links** | One-click export to V2RayNG, Hidify, V2Box, Clash Meta, Sing-box |
 | 🌐 **DNS Override** | Route DNS queries through encrypted DoH/DoT servers to bypass ISP poisoning |
 | 🍎 **macOS Support** | Native DMG installer for macOS alongside Windows EXE |
+| 🚇 **DNS Tunnel Wizard** | Visual 6-step wizard to deploy 8 DNS tunnels (Slipstream, DNSTT, NoizDNS, VayDNS) on your VPS via SSH |
+| 🔬 **DNS Optimizer** | Scan 200+ public DNS resolvers to find the fastest, most stable tunnel connection parameters |
 
 ---
 
@@ -238,6 +364,8 @@ CF-IP-Scanner/
 │   ├── cf_ips.py           # Cloudflare & Fastly IP range manager
 │   ├── core_manager.py     # Xray-core process lifecycle
 │   ├── local_queue.py      # Persistent SQLite async scan queue
+│   ├── tunnel_deployer.py  # DNS tunnel SSH deployment engine
+│   ├── dns_scanner_engine.py # DNS resolver scanner & optimizer
 │   └── xray_core/          # Bundled Xray-core binary
 ├── frontend/                # React + Vite + Tailwind CSS
 │   ├── src/
@@ -264,12 +392,18 @@ CF-IP-Scanner/
 │   │   │   ├── LogBox.jsx               # Real-time scan logs
 │   │   │   ├── AboutBox.jsx             # Documentation & FAQ
 │   │   │   ├── LanguageSwitcher.jsx     # EN/FA/RU language picker
-│   │   │   └── UpdateModal.jsx          # Auto-update notification
+│   │   │   ├── UpdateModal.jsx          # Auto-update notification
+│   │   │   ├── DnsTunnelTab.jsx         # DNS tunnel tab container
+│   │   │   ├── DeployWizard.jsx         # 6-step SSH tunnel deployer
+│   │   │   └── DnsOptimizer.jsx         # DNS resolver scanner & optimizer
 │   │   └── i18n/           # Internationalization
 │   │       ├── LanguageContext.jsx
 │   │       ├── en.json     # English
 │   │       ├── fa.json     # فارسی (Persian)
-│   │       └── ru.json     # Русский (Russian)
+│   │       ├── ru.json     # Русский (Russian)
+│   │       ├── zh.json     # 中文 (Chinese)
+│   │       ├── tr.json     # Türkçe (Turkish)
+│   │       └── ar.json     # العربية (Arabic)
 │   └── public/
 │       └── logo.png
 ├── worker/                  # Cloudflare Worker DB proxy

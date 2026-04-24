@@ -86,6 +86,17 @@ export default function DataTransferPanel() {
 
         if (!file.name.endsWith('.agdb')) {
             toast.error("Invalid file format. Only .agdb files are supported.");
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        const ok = window.confirm(
+            `Importing "${file.name}" will MERGE its data into your local database.\n\n` +
+            `Existing scan results, settings and discovered nodes may be overwritten.\n\n` +
+            `Continue?`
+        );
+        if (!ok) {
+            if (fileInputRef.current) fileInputRef.current.value = '';
             return;
         }
 

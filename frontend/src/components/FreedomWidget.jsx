@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getFreedomStatus, provideFreedomConfig } from '../api';
-import { Activity, Radio, Cpu, Network, Server, Play, Square, Loader, Send, Copy, ChevronDown, ChevronUp } from 'lucide-react';
+import { Activity, Radio, Cpu, Network, Server, Play, Square, Loader, Send, Copy, ChevronDown, ChevronUp, FlaskConical } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useTranslation } from '../i18n/LanguageContext';
 
-export default function FreedomWidget({ onStart, onStop }) {
+export default function FreedomWidget({ onStart, onStop, onSendToAdvanced }) {
     const { t } = useTranslation();
     const [status, setStatus] = useState(null);
     const [userConfig, setUserConfig] = useState('');
@@ -158,6 +158,15 @@ export default function FreedomWidget({ onStart, onStop }) {
                                 {status.found_configs[expandedSection].map((cfg, i) => (
                                     <div key={i} className="flex items-center gap-2 group">
                                         <div className="flex-1 text-xs font-mono text-gray-300 truncate" title={cfg}>{cfg}</div>
+                                        {onSendToAdvanced && (
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); onSendToAdvanced({ vlessConfig: cfg }); }}
+                                                className="opacity-0 group-hover:opacity-100 text-neon-purple hover:text-neon-pink transition-all shrink-0"
+                                                title={t('freedom.bypassTest', 'Bypass-test in Advanced Scanners')}
+                                            >
+                                                <FlaskConical className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(cfg); toast.success(t('freedom.configCopied', 'Config copied!')); }}
                                             className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition-all shrink-0"

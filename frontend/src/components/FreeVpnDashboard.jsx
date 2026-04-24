@@ -52,18 +52,30 @@ export default function FreeVpnDashboard({ onStartContribution }) {
     }, []);
 
     // Poll contribution status every 15s so active scans are reflected live
+    // Poll contribution status every 15s — stop polling once requirement is met (saves CPU + backend calls)
     useEffect(() => {
+        if (scanRequirementMet) return;
         const interval = setInterval(() => {
             checkUserContribution();
         }, 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [scanRequirementMet]);
 
-    // Poll the backend for Telegram Auth Confimration
+    // Poll the backend for Telegram Auth Confirmation — auto-stops after 5 minutes (100 polls × 3s)
     useEffect(() => {
         let interval;
+        let pollCount = 0;
+        const MAX_POLLS = 100; // 5 minutes
         if (isPolling && authCode) {
             interval = setInterval(async () => {
+                pollCount += 1;
+                if (pollCount > MAX_POLLS) {
+                    setIsPolling(false);
+                    setAuthCode(null);
+                    toast.error('Telegram auth timed out after 5 minutes. Please try again.');
+                    clearInterval(interval);
+                    return;
+                }
                 try {
                     const adminUrl = import.meta.env.VITE_ADMIN_PANEL_URL || '';
                     const res = await fetch(`${adminUrl}/api/auth/status/${authCode}`);

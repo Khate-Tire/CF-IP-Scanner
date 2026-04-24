@@ -1,5 +1,5 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { exportSubscription, getExportLink, rescanIP } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -18,7 +18,7 @@ const STATUS_LABELS = {
     'low_upload': 'Low UL',
 };
 
-export default function ResultsTable({ results, vlessConfig }) {
+export default function ResultsTable({ results, vlessConfig, onSendToAdvanced }) {
     const { t } = useTranslation();
     const [qrData, setQrData] = useState(null);
     const [exportFormat, setExportFormat] = useState('base64');
@@ -27,16 +27,17 @@ export default function ResultsTable({ results, vlessConfig }) {
     const [retesting, setRetesting] = useState({});  // { ip: true/false }
     const [retestResults, setRetestResults] = useState({}); // { ip: result }
 
-    // Filter out timeout, unreachable, etc.
-    const visibleResults = results.filter(r => !HIDDEN_STATUSES.includes(r.status));
+    // Filter out timeout, unreachable, etc. (memoized)
+    const visibleResults = useMemo(
+        () => results.filter(r => !HIDDEN_STATUSES.includes(r.status)),
+        [results]
+    );
 
-    // Merge re-test results into visible results
-    const mergedResults = visibleResults.map(r => {
-        if (retestResults[r.ip]) {
-            return { ...r, ...retestResults[r.ip] };
-        }
-        return r;
-    });
+    // Merge re-test results into visible results (memoized)
+    const mergedResults = useMemo(
+        () => visibleResults.map(r => (retestResults[r.ip] ? { ...r, ...retestResults[r.ip] } : r)),
+        [visibleResults, retestResults]
+    );
 
     const requestSort = (key) => {
         let direction = 'asc';
@@ -46,22 +47,26 @@ export default function ResultsTable({ results, vlessConfig }) {
         setSortConfig({ key, direction });
     };
 
-    const sortedResults = [...mergedResults].sort((a, b) => {
-        let valA = a[sortConfig.key];
-        let valB = b[sortConfig.key];
+    const sortedResults = useMemo(() => {
+        const arr = [...mergedResults];
+        arr.sort((a, b) => {
+            let valA = a[sortConfig.key];
+            let valB = b[sortConfig.key];
 
-        if (['ping', 'jitter', 'download', 'upload'].includes(sortConfig.key)) {
-            valA = parseFloat(valA) || (sortConfig.direction === 'asc' ? 9999 : -1);
-            valB = parseFloat(valB) || (sortConfig.direction === 'asc' ? 9999 : -1);
-        } else {
-            valA = valA ? String(valA).toLowerCase() : '';
-            valB = valB ? String(valB).toLowerCase() : '';
-        }
+            if (['ping', 'jitter', 'download', 'upload'].includes(sortConfig.key)) {
+                valA = parseFloat(valA) || (sortConfig.direction === 'asc' ? 9999 : -1);
+                valB = parseFloat(valB) || (sortConfig.direction === 'asc' ? 9999 : -1);
+            } else {
+                valA = valA ? String(valA).toLowerCase() : '';
+                valB = valB ? String(valB).toLowerCase() : '';
+            }
 
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-    });
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return arr;
+    }, [mergedResults, sortConfig]);
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
@@ -274,6 +279,15 @@ export default function ResultsTable({ results, vlessConfig }) {
                                                 title="Re-test this IP"
                                             >
                                                 {retesting[res.ip] ? '⏳' : '🔄'} Re-test
+                                            </button>
+                                        )}
+                                        {onSendToAdvanced && vlessConfig && res.status === 'ok' && (
+                                            <button
+                                                onClick={() => onSendToAdvanced({ vlessConfig, targetIp: res.ip })}
+                                                className="px-2 py-1 rounded text-xs font-bold bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/40 transition-colors"
+                                                title="Bypass-test this IP in Advanced Scanners"
+                                            >
+                                                🔬 Bypass
                                             </button>
                                         )}
                                         {res.link && (

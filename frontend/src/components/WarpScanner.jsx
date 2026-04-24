@@ -62,10 +62,12 @@ export default function WarpScanner() {
 
     useEffect(() => {
         let interval;
+        let consecutiveErrors = 0;
         if (scanId && status === 'running') {
             interval = setInterval(async () => {
                 try {
                     const data = await getWarpScanStatus(scanId);
+                    consecutiveErrors = 0;
                     if (data.status) {
                         setMetrics({
                             completed: data.status.completed,
@@ -79,7 +81,17 @@ export default function WarpScanner() {
                     if (data.results) {
                         setResults(data.results);
                     }
-                } catch (e) { }
+                } catch (_e) {
+                    void _e;
+                    consecutiveErrors++;
+                    if (consecutiveErrors === 5) {
+                        toast.error('WARP scan polling failed — backend unreachable');
+                    }
+                    if (consecutiveErrors >= 15) {
+                        setStatus('error');
+                        setLogs(prev => [...prev, '[FATAL] Lost connection to backend after 15 retries']);
+                    }
+                }
             }, 1000);
         }
         return () => clearInterval(interval);

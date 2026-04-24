@@ -1,10 +1,10 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
+import { getClientId } from './utils/clientId';
 export const API_URL = "http://127.0.0.1:8000";
 
 export const scanIPs = async (config) => {
-    let cid = localStorage.getItem('app_client_id') || '';
-    if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
-    
+    const cid = getClientId();
+
     const response = await fetch(`${API_URL}/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
@@ -161,9 +161,8 @@ export const getGeoAnalytics = async (provider = 'cloudflare') => {
 
 export const getGamificationStatus = async () => {
     try {
-        let cid = localStorage.getItem('app_client_id') || '';
-        if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
-        
+        const cid = getClientId();
+
         const response = await fetch(`${API_URL}/api/gamification/status`, {
             headers: { 'X-Client-ID': cid }
         });
@@ -221,9 +220,8 @@ export const testConfigRemote = async (configString) => {
 
 export const scanAdvancedIPs = async (payload) => {
     try {
-        let cid = localStorage.getItem('app_client_id') || '';
-        if (!cid) { cid = (Math.random().toString(36).substring(2) + Date.now().toString(36)); localStorage.setItem('app_client_id', cid); }
-        
+        const cid = getClientId();
+
         const response = await fetch(`${API_URL}/scan-advanced`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
@@ -310,3 +308,145 @@ export const provideFreedomConfig = async (config) => {
     });
     return res.json();
 };
+
+// ==========================================
+// DNS TUNNEL WIZARD API
+// ==========================================
+
+export const tunnelConnect = async (host, port, username, password, privateKey) => {
+    const res = await fetch(`${API_URL}/api/tunnel/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host, port, username, password, private_key: privateKey })
+    });
+    return res.json();
+};
+
+export const tunnelDisconnect = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/disconnect`, { method: 'POST' });
+    return res.json();
+};
+
+export const tunnelPreflight = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/preflight`, { method: 'POST' });
+    return res.json();
+};
+
+export const tunnelVerifyDns = async (domain, serverIp) => {
+    const res = await fetch(`${API_URL}/api/tunnel/verify-dns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, server_ip: serverIp })
+    });
+    return res.json();
+};
+
+export const tunnelCloudflareDns = async (apiToken, domain, serverIp) => {
+    const res = await fetch(`${API_URL}/api/tunnel/cloudflare-dns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_token: apiToken, domain, server_ip: serverIp })
+    });
+    return res.json();
+};
+
+export const tunnelDeploy = async (config) => {
+    const res = await fetch(`${API_URL}/api/tunnel/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+    });
+    return res.json();
+};
+
+export const tunnelDeployStatus = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/deploy/status`);
+    return res.json();
+};
+
+export const tunnelDeployCancel = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/deploy/cancel`, { method: 'POST' });
+    return res.json();
+};
+
+export const tunnelGetConfigs = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/configs`);
+    return res.json();
+};
+
+// ==========================================
+// DNS RESOLVER SCANNER API
+// ==========================================
+
+export const dnsStartScan = async (config) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+    });
+    return res.json();
+};
+
+export const dnsGetScanStatus = async (scanId) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/status`);
+    return res.json();
+};
+
+export const dnsStopScan = async (scanId) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/stop`, { method: 'POST' });
+    return res.json();
+};
+
+export const dnsQuickTest = async (resolver, domain) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/quick-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolver, domain })
+    });
+    return res.json();
+};
+
+export const dnsBestConfig = async (scanId, domain, pubkey) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/best-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scan_id: scanId, domain, pubkey })
+    });
+    return res.json();
+};
+
+export const dnsGetResolvers = async () => {
+    const res = await fetch(`${API_URL}/api/dns-scan/resolvers`);
+    return res.json();
+};
+
+export const dnsExportScan = async (scanId, fmt = 'json') => {
+    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/export?fmt=${fmt}`);
+    if (fmt === 'csv') return res.text();
+    return res.json();
+};
+
+export const dnsRetestTop = async (scanId, topN = 10, rounds = 10) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/retest-top?top_n=${topN}&rounds=${rounds}`, { method: 'POST' });
+    return res.json();
+};
+
+export const dnsGetHistory = async () => {
+    const res = await fetch(`${API_URL}/api/dns-scan/history`);
+    return res.json();
+};
+
+export const dnsGenerateConfig = async (resolver, domain, tunnelType = 'auto', pubkey = null) => {
+    const res = await fetch(`${API_URL}/api/dns-scan/generate-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolver, domain, tunnel_type: tunnelType, pubkey })
+    });
+    return res.json();
+};
+
+export const dnsPredictBest = async () => {
+    const res = await fetch(`${API_URL}/api/dns-scan/predict-best`);
+    return res.json();
+};
+

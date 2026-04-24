@@ -1796,6 +1796,7 @@ class ScanAdvancedRequest(BaseModel):
     # DNS Tunnel specific
     test_mode: Optional[str] = None
     nameserver: Optional[str] = None
+    nameservers: Optional[List[str]] = None  # multiple nameservers for grid scan
     dns_domain: Optional[str] = None
     fragment_size: Optional[str] = None
     fragment_interval: Optional[str] = None
@@ -1843,12 +1844,14 @@ def start_advanced_scan(req: ScanAdvancedRequest, request: Request, background_t
                 items_to_test.append({"fragment": None, "test_sni": sni, "id": f"SNI: {sni}"})
     elif req.mode == 'dns_tunnel':
         if req.test_mode == 'dnstt':
-            items_to_test.append({
-                "fragment": None, 
-                "test_sni": None, 
-                "dns_over_udp": {"server": req.nameserver, "domain": req.dns_domain, "utls_fingerprint": req.utls_fingerprint},
-                "id": f"DNS Override | NS: {req.nameserver or 'None'} | Domain: {req.dns_domain}"
-            })
+            ns_list = req.nameservers or ([req.nameserver] if req.nameserver else ['8.8.8.8'])
+            for ns in ns_list:
+                items_to_test.append({
+                    "fragment": None,
+                    "test_sni": None,
+                    "dns_over_udp": {"server": ns, "domain": req.dns_domain, "utls_fingerprint": req.utls_fingerprint},
+                    "id": f"DNS Override | NS: {ns} | Domain: {req.dns_domain}"
+                })
         elif req.test_mode == 'split':
             items_to_test.append({
                 "fragment": {"length": req.fragment_size, "interval": req.fragment_interval, "packets": req.fragment_packets or "tlshello"},
@@ -2524,3 +2527,195 @@ async def freedom_status():
 
 if __name__ == '__main__':
     uvicorn.run(app, host='127.0.0.1', port=8000)
+
+# ==========================================
+# DNS TUNNEL WIZARD ENDPOINTS
+# ==========================================
+import tunnel_deployer
+import dns_scanner_engine
+
+class TunnelConnectRequest(BaseModel):
+    host: str
+    port: int = 22
+    username: str = "root"
+    password: Optional[str] = None
+    private_key: Optional[str] = None
+
+class TunnelDnsVerifyRequest(BaseModel):
+    domain: str
+    server_ip: Optional[str] = None
+
+class CloudflareDnsRequest(BaseModel):
+    api_token: str
+    domain: str
+    server_ip: str
+
+class TunnelDeployRequest(BaseModel):
+    domain: str
+    mtu: int = 1232
+    socks_auth: bool = False
+    socks_user: str = "proxy"
+    socks_pass: str = ""
+    ssh_tunnel_user: bool = False
+    ssh_user: str = "tunnel"
+    ssh_pass: str = ""
+    add_xray: bool = False
+    xray_protocol: str = "vless"
+
+class DnsScanRequest(BaseModel):
+    resolvers: Optional[List[str]] = None
+    domain: str = "example.com"
+    countries: Optional[List[str]] = None
+    concurrency: int = 20
+    timeout_ms: int = 5000
+    protocol: str = "udp"
+    do_payload_test: bool = False
+    fronting_domain: Optional[str] = None
+
+class DnsQuickTestRequest(BaseModel):
+    resolver: str
+    domain: str = "example.com"
+
+class DnsBestConfigRequest(BaseModel):
+    scan_id: str
+    domain: str
+    pubkey: Optional[str] = None
+
+
+# --- Tunnel Deployment ---
+
+@app.post('/api/tunnel/connect')
+async def tunnel_connect(req: TunnelConnectRequest):
+    """Test SSH connection to the target server."""
+    result = tunnel_deployer.ssh_connect(
+        host=req.host, port=req.port, username=req.username,
+        password=req.password, private_key=req.private_key
+    )
+    return result
+
+@app.post('/api/tunnel/disconnect')
+async def tunnel_disconnect():
+    """Disconnect SSH."""
+    tunnel_deployer.ssh_disconnect()
+    return {"success": True}
+
+@app.post('/api/tunnel/preflight')
+async def tunnel_preflight():
+    """Run pre-flight checks on the connected server."""
+    try:
+        result = tunnel_deployer.run_preflight()
+        return result
+    except ConnectionError as e:
+        return {"success": False, "message": str(e)}
+
+@app.post('/api/tunnel/verify-dns')
+async def tunnel_verify_dns(req: TunnelDnsVerifyRequest):
+    """Verify DNS records are properly configured."""
+    result = tunnel_deployer.verify_dns_records(req.domain, req.server_ip)
+    return result
+
+@app.post('/api/tunnel/cloudflare-dns')
+async def tunnel_cloudflare_dns(req: CloudflareDnsRequest):
+    """Auto-create DNS records via Cloudflare API."""
+    result = tunnel_deployer.cloudflare_create_dns_records(
+        api_token=req.api_token, domain=req.domain, server_ip=req.server_ip
+    )
+    return result
+
+@app.post('/api/tunnel/deploy')
+async def tunnel_deploy(req: TunnelDeployRequest, background_tasks: BackgroundTasks):
+    """Start the full deployment process."""
+    result = tunnel_deployer.start_deployment(
+        domain=req.domain, mtu=req.mtu,
+        socks_auth=req.socks_auth, socks_user=req.socks_user, socks_pass=req.socks_pass,
+        ssh_tunnel_user=req.ssh_tunnel_user, ssh_user=req.ssh_user, ssh_pass=req.ssh_pass,
+        add_xray=req.add_xray, xray_protocol=req.xray_protocol
+    )
+    return result
+
+@app.get('/api/tunnel/deploy/status')
+async def tunnel_deploy_status():
+    """Get current deployment progress."""
+    return tunnel_deployer.get_deployment_status()
+
+@app.post('/api/tunnel/deploy/cancel')
+async def tunnel_deploy_cancel():
+    """Cancel the current deployment."""
+    return tunnel_deployer.cancel_deployment()
+
+@app.get('/api/tunnel/configs')
+async def tunnel_get_configs():
+    """Get generated configs from the last deployment."""
+    return tunnel_deployer.get_tunnel_configs()
+
+
+# --- DNS Resolver Scanner ---
+
+@app.post('/api/dns-scan/start')
+async def dns_scan_start(req: DnsScanRequest):
+    """Start a DNS resolver scan."""
+    result = dns_scanner_engine.start_dns_scan(
+        resolvers=req.resolvers, domain=req.domain,
+        countries=req.countries, concurrency=req.concurrency,
+        timeout_ms=req.timeout_ms, protocol=req.protocol,
+        do_payload_test=req.do_payload_test, fronting_domain=req.fronting_domain
+    )
+    return result
+
+@app.get('/api/dns-scan/{scan_id}/status')
+async def dns_scan_status(scan_id: str):
+    """Get DNS scan progress and results."""
+    return dns_scanner_engine.get_scan_status(scan_id)
+
+@app.post('/api/dns-scan/{scan_id}/stop')
+async def dns_scan_stop(scan_id: str):
+    """Stop a running DNS scan."""
+    return dns_scanner_engine.stop_scan(scan_id)
+
+@app.post('/api/dns-scan/quick-test')
+async def dns_quick_test(req: DnsQuickTestRequest):
+    """Test a single resolver immediately."""
+    return dns_scanner_engine.quick_test_resolver(req.resolver, req.domain)
+
+@app.post('/api/dns-scan/best-config')
+async def dns_best_config(req: DnsBestConfigRequest):
+    """Get the best connection configuration from scan results."""
+    return dns_scanner_engine.get_best_config(req.scan_id, req.domain, req.pubkey)
+
+@app.get('/api/dns-scan/resolvers')
+async def dns_get_resolvers():
+    """Get the built-in resolver database."""
+    return dns_scanner_engine.BUILTIN_RESOLVERS
+
+@app.get('/api/dns-scan/{scan_id}/export')
+async def dns_export_scan(scan_id: str, fmt: str = "json"):
+    """Export scan results as JSON or CSV."""
+    result = dns_scanner_engine.export_scan(scan_id, fmt)
+    if fmt == "csv" and isinstance(result, str):
+        from starlette.responses import Response
+        return Response(content=result, media_type="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename=dns_scan_{scan_id}.csv"})
+    return result
+
+@app.post('/api/dns-scan/{scan_id}/retest-top')
+async def dns_retest_top(scan_id: str, top_n: int = 10, rounds: int = 10):
+    """Re-test top N resolvers with more rounds for accuracy."""
+    return dns_scanner_engine.retest_top_resolvers(scan_id, top_n, rounds)
+
+@app.get('/api/dns-scan/history')
+async def dns_scan_history():
+    """Get past scan summaries."""
+    return dns_scanner_engine.get_scan_history()
+
+@app.post('/api/dns-scan/generate-config')
+async def dns_generate_config(req: dict):
+    """Generate tunnel configs from a resolver + domain."""
+    return dns_scanner_engine.generate_config(
+        req.get("resolver","8.8.8.8"), req.get("domain","example.com"),
+        req.get("tunnel_type","auto"), req.get("pubkey")
+    )
+
+@app.get('/api/dns-scan/predict-best')
+async def dns_predict_best():
+    """Predict best resolver using ML heuristics from local history."""
+    return dns_scanner_engine.predict_best_resolver()

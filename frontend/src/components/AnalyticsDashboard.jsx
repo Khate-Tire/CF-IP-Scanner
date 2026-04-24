@@ -1,11 +1,11 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getAnalytics } from '../api';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ComposedChart, Area } from 'recharts';
 import WorldHeatmap from './WorldHeatmap';
 import { useTranslation } from '../i18n/LanguageContext';
 
-export default function AnalyticsDashboard() {
+export default function AnalyticsDashboard({ onSendToScanner }) {
     const { t } = useTranslation();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -45,10 +45,10 @@ export default function AnalyticsDashboard() {
 
     const { top_datacenters, top_ports, network_types, top_asns, top_isps, fail_reasons, total_scans, total_good, timeline_data } = data;
 
-    const outcomeData = [
+    const outcomeData = useMemo(() => ([
         { name: t('analytics.success', 'Success'), value: total_good || 0 },
         ...(fail_reasons || []).map(f => ({ name: f.fail_reason, value: f.count }))
-    ];
+    ]), [total_good, fail_reasons, t]);
     // Vibrant cohesive palette for the donut chart
     const COLORS = ['#BC13FE', '#ff0055', '#ff9900', '#00f3ff', '#ff00aa', '#444444', '#777777'];
 
@@ -233,10 +233,21 @@ export default function AnalyticsDashboard() {
                             {top_ports?.map((pt, i) => {
                                 const maxCount = Math.max(...(top_ports.map(p => p.count) || [1]));
                                 return (
-                                    <div key={i} className="relative w-full bg-black/40 rounded-lg overflow-hidden flex justify-between items-center px-4 py-3 border border-white/5 shadow-inner">
+                                    <div key={i} className="relative w-full bg-black/40 rounded-lg overflow-hidden flex justify-between items-center px-4 py-3 border border-white/5 shadow-inner group/port">
                                         <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500/20 to-transparent transition-all duration-1000" style={{ width: `${(pt.count / maxCount) * 100}%` }}></div>
                                         <span className="relative text-gray-200 font-mono text-sm tracking-widest leading-none">{t('analytics.port', 'PORT')} {pt.port}</span>
-                                        <span className="relative text-neon-blue font-bold text-sm leading-none">{pt.count} {t('analytics.successes')}</span>
+                                        <div className="relative flex items-center gap-2">
+                                            <span className="text-neon-blue font-bold text-sm leading-none">{pt.count} {t('analytics.successes')}</span>
+                                            {onSendToScanner && (
+                                                <button
+                                                    onClick={() => onSendToScanner({ testPorts: [pt.port] })}
+                                                    className="opacity-0 group-hover/port:opacity-100 transition-opacity px-2 py-1 rounded text-[10px] font-bold bg-neon-blue/20 text-neon-blue hover:bg-neon-blue/40"
+                                                    title={t('analytics.scanWithPort', 'Scan with port {port}').replace('{port}', pt.port)}
+                                                >
+                                                    🔍 {t('analytics.useThisPort', 'Use')}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}

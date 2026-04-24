@@ -1,11 +1,11 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { fetchConfigFromUrl, API_URL, testConfigRemote } from '../api';
 import GeoMap from './GeoMap';
 import { useTranslation } from '../i18n/LanguageContext';
 import { toast } from 'react-hot-toast';
 
-export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, autoStartSignal }) {
+export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, autoStartSignal, scannerPreset, onPresetConsumed }) {
     const { t } = useTranslation();
     const [config, setConfig] = useState('');
     const [useManual, setUseManual] = useState(false);
@@ -182,10 +182,28 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
     };
 
     React.useEffect(() => {
-        if (autoStartSignal > 0) {
+        if (autoStartSignal > 0 && !isFetching && !isLoading) {
             handleAutoScan();
         }
     }, [autoStartSignal]);
+
+    // Apply preset coming from Analytics dashboard (clickable port / country)
+    useEffect(() => {
+        if (!scannerPreset) return;
+        if (Array.isArray(scannerPreset.testPorts) && scannerPreset.testPorts.length) {
+            setTestPorts(scannerPreset.testPorts);
+            setShowAdvanced(true);
+        }
+        if (typeof scannerPreset.targetCountry === 'string') {
+            setTargetCountry(scannerPreset.targetCountry.toUpperCase());
+            setShowAdvanced(true);
+        }
+        if (scannerPreset.ipSource) {
+            setIpSource(scannerPreset.ipSource);
+        }
+        onPresetConsumed?.();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scannerPreset]);
 
     const handleTestConfig = async () => {
         if (!config || isTesting) return;
