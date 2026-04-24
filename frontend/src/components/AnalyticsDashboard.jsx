@@ -19,6 +19,13 @@ export default function AnalyticsDashboard({ onSendToScanner }) {
         });
     }, [provider]);
 
+    // Hooks must be called unconditionally (Rules of Hooks).
+    // Compute outcomeData BEFORE any early returns below.
+    const outcomeData = useMemo(() => ([
+        { name: t('analytics.success', 'Success'), value: data?.total_good || 0 },
+        ...((data?.fail_reasons) || []).map(f => ({ name: f.fail_reason, value: f.count }))
+    ]), [data, t]);
+
     if (loading) {
         return (
             <div className="space-y-6 animate-in fade-in pb-12">
@@ -45,10 +52,6 @@ export default function AnalyticsDashboard({ onSendToScanner }) {
 
     const { top_datacenters, top_ports, network_types, top_asns, top_isps, fail_reasons, total_scans, total_good, timeline_data } = data;
 
-    const outcomeData = useMemo(() => ([
-        { name: t('analytics.success', 'Success'), value: total_good || 0 },
-        ...(fail_reasons || []).map(f => ({ name: f.fail_reason, value: f.count }))
-    ]), [total_good, fail_reasons, t]);
     // Vibrant cohesive palette for the donut chart
     const COLORS = ['#BC13FE', '#ff0055', '#ff9900', '#00f3ff', '#ff00aa', '#444444', '#777777'];
 
