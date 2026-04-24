@@ -325,6 +325,65 @@ def run_preflight() -> Dict:
     return {"success": all_critical_ok, "checks": checks}
 
 
+# ─── Port 53 auto-fix ──────────────────────────────────────────────────────────
+
+def fix_port53() -> Dict:
+    """
+    Free up UDP/TCP port 53 on the connected server by disabling the
+    systemd-resolved stub listener (the most common reason port 53 is
+    "blocked" on a fresh Ubuntu/Debian VPS) and pointing /etc/resolv.conf
+    at a real upstream resolver (1.1.1.1 + 8.8.8.8) so the box itself
+    can still resolve DNS for apt / curl / etc.
+
+    Returns: {"success": bool, "message": str, "after": "<ss output>"}
+    """
+    err = _require("ssh")
+    if err:
+        return err
+    steps = []
+    try:
+        # 1. Inspect current occupant
+        before, _, _ = _exec("ss -ulnp 2>/dev/null | grep -E ':53\\b' || echo 'free'", 10)
+        steps.append(f"before: {before.strip() or '(empty)'}")
+
+        # 2. Disable the stub listener (preserve the rest of resolved)
+        _exec(
+            "mkdir -p /etc/systemd/resolved.conf.d && "
+            "printf '[Resolve]\\nDNSStubListener=no\\nDNS=1.1.1.1 8.8.8.8\\nFallbackDNS=9.9.9.9\\n' "
+            "> /etc/systemd/resolved.conf.d/99-disable-stub.conf",
+            15,
+        )
+        steps.append("wrote /etc/systemd/resolved.conf.d/99-disable-stub.conf")
+
+        # 3. Replace /etc/resolv.conf with a real, working resolver so the
+        #    VPS doesn't lose DNS the moment we kill the stub.
+        _exec(
+            "rm -f /etc/resolv.conf && "
+            "printf 'nameserver 1.1.1.1\\nnameserver 8.8.8.8\\noptions edns0 trust-ad\\n' "
+            "> /etc/resolv.conf && "
+            "chattr +i /etc/resolv.conf 2>/dev/null || true",
+            15,
+        )
+        steps.append("rewrote /etc/resolv.conf -> 1.1.1.1, 8.8.8.8 (locked)")
+
+        # 4. Restart resolved so the stub goes away.
+        _exec("systemctl restart systemd-resolved 2>/dev/null || true", 20)
+        steps.append("restarted systemd-resolved")
+
+        # 5. Verify
+        after, _, _ = _exec("ss -ulnp 2>/dev/null | grep -E ':53\\b' || echo 'free'", 10)
+        ok = ("free" in after) or ("dnstm" in after)
+        return {
+            "success": ok,
+            "message": "Port 53 is free." if ok
+                       else "systemd-resolved stub disabled, but something else is still on :53 — see 'after'.",
+            "steps": steps,
+            "after": after.strip(),
+        }
+    except Exception as e:
+        return {"success": False, "message": f"fix_port53 failed: {e}", "steps": steps}
+
+
 # ─── DNS Verification ──────────────────────────────────────────────────────────
 
 def verify_dns_records(domain: str, server_ip: str = None) -> Dict:

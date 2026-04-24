@@ -332,6 +332,11 @@ export const tunnelPreflight = async () => {
     return res.json();
 };
 
+export const tunnelFixPort53 = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/fix-port53`, { method: 'POST' });
+    return res.json();
+};
+
 export const tunnelVerifyDns = async (domain, serverIp) => {
     const res = await fetch(`${API_URL}/api/tunnel/verify-dns`, {
         method: 'POST',

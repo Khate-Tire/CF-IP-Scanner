@@ -2646,6 +2646,14 @@ async def tunnel_preflight():
     except ConnectionError as e:
         return {"success": False, "message": str(e)}
 
+@app.post('/api/tunnel/fix-port53')
+async def tunnel_fix_port53():
+    """Disable systemd-resolved's stub listener so port 53 becomes free."""
+    try:
+        return tunnel_deployer.fix_port53()
+    except ConnectionError as e:
+        return {"success": False, "message": str(e)}
+
 @app.post('/api/tunnel/verify-dns')
 async def tunnel_verify_dns(req: TunnelDnsVerifyRequest):
     """Verify DNS records are properly configured."""

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n/LanguageContext';
-import { tunnelConnect, tunnelDisconnect, tunnelPreflight, tunnelVerifyDns, tunnelCloudflareDns, tunnelDeploy, tunnelDeployStatus, tunnelDeployCancel, tunnelGetConfigs } from '../api';
+import { tunnelConnect, tunnelDisconnect, tunnelPreflight, tunnelVerifyDns, tunnelCloudflareDns, tunnelDeploy, tunnelDeployStatus, tunnelDeployCancel, tunnelGetConfigs, tunnelFixPort53 } from '../api';
 import { getBridgePayload, subscribeBridge, clearBridgePayload } from '../state/optimizerBridge';
 
 const STEPS = ['connect','preflight','domain','configure','deploy','results'];
@@ -44,6 +44,7 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
   const [error, setError] = useState(null);
   const [preflightChecks, setPreflightChecks] = useState(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
+  const [port53Fixing, setPort53Fixing] = useState(false);
   const [domain, setDomain] = useState(persisted.domain || '');
   const [backupDomains, setBackupDomains] = useState(persisted.backupDomains || []);
   const [bridgePayload, setBridgePayloadState] = useState(() => getBridgePayload());
@@ -122,6 +123,23 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
     try { const r = await tunnelPreflight(); setPreflightChecks(r.checks); }
     catch(e) { setError(e.message); }
     setPreflightLoading(false);
+  };
+
+  const doFixPort53 = async () => {
+    setPort53Fixing(true);
+    try {
+      const r = await tunnelFixPort53();
+      if (r.success) {
+        toast.success(t('dnsTunnel.port53Fixed','Port 53 is now free'));
+      } else {
+        toast.error(r.message || 'fix-port53 failed');
+      }
+      // re-run preflight so the UI reflects the new state
+      await doPreflightAuto();
+    } catch (e) {
+      toast.error(e.message || 'fix-port53 failed');
+    }
+    setPort53Fixing(false);
   };
 
   const doVerifyDns = async () => {
@@ -273,9 +291,48 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
           {preflightChecks && (
             <div className="space-y-2">
               {Object.entries(preflightChecks).map(([k,v]) => (
-                <div key={k} className={`flex items-center gap-3 p-3 rounded-lg border ${v.ok?'bg-emerald-500/5 border-emerald-500/20':'bg-red-500/5 border-red-500/20'}`}>
-                  <span className="text-lg">{v.ok?'✅':'❌'}</span>
-                  <div><span className="font-bold text-white text-sm capitalize">{k.replace('_',' ')}</span><p className="text-xs text-gray-400">{v.detail}</p></div>
+                <div key={k} className={`p-3 rounded-lg border ${v.ok?'bg-emerald-500/5 border-emerald-500/20':'bg-red-500/5 border-red-500/20'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">{v.ok?'✅':'❌'}</span>
+                    <div><span className="font-bold text-white text-sm capitalize">{k.replace('_',' ')}</span><p className="text-xs text-gray-400">{v.detail}</p></div>
+                  </div>
+                  {k === 'port53' && !v.ok && (
+                    <div className="mt-3 ml-8 p-3 rounded-lg bg-amber-500/5 border border-amber-500/30 text-xs space-y-2">
+                      <p className="text-amber-300 font-bold">⚠ {t('dnsTunnel.port53Title','Port 53 is occupied — usually by systemd-resolved')}</p>
+                      <p className="text-gray-300">
+                        {t('dnsTunnel.port53Why','Fresh Ubuntu/Debian VPSes run a local DNS stub (systemd-resolved) on 127.0.0.53:53. dnstm needs port 53 on every interface, so the stub must be turned off (the rest of resolved keeps working).')}
+                      </p>
+                      <button
+                        onClick={doFixPort53}
+                        disabled={port53Fixing}
+                        className="w-full py-2 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-sm font-bold hover:bg-amber-500/30 transition-all disabled:opacity-50"
+                      >
+                        {port53Fixing
+                          ? '⏳ ' + t('dnsTunnel.port53Fixing','Disabling stub listener…')
+                          : '🔧 ' + t('dnsTunnel.port53FixBtn','Fix automatically (disable systemd-resolved stub)')}
+                      </button>
+                      <details className="text-gray-400">
+                        <summary className="cursor-pointer text-amber-200/80 hover:text-amber-200">
+                          {t('dnsTunnel.port53Manual','Or fix it manually (SSH into the server)')}
+                        </summary>
+                        <div className="mt-2 space-y-1">
+                          <p>{t('dnsTunnel.port53ManualStep1','1) Disable the stub listener:')}</p>
+                          <pre className="font-mono text-[10px] bg-black/60 p-2 rounded whitespace-pre-wrap">{`sudo mkdir -p /etc/systemd/resolved.conf.d
+echo -e "[Resolve]\\nDNSStubListener=no\\nDNS=1.1.1.1 8.8.8.8" | \\
+  sudo tee /etc/systemd/resolved.conf.d/99-disable-stub.conf`}</pre>
+                          <p>{t('dnsTunnel.port53ManualStep2','2) Point /etc/resolv.conf at a real resolver so apt / curl still work:')}</p>
+                          <pre className="font-mono text-[10px] bg-black/60 p-2 rounded whitespace-pre-wrap">{`sudo rm -f /etc/resolv.conf
+echo -e "nameserver 1.1.1.1\\nnameserver 8.8.8.8" | sudo tee /etc/resolv.conf`}</pre>
+                          <p>{t('dnsTunnel.port53ManualStep3','3) Restart resolved and re-check:')}</p>
+                          <pre className="font-mono text-[10px] bg-black/60 p-2 rounded whitespace-pre-wrap">{`sudo systemctl restart systemd-resolved
+sudo ss -tulpn | grep :53     # should be empty`}</pre>
+                          <p className="text-amber-200/70">
+                            ⚠ {t('dnsTunnel.port53Warn','If you skip step 2 the VPS will lose DNS — apt/ping will fail until you set a resolver.')}
+                          </p>
+                        </div>
+                      </details>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
