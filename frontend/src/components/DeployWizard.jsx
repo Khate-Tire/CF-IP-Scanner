@@ -1,6 +1,7 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { tunnelConnect, tunnelDisconnect, tunnelPreflight, tunnelVerifyDns, tunnelCloudflareDns, tunnelDeploy, tunnelDeployStatus, tunnelDeployCancel, tunnelGetConfigs, tunnelFixPort53 } from '../api';
 import { getBridgePayload, subscribeBridge, clearBridgePayload } from '../state/optimizerBridge';
@@ -45,6 +46,7 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
   const [preflightChecks, setPreflightChecks] = useState(null);
   const [preflightLoading, setPreflightLoading] = useState(false);
   const [port53Fixing, setPort53Fixing] = useState(false);
+  const [noizdnsMode, setNoizdnsMode] = useState({}); // {tag: true} → render NoizDNS variant URL/QR for that dnstt tunnel
   const [domain, setDomain] = useState(persisted.domain || '');
   const [backupDomains, setBackupDomains] = useState(persisted.backupDomains || []);
   const [bridgePayload, setBridgePayloadState] = useState(() => getBridgePayload());
@@ -507,74 +509,148 @@ sudo ss -tulpn | grep :53     # should be empty`}</pre>
           </div>
           {configs && (
             <div className="space-y-3">
-              {/* SlipNet manual import — the primary, always-works path */}
-              {configs.manual_configs && Object.keys(configs.manual_configs).length > 0 && (
+              {/* SlipNet APK link — top of import section */}
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-between">
                 <div>
-                  <p className="text-amber-300 font-bold text-xs uppercase tracking-wider mb-1">📲 {t('dnsTunnel.slipnetManual','SlipNet — manual profile setup')}</p>
+                  <p className="text-blue-300 font-bold text-sm">🤖 {t('dnsTunnel.getSlipnet','Get SlipNet (Android)')}</p>
+                  <p className="text-blue-200/70 text-[11px]">{t('dnsTunnel.getSlipnetHint','Install SlipNet first — then scan a QR or paste a slipnet:// URL below.')}</p>
+                </div>
+                <a href="https://github.com/anonvector/SlipNet/releases" target="_blank" rel="noopener noreferrer"
+                   className="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-500/30 hover:bg-blue-500/50 text-blue-100 transition-all">
+                  ⬇ APK
+                </a>
+              </div>
+
+              {/* PRIMARY: slipnet:// URI + QR — one tap import into SlipNet */}
+              {configs.slipnet_urls && Object.keys(configs.slipnet_urls).length > 0 && (
+                <div>
+                  <p className="text-emerald-300 font-bold text-xs uppercase tracking-wider mb-1">📲 {t('dnsTunnel.slipnetImport','Import to SlipNet (1-tap)')}</p>
                   <p className="text-gray-500 text-[11px] mb-2">
-                    {t('dnsTunnel.slipnetManualHint','SlipNet does not import dnst:// URLs. In SlipNet tap “New Profile” and copy the values below into the matching fields. Use the “Copy as text” button on each tunnel.')}
+                    {t('dnsTunnel.slipnetImportHint','Open SlipNet → New Profile → “Import from URL” (paste) or “Scan QR”. If SlipNet rejects the import, fall back to the manual fields below.')}
                   </p>
-                  {Object.entries(configs.manual_configs).map(([tag, mc]) => {
-                    const lines = [
-                      `Profile name:   ${tag}`,
-                      `Tunnel type:    ${mc.slipnet_tunnel_type}`,
-                      `Domain:         ${mc.domain}`,
-                      `Server:         ${mc.server_host || '?'}:${mc.server_port || '?'}`,
-                    ];
-                    if (mc.pubkey_hex)    lines.push(`Public Key:     ${mc.pubkey_hex}`);
-                    if (mc.tls_cert_pem)  lines.push(`TLS Cert (PEM):\n${mc.tls_cert_pem}`);
-                    if (mc.vaydns_clientid_size != null) lines.push(`VayDNS ClientID size: ${mc.vaydns_clientid_size}`);
-                    if (mc.vaydns_idle_timeout)          lines.push(`VayDNS Idle timeout:  ${mc.vaydns_idle_timeout}`);
-                    if (mc.vaydns_keepalive)             lines.push(`VayDNS Keep-alive:    ${mc.vaydns_keepalive}`);
-                    if (mc.vaydns_record_type)           lines.push(`VayDNS Record type:   ${mc.vaydns_record_type}`);
-                    if (mc.mtu)                          lines.push(`MTU:            ${mc.mtu}`);
-                    if (mc.ssh_host) {
-                      lines.push('');
-                      lines.push(`SSH host:       ${mc.ssh_host}`);
-                      lines.push(`SSH port:       ${mc.ssh_port || '?'}`);
-                      lines.push(`SSH user:       ${mc.ssh_user}`);
-                      lines.push(`SSH password:   ${mc.ssh_pass || '(not set)'}`);
-                    }
-                    const block = lines.join('\n');
+                  {Object.entries(configs.slipnet_urls).map(([tag, url]) => {
+                    const mc = configs.manual_configs?.[tag] || {};
+                    const isDnstt = mc.transport === 'dnstt';
+                    const noizUrl = configs.slipnet_urls_noizdns?.[tag];
+                    const useNoiz = !!noizdnsMode[tag] && !!noizUrl;
+                    const activeUrl = useNoiz ? noizUrl : url;
+                    const label = useNoiz
+                      ? (mc.backend === 'ssh' ? 'NoizDNS + SSH' : 'NoizDNS')
+                      : mc.slipnet_tunnel_type;
                     return (
-                      <div key={tag} className="p-3 rounded-lg bg-black/40 border border-amber-900/40 mb-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-amber-300 font-bold text-sm">{tag} <span className="text-gray-500 font-normal">→ {mc.slipnet_tunnel_type}</span></span>
-                          <button onClick={()=>{navigator.clipboard.writeText(block); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy as text</button>
+                      <div key={tag} className="p-3 rounded-lg bg-black/40 border border-emerald-900/40 mb-2">
+                        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                          <span className="text-emerald-300 font-bold text-sm">
+                            {tag} <span className="text-gray-500 font-normal">→ {label}</span>
+                          </span>
+                          {isDnstt && noizUrl && (
+                            <div className="inline-flex rounded-md overflow-hidden border border-gray-700 text-[10px]">
+                              <button
+                                onClick={() => setNoizdnsMode(s => ({ ...s, [tag]: false }))}
+                                className={`px-2 py-1 ${!useNoiz ? 'bg-emerald-500 text-black font-bold' : 'bg-gray-800 text-gray-400'}`}
+                              >DNSTT</button>
+                              <button
+                                onClick={() => setNoizdnsMode(s => ({ ...s, [tag]: true }))}
+                                className={`px-2 py-1 ${useNoiz ? 'bg-emerald-500 text-black font-bold' : 'bg-gray-800 text-gray-400'}`}
+                              >NoizDNS</button>
+                            </div>
+                          )}
                         </div>
-                        <pre className="font-mono text-[10px] text-gray-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">{block}</pre>
+                        <div className="flex gap-3 items-start">
+                          <div className="bg-white p-2 rounded shrink-0">
+                            <QRCodeSVG value={activeUrl} size={120} level="M" />
+                          </div>
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <p className="font-mono text-[10px] text-gray-400 break-all leading-relaxed max-h-24 overflow-y-auto">
+                              {activeUrl}
+                            </p>
+                            <button
+                              onClick={() => { navigator.clipboard.writeText(activeUrl); toast.success('slipnet:// URL copied'); }}
+                              className="text-xs text-emerald-300 hover:text-white px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/40 transition-all"
+                            >📋 Copy slipnet:// URL</button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               )}
 
-              {/* Raw dnst:// share URLs — for the official dnstc client only */}
+              {/* Fallback: manual fields — collapsed by default */}
+              {configs.manual_configs && Object.keys(configs.manual_configs).length > 0 && (
+                <details className="rounded-lg bg-black/30 border border-amber-900/30">
+                  <summary className="cursor-pointer px-3 py-2 text-amber-300 font-bold text-xs uppercase tracking-wider">
+                    🛠 {t('dnsTunnel.slipnetManual','Manual fields (paste into SlipNet’s New Profile)')}
+                  </summary>
+                  <div className="p-3 pt-0">
+                    <p className="text-gray-500 text-[11px] mb-2">
+                      {t('dnsTunnel.slipnetManualHint','Use this only if the slipnet:// import above fails. Tap “Copy as text” and paste the values into the matching SlipNet fields.')}
+                    </p>
+                    {Object.entries(configs.manual_configs).map(([tag, mc]) => {
+                      const lines = [
+                        `Profile name:   ${tag}`,
+                        `Tunnel type:    ${mc.slipnet_tunnel_type}`,
+                        `Domain:         ${mc.domain}`,
+                        `Server:         ${mc.server_host || '?'}:${mc.server_port || '?'}`,
+                      ];
+                      if (mc.pubkey_hex)    lines.push(`Public Key:     ${mc.pubkey_hex}`);
+                      if (mc.tls_cert_pem)  lines.push(`TLS Cert (PEM):\n${mc.tls_cert_pem}`);
+                      if (mc.vaydns_clientid_size != null) lines.push(`VayDNS ClientID size: ${mc.vaydns_clientid_size}`);
+                      if (mc.vaydns_idle_timeout)          lines.push(`VayDNS Idle timeout:  ${mc.vaydns_idle_timeout}`);
+                      if (mc.vaydns_keepalive)             lines.push(`VayDNS Keep-alive:    ${mc.vaydns_keepalive}`);
+                      if (mc.vaydns_record_type)           lines.push(`VayDNS Record type:   ${mc.vaydns_record_type}`);
+                      if (mc.mtu)                          lines.push(`MTU:            ${mc.mtu}`);
+                      if (mc.ssh_host) {
+                        lines.push('');
+                        lines.push(`SSH host:       ${mc.ssh_host}`);
+                        lines.push(`SSH port:       ${mc.ssh_port || '?'}`);
+                        lines.push(`SSH user:       ${mc.ssh_user}`);
+                        lines.push(`SSH password:   ${mc.ssh_pass || '(not set)'}`);
+                      }
+                      const block = lines.join('\n');
+                      return (
+                        <div key={tag} className="p-3 rounded-lg bg-black/40 border border-amber-900/40 mb-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-amber-300 font-bold text-sm">{tag} <span className="text-gray-500 font-normal">→ {mc.slipnet_tunnel_type}</span></span>
+                            <button onClick={()=>{navigator.clipboard.writeText(block); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy as text</button>
+                          </div>
+                          <pre className="font-mono text-[10px] text-gray-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">{block}</pre>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
+
+              {/* Advanced: raw dnst:// — collapsed by default */}
               {Object.keys(configs.share_urls||{}).length > 0 && (
-                <div>
-                  <p className="text-emerald-400 font-bold text-xs uppercase tracking-wider mb-1">🔗 {t('dnsTunnel.dnstShareUrls','Raw dnst:// URLs (for dnstc client)')}</p>
-                  <p className="text-gray-500 text-[11px] mb-2">{t('dnsTunnel.dnstShareUrlsHint','These are for the official dnstc CLI from net2share — NOT for SlipNet (which needs the manual fields above).')}</p>
-                  {Object.entries(configs.share_urls||{}).map(([tag,url])=>(
-                    <div key={tag} className="p-3 rounded-lg bg-black/40 border border-gray-800 mb-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-emerald-400 font-bold text-sm">{tag}</span>
-                        <button onClick={()=>{navigator.clipboard.writeText(url); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy</button>
+                <details className="rounded-lg bg-black/30 border border-gray-800">
+                  <summary className="cursor-pointer px-3 py-2 text-gray-400 font-bold text-xs uppercase tracking-wider">
+                    🔬 {t('dnsTunnel.dnstShareUrls','Advanced — dnst:// URLs (for dnstc CLI only)')}
+                  </summary>
+                  <div className="p-3 pt-0">
+                    <p className="text-gray-500 text-[11px] mb-2">{t('dnsTunnel.dnstShareUrlsHint','For the official dnstc CLI from net2share — NOT for SlipNet (which uses the slipnet:// URLs above).')}</p>
+                    {Object.entries(configs.share_urls||{}).map(([tag,url])=>(
+                      <div key={tag} className="p-3 rounded-lg bg-black/40 border border-gray-800 mb-2">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-emerald-400 font-bold text-sm">{tag}</span>
+                          <button onClick={()=>{navigator.clipboard.writeText(url); toast.success('Copied');}} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 transition-all">📋 Copy</button>
+                        </div>
+                        <p className="font-mono text-[10px] text-gray-500 break-all">{url}</p>
                       </div>
-                      <p className="font-mono text-[10px] text-gray-500 break-all">{url}</p>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </details>
               )}
 
               {Object.keys(configs.ssh_endpoints||{}).length === 0 && (configs.ssh_tunnel?.enabled === false) && (
                 <p className="text-gray-500 text-[11px] italic">{t('dnsTunnel.sshDisabledNote','SSH-over-DNS tunnels were deployed but no SSH user was configured — re-run the wizard with “Create SSH tunnel user” enabled to get connection details.')}</p>
               )}
               <div className="p-4 rounded-lg bg-violet-500/5 border border-violet-500/20">
-                <p className="text-violet-400 font-bold text-sm mb-2">📱 {t('dnsTunnel.clientApps','Download Client Apps:')}</p>
+                <p className="text-violet-400 font-bold text-sm mb-2">📱 {t('dnsTunnel.clientApps','Other clients:')}</p>
                 <div className="space-y-1 text-xs">
-                  <a href="https://github.com/anonvector/SlipNet/releases" target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:text-blue-300">🤖 SlipNet (Android) — github.com/anonvector/SlipNet</a>
                   <a href="https://github.com/net2share/dnstc/releases" target="_blank" rel="noopener noreferrer" className="block text-blue-400 hover:text-blue-300">💻 dnstc (CLI, accepts dnst:// URLs directly)</a>
-                  <p className="text-gray-500">📱 iOS: Use HTTP Injector with the SSH-over-DNS fields above</p>
+                  <p className="text-gray-500">📱 iOS: Use HTTP Injector with the SSH-over-DNS fields (in manual block)</p>
                 </div>
               </div>
             </div>

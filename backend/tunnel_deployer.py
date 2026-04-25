@@ -971,6 +971,67 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                     mc["ssh_pass"] = ssh_pass
                 manual_configs[tag] = mc
 
+            # ── slipnet:// URI builder ────────────────────────────────────────
+            # SlipNet won't import dnst:// (that's the dnstc CLI's format), but
+            # it imports its own slipnet:// URIs (base64url(JSON)). The schema
+            # below is the best-effort shape inferred from the SlipNet README
+            # and DNS-Multiplexer's parser; if SlipNet rejects an import the
+            # manual_configs block above is the fallback.
+            def _slipnet_url(mc: Dict, tunnel_type_override: str = None) -> str:
+                tt = tunnel_type_override or mc.get("slipnet_tunnel_type") or ""
+                payload: Dict = {
+                    "v": 1,
+                    "name": mc.get("_tag") or tt,
+                    "tunnel_type": tt,
+                    "domain": mc.get("domain") or "",
+                    "server_host": mc.get("server_host") or "",
+                    "server_port": mc.get("server_port") or 0,
+                }
+                if mc.get("pubkey_hex"):
+                    payload["pubkey"] = mc["pubkey_hex"]
+                if mc.get("tls_cert_pem"):
+                    payload["cert"] = mc["tls_cert_pem"]
+                if mc.get("mtu"):
+                    payload["mtu"] = mc["mtu"]
+                # VayDNS extras
+                vd = {}
+                for src, dst in (("vaydns_clientid_size", "clientid_size"),
+                                 ("vaydns_idle_timeout", "idle_timeout"),
+                                 ("vaydns_keepalive", "keepalive"),
+                                 ("vaydns_record_type", "record_type"),
+                                 ("vaydns_dnstt_compat", "dnstt_compat")):
+                    if src in mc:
+                        vd[dst] = mc[src]
+                if vd:
+                    payload["vaydns"] = vd
+                # SSH block
+                if mc.get("ssh_host"):
+                    payload["ssh"] = {
+                        "host": mc.get("ssh_host"),
+                        "port": mc.get("ssh_port") or 22,
+                        "user": mc.get("ssh_user") or "",
+                        "pass": mc.get("ssh_pass") or "",
+                        "cipher": "aes128-gcm",
+                    }
+                # Default DNS resolvers — gives the SlipNet client something
+                # sensible if the user's ISP DNS is hijacking.
+                payload["resolvers"] = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
+                raw = _json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                b64 = _b64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+                return "slipnet://" + b64
+
+            slipnet_urls: Dict[str, str] = {}
+            slipnet_urls_noizdns: Dict[str, str] = {}
+            for tag, mc in manual_configs.items():
+                mc_named = dict(mc); mc_named["_tag"] = tag
+                slipnet_urls[tag] = _slipnet_url(mc_named)
+                # dnstt tunnels can ALSO be consumed in NoizDNS mode (same
+                # server binary, DPI-evasion client-side toggle).
+                if mc.get("transport") == "dnstt":
+                    noiz_type = ("NoizDNS + SSH" if mc.get("backend") == "ssh"
+                                 else "NoizDNS")
+                    slipnet_urls_noizdns[tag] = _slipnet_url(mc_named, noiz_type)
+
             # Build config output
             configs = {
                 "domain": domain,
@@ -981,6 +1042,8 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 "share_urls": share_urls,
                 "ssh_endpoints": ssh_endpoints,
                 "manual_configs": manual_configs,
+                "slipnet_urls": slipnet_urls,
+                "slipnet_urls_noizdns": slipnet_urls_noizdns,
                 "socks_auth": {"enabled": socks_auth, "user": socks_user} if socks_auth else {"enabled": False},
                 "ssh_tunnel": {"enabled": ssh_tunnel_user, "user": ssh_user} if ssh_tunnel_user else {"enabled": False},
                 "client_links": {
