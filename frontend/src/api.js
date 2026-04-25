@@ -415,6 +415,15 @@ export const tunnelManageUninstall = async () => {
     return res.json();
 };
 
+// --- Phase 3: Resolver scanner ---
+export const tunnelScanResolvers = async (domain, top_n = 10, timeout_s = 2.5) => {
+    const res = await fetch(`${API_URL}/api/tunnel/scan-resolvers`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, top_n, timeout_s })
+    });
+    return res.json();
+};
+
 export const tunnelHealth = async () => {
     try {
         const res = await fetch(`${API_URL}/api/tunnel/health`);

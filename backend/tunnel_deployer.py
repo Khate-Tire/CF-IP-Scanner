@@ -1264,3 +1264,128 @@ def manage_uninstall() -> Dict:
         return {"success": "DONE" in (out or ""), "message": (out or err)[-800:]}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+
+# ─── Phase 3: Resolver scanner ────────────────────────────────────────────
+# Probe a curated list of public DNS resolvers to find which ones can
+# actually reach the user's tunnel domain on UDP/53. The fastest, lowest-
+# loss resolvers should be embedded into the SlipNet client config so the
+# tunnel still works on networks that hijack the default ISP DNS.
+
+_TUNNEL_RESOLVERS: List[str] = [
+    # Cloudflare
+    "1.1.1.1", "1.0.0.1",
+    # Google
+    "8.8.8.8", "8.8.4.4",
+    # Quad9
+    "9.9.9.9", "149.112.112.112", "9.9.9.10",
+    # OpenDNS
+    "208.67.222.222", "208.67.220.220",
+    # AdGuard
+    "94.140.14.14", "94.140.15.15",
+    # CleanBrowsing
+    "185.228.168.9", "185.228.169.9",
+    # Comodo
+    "8.26.56.26", "8.20.247.20",
+    # Level3
+    "4.2.2.1", "4.2.2.2", "4.2.2.3", "4.2.2.4",
+    # Hurricane Electric
+    "74.82.42.42",
+    # DNS.WATCH
+    "84.200.69.80", "84.200.70.40",
+    # OpenNIC samples
+    "185.121.177.177", "169.239.202.202",
+    # Yandex
+    "77.88.8.8", "77.88.8.1",
+    # Mullvad (no-log)
+    "194.242.2.2", "194.242.2.3",
+    # NextDNS public
+    "45.90.28.0",
+    # ControlD
+    "76.76.2.0", "76.76.10.0",
+    # Asia/EU regional
+    "180.76.76.76",   # Baidu (CN)
+    "223.5.5.5",      # AliDNS (CN)
+    "223.6.6.6",
+    "114.114.114.114", "114.114.115.115",  # 114DNS (CN)
+    "168.95.1.1",     # Hinet (TW)
+    "203.80.96.10",   # Pacific Internet
+    "168.126.63.1",   # KT (KR)
+    "210.220.163.82",
+    "172.104.93.80",  # SG
+    "139.59.219.245", # IN
+    "8.247.22.30",    # CenturyLink
+]
+
+
+def scan_resolvers_for_tunnel(domain: str, top_n: int = 10,
+                              timeout_s: float = 2.5,
+                              concurrency: int = 16) -> Dict:
+    """Send a TXT query for `<probe>.<domain>` to each resolver and rank by
+    latency. We treat NXDOMAIN/NoAnswer as a SUCCESS — what matters is that
+    the resolver answered our query (proves the path is open); the lookup
+    itself doesn't have to resolve. Fully dropped or blocked queries are
+    failures.
+
+    Returns: {"success": bool, "results": [{"resolver","ok","latency_ms",
+              "error"}], "domain": str}
+    """
+    try:
+        import dns.resolver as _dnsr  # type: ignore
+        import dns.exception as _dnse  # type: ignore
+    except ImportError:
+        return {"success": False,
+                "message": "dnspython not installed (pip install dnspython)"}
+    if not domain or "." not in domain:
+        return {"success": False, "message": "Invalid domain"}
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    probe = f"probe-{int(time.time()) & 0xFFFF}.{domain}"
+
+    def _probe(ip: str) -> Dict:
+        r = _dnsr.Resolver(configure=False)
+        r.nameservers = [ip]
+        r.timeout = timeout_s
+        r.lifetime = timeout_s
+        t0 = time.perf_counter()
+        try:
+            r.resolve(probe, "TXT")
+            ok = True
+            err = None
+        except (_dnse.Timeout,) as e:
+            return {"resolver": ip, "ok": False, "latency_ms": None,
+                    "error": "timeout"}
+        except _dnsr.NXDOMAIN:
+            ok = True   # path works; record just doesn't exist
+            err = "nxdomain"
+        except _dnsr.NoAnswer:
+            ok = True
+            err = "noanswer"
+        except _dnsr.NoNameservers as e:
+            return {"resolver": ip, "ok": False, "latency_ms": None,
+                    "error": "blocked/refused"}
+        except Exception as e:
+            return {"resolver": ip, "ok": False, "latency_ms": None,
+                    "error": str(e)[:60]}
+        dt = (time.perf_counter() - t0) * 1000.0
+        return {"resolver": ip, "ok": ok, "latency_ms": round(dt, 1),
+                "error": err}
+
+    results: List[Dict] = []
+    with ThreadPoolExecutor(max_workers=concurrency) as ex:
+        for r in ex.map(_probe, _TUNNEL_RESOLVERS):
+            results.append(r)
+
+    # Sort: success first, then by latency
+    results.sort(key=lambda r: (not r["ok"],
+                                r.get("latency_ms") or 99999))
+    return {
+        "success": True,
+        "domain": domain,
+        "probe_query": probe,
+        "results": results,
+        "top": results[:top_n],
+        "ok_count": sum(1 for r in results if r["ok"]),
+        "total": len(results),
+    }

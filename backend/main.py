@@ -2744,6 +2744,22 @@ async def tunnel_manage_uninstall():
     return tunnel_deployer.manage_uninstall()
 
 
+# --- Phase 3: Resolver scanner (for tunnel domain) -------------------------
+
+class TunnelResolverScanRequest(BaseModel):
+    domain: str
+    top_n: int = 10
+    timeout_s: float = 2.5
+
+@app.post('/api/tunnel/scan-resolvers')
+async def tunnel_scan_resolvers(req: TunnelResolverScanRequest):
+    """Probe public DNS resolvers to find which ones can reach the tunnel
+    domain. Returns ranked list (best latency first)."""
+    return tunnel_deployer.scan_resolvers_for_tunnel(
+        domain=req.domain, top_n=req.top_n, timeout_s=req.timeout_s
+    )
+
+
 # --- DNS Resolver Scanner ---
 
 @app.post('/api/dns-scan/start')

@@ -13,6 +13,7 @@ import {
     tunnelManageStatus, tunnelManageRestart,
     tunnelManageUsersList, tunnelManageUserAdd, tunnelManageUserRemove,
     tunnelManageUpdate, tunnelManageUninstall,
+    tunnelScanResolvers,
 } from '../api';
 
 const LS_KEY = 'dnstun.lastHost';
@@ -36,6 +37,11 @@ export default function DeployManage() {
     const [newUser, setNewUser] = useState('');
     const [newPass, setNewPass] = useState('');
     const [busyAction, setBusyAction] = useState(null); // string identifier of running action
+
+    // Resolver scanner state
+    const [scanDomain, setScanDomain] = useState(persisted.domain || '');
+    const [scanResults, setScanResults] = useState(null);
+    const [scanning, setScanning] = useState(false);
 
     const ic = "w-full bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500";
 
@@ -255,6 +261,83 @@ export default function DeployManage() {
                     )}
                 </div>
             )}
+
+            {/* Resolver scanner — works even when not SSH-connected */}
+            <div className="p-3 rounded-lg bg-black/30 border border-emerald-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                    <span className="text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                        🔭 {t('dnsTunnel.resolverScanTitle', 'Find best DNS resolvers for your tunnel')}
+                    </span>
+                </div>
+                <p className="text-gray-500 text-[11px]">
+                    {t('dnsTunnel.resolverScanDesc', 'Probes ~40 public resolvers (Cloudflare, Google, Quad9, AdGuard, regional…) to find which ones can reach your tunnel domain on UDP/53. Use the top results in the SlipNet client when your ISP DNS is hijacked.')}
+                </p>
+                <div className="flex gap-2">
+                    <input
+                        className={ic + ' flex-1'}
+                        value={scanDomain}
+                        onChange={e => setScanDomain(e.target.value)}
+                        placeholder="tunnel.example.com"
+                    />
+                    <button
+                        onClick={async () => {
+                            if (!scanDomain || !scanDomain.includes('.')) { toast.error('Enter a valid domain'); return; }
+                            setScanning(true); setScanResults(null);
+                            try {
+                                const r = await tunnelScanResolvers(scanDomain.trim(), 12, 2.5);
+                                if (!r?.success) toast.error(r?.message || 'Scan failed');
+                                else { setScanResults(r); toast.success(`Found ${r.ok_count}/${r.total} working`); }
+                            } catch (e) { toast.error(String(e?.message || e)); }
+                            finally { setScanning(false); }
+                        }}
+                        disabled={scanning}
+                        className="px-4 py-2 rounded-lg bg-emerald-500 text-black font-bold text-xs hover:bg-emerald-400 disabled:opacity-50"
+                    >{scanning ? 'Scanning…' : '🔍 Scan'}</button>
+                </div>
+                {scanResults && (
+                    <div className="mt-2">
+                        <p className="text-[11px] text-gray-500 mb-1">
+                            {scanResults.ok_count}/{scanResults.total} resolvers responded — top {Math.min(12, scanResults.results.length)}:
+                        </p>
+                        <div className="rounded bg-black/40 border border-gray-800 overflow-hidden">
+                            <table className="w-full text-[11px]">
+                                <thead className="bg-gray-900/60 text-gray-400">
+                                    <tr><th className="text-left px-2 py-1">#</th><th className="text-left px-2 py-1">Resolver</th><th className="text-right px-2 py-1">Latency</th><th className="text-left px-2 py-1">Status</th><th className="px-2 py-1"></th></tr>
+                                </thead>
+                                <tbody>
+                                    {scanResults.results.slice(0, 12).map((r, i) => (
+                                        <tr key={r.resolver} className={`border-t border-gray-800 ${r.ok ? '' : 'opacity-50'}`}>
+                                            <td className="px-2 py-1 text-gray-500">{i + 1}</td>
+                                            <td className="px-2 py-1 font-mono text-gray-300">{r.resolver}</td>
+                                            <td className="px-2 py-1 text-right font-mono">
+                                                {r.latency_ms != null ? `${r.latency_ms} ms` : '—'}
+                                            </td>
+                                            <td className="px-2 py-1">
+                                                {r.ok
+                                                    ? <span className="text-emerald-400">✓ {r.error || 'ok'}</span>
+                                                    : <span className="text-red-400">✗ {r.error || 'fail'}</span>}
+                                            </td>
+                                            <td className="px-2 py-1 text-right">
+                                                <button onClick={() => { navigator.clipboard.writeText(r.resolver); toast.success('Copied'); }} className="text-[10px] text-gray-500 hover:text-white">📋</button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {scanResults.top?.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    const list = scanResults.top.filter(r => r.ok).map(r => r.resolver).join(',');
+                                    navigator.clipboard.writeText(list);
+                                    toast.success(`Copied ${list.split(',').length} resolvers`);
+                                }}
+                                className="mt-2 w-full py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold hover:bg-emerald-500/30"
+                            >📋 Copy top resolvers (comma-separated, paste into SlipNet)</button>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
