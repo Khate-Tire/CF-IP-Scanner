@@ -1389,3 +1389,223 @@ def scan_resolvers_for_tunnel(domain: str, top_n: int = 10,
         "ok_count": sum(1 for r in results if r["ok"]),
         "total": len(results),
     }
+
+
+# ─── Phase 4: Add-on protocols (NaiveProxy / StunTLS / WARP) + live stats ─
+
+def install_naiveproxy(domain: str, username: str, password: str) -> Dict:
+    """Install Caddy 2 with the forwardproxy (Naive) plugin and obtain a
+    Let's Encrypt cert for `domain`. Listens on :443 (must be free or this
+    will fail). Outputs a `naive+https://user:pass@domain:443` client URL.
+    """
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    if not domain or "." not in domain:
+        return {"success": False, "message": "Invalid domain"}
+    if not username or not password or len(password) < 8:
+        return {"success": False, "message": "user + 8+ char password required"}
+    try:
+        # 1. Install xcaddy + Go (needed to compile forwardproxy plugin)
+        cmd_install = (
+            "set -e; export DEBIAN_FRONTEND=noninteractive; "
+            "apt-get update -qq && apt-get install -y -qq curl debian-keyring debian-archive-keyring apt-transport-https golang-go; "
+            "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null; "
+            "curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list; "
+            "apt-get update -qq && apt-get install -y -qq caddy; "
+            "go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest 2>&1 | tail -5; "
+            "/root/go/bin/xcaddy build --with github.com/caddyserver/forwardproxy@caddy2=github.com/klzgrad/forwardproxy@naive --output /usr/local/bin/caddy-naive 2>&1 | tail -10; "
+            "echo INSTALL_OK"
+        )
+        out, err, code = _exec(cmd_install, 600)
+        if "INSTALL_OK" not in (out or ""):
+            return {"success": False, "message": f"install failed: {(out or err)[-500:]}"}
+        # 2. Write Caddyfile
+        caddyfile = (
+            f"{{\n"
+            f"  servers :443 {{ protocols h1 h2 h3 }}\n"
+            f"  order forward_proxy before file_server\n"
+            f"}}\n"
+            f"{domain}:443 {{\n"
+            f"  tls naive@{domain}\n"
+            f"  forward_proxy {{\n"
+            f"    basic_auth {username} {password}\n"
+            f"    hide_ip\n"
+            f"    hide_via\n"
+            f"    probe_resistance\n"
+            f"  }}\n"
+            f"  file_server {{ root /var/www/html }}\n"
+            f"}}\n"
+        )
+        # base64-pipe to avoid quoting hell
+        import base64 as _b64
+        b64 = _b64.b64encode(caddyfile.encode()).decode()
+        cmd_write = (
+            f"mkdir -p /etc/caddy /var/www/html && echo '<h1>Hello</h1>' > /var/www/html/index.html && "
+            f"echo '{b64}' | base64 -d > /etc/caddy/Caddyfile && "
+            f"systemctl stop caddy 2>/dev/null; "
+            f"cp /usr/local/bin/caddy-naive /usr/bin/caddy && systemctl daemon-reload && "
+            f"systemctl restart caddy && sleep 2 && systemctl is-active caddy"
+        )
+        out2, err2, code2 = _exec(cmd_write, 60)
+        active = "active" in (out2 or "")
+        url = f"naive+https://{username}:{password}@{domain}:443"
+        return {
+            "success": active,
+            "message": (out2 or err2)[-400:],
+            "client_url": url,
+            "domain": domain,
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def install_stuntls(listen_port: int = 443, ssh_port: int = 22) -> Dict:
+    """Install stunnel to wrap SSH-on-22 with self-signed TLS on :443.
+    Clients connect with stunnel-client to listen_port and get an SSH session
+    inside TLS — works through DPI that blocks plain SSH but allows TLS.
+    Outputs the cert PEM + a stunnel client snippet.
+    """
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        cmd = (
+            "set -e; export DEBIAN_FRONTEND=noninteractive; "
+            "apt-get update -qq && apt-get install -y -qq stunnel4 openssl; "
+            "mkdir -p /etc/stunnel; "
+            "openssl req -x509 -newkey rsa:2048 -keyout /etc/stunnel/stunnel.key "
+            "-out /etc/stunnel/stunnel.crt -days 825 -nodes "
+            "-subj '/CN=stuntls' >/dev/null 2>&1; "
+            "cat /etc/stunnel/stunnel.key /etc/stunnel/stunnel.crt > /etc/stunnel/stunnel.pem; "
+            "chmod 600 /etc/stunnel/stunnel.pem; "
+            f"cat > /etc/stunnel/stunnel.conf <<'EOF'\n"
+            "pid = /var/run/stunnel.pid\n"
+            "client = no\n"
+            "[ssh-tls]\n"
+            f"accept = 0.0.0.0:{listen_port}\n"
+            f"connect = 127.0.0.1:{ssh_port}\n"
+            "cert = /etc/stunnel/stunnel.pem\n"
+            "EOF\n"
+            "sed -i 's/ENABLED=0/ENABLED=1/' /etc/default/stunnel4 2>/dev/null || true; "
+            "systemctl enable stunnel4 2>/dev/null; systemctl restart stunnel4; "
+            "sleep 1; ss -tlnp | grep -E ':(443|stunnel)' || true; "
+            "cat /etc/stunnel/stunnel.crt; echo ---END---"
+        )
+        out, err, code = _exec(cmd, 120)
+        cert = ""
+        if "-----BEGIN CERTIFICATE-----" in out:
+            cert = out.split("-----BEGIN CERTIFICATE-----", 1)[1]
+            cert = "-----BEGIN CERTIFICATE-----" + cert.split("---END---")[0].strip()
+        return {
+            "success": code == 0 and "BEGIN CERTIFICATE" in (out or ""),
+            "message": "stunnel installed; SSH now reachable over TLS",
+            "listen_port": listen_port,
+            "ssh_port": ssh_port,
+            "tls_cert_pem": cert,
+            "client_snippet": (
+                f"# /etc/stunnel/client.conf\n"
+                f"client = yes\n"
+                f"[ssh-tls]\n"
+                f"accept  = 127.0.0.1:2222\n"
+                f"connect = {globals().get('_ssh_host', '<server-ip>')}:{listen_port}\n"
+                f"verify = 0\n"
+                f"# then: ssh -p 2222 user@127.0.0.1\n"
+            ),
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def toggle_warp(enable: bool = True) -> Dict:
+    """Route the VPS's outbound traffic through Cloudflare WARP using wgcf
+    + wireguard-tools. When enabled, all egress is masked behind WARP IPs —
+    useful when the VPS provider is itself filtered upstream.
+    """
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        if enable:
+            cmd = (
+                "set -e; export DEBIAN_FRONTEND=noninteractive; "
+                "apt-get update -qq && apt-get install -y -qq wireguard-tools curl; "
+                "ARCH=$(dpkg --print-architecture); "
+                "curl -fsSL -o /usr/local/bin/wgcf "
+                "  https://github.com/ViRb3/wgcf/releases/latest/download/wgcf_2.2.22_linux_${ARCH} "
+                "&& chmod +x /usr/local/bin/wgcf; "
+                "cd /etc/wireguard 2>/dev/null || mkdir -p /etc/wireguard && cd /etc/wireguard; "
+                "test -f wgcf-account.toml || wgcf register --accept-tos; "
+                "wgcf generate; mv wgcf-profile.conf warp.conf; "
+                "sed -i 's|^Endpoint =.*|Endpoint = engage.cloudflareclient.com:2408|' warp.conf; "
+                "wg-quick up warp 2>&1 | tail -10; "
+                "systemctl enable wg-quick@warp 2>/dev/null; "
+                "echo === WARP IP ===; curl -fsS --max-time 8 https://www.cloudflare.com/cdn-cgi/trace 2>/dev/null | grep -E 'ip=|warp=' || echo 'check failed'"
+            )
+        else:
+            cmd = (
+                "wg-quick down warp 2>&1 | tail -5; "
+                "systemctl disable wg-quick@warp 2>/dev/null; echo OFF"
+            )
+        out, err, code = _exec(cmd, 180)
+        return {"success": code == 0, "enabled": enable, "message": (out or err)[-600:]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def get_live_metrics() -> Dict:
+    """Lightweight per-poll metrics for the live dashboard. Returns current
+    network throughput (rx/tx bytes from /proc/net/dev for the default iface),
+    open connections per protocol, dnstm-related process count, and load avg.
+    Cheap enough to call every 2 s.
+    """
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        cmd = (
+            "echo === IFACE ===; ip route | awk '/default/ {print $5; exit}'; "
+            "echo === NETDEV ===; cat /proc/net/dev; "
+            "echo === SS ===; ss -s 2>/dev/null | head -10; "
+            "echo === LOAD ===; cat /proc/loadavg; "
+            "echo === DNSTM ===; pgrep -c dnstm 2>/dev/null || echo 0; "
+            "echo === MEM ===; free -m | awk '/Mem:/ {print $2\" \"$3}'; "
+            "echo === END ==="
+        )
+        out, err, code = _exec(cmd, 10)
+        if code != 0:
+            return {"success": False, "message": (err or out)[-300:]}
+        sections: Dict[str, str] = {}
+        cur = None
+        for line in out.splitlines():
+            m = re.match(r"=== (\w+) ===", line)
+            if m: cur = m.group(1).lower(); sections[cur] = ""
+            elif cur and cur != "end": sections[cur] += line + "\n"
+        # Parse iface bytes
+        iface = (sections.get("iface", "") or "").strip().splitlines()[0] if sections.get("iface") else ""
+        rx_bytes = tx_bytes = 0
+        for line in sections.get("netdev", "").splitlines():
+            if iface and line.lstrip().startswith(iface + ":"):
+                parts = line.split(":")[1].split()
+                rx_bytes = int(parts[0]); tx_bytes = int(parts[8])
+                break
+        load = (sections.get("load", "") or "").strip().split()
+        load1 = float(load[0]) if load else 0.0
+        # ss -s parsing — extract TCP estab count
+        tcp_est = 0
+        m = re.search(r"TCP:\s+\d+\s+\(estab (\d+)", sections.get("ss", ""))
+        if m: tcp_est = int(m.group(1))
+        dnstm_procs = int((sections.get("dnstm", "") or "0").strip() or 0)
+        mem = (sections.get("mem", "") or "").strip().split()
+        mem_total = int(mem[0]) if len(mem) >= 2 else 0
+        mem_used = int(mem[1]) if len(mem) >= 2 else 0
+        return {
+            "success": True,
+            "ts": time.time(),
+            "iface": iface,
+            "rx_bytes": rx_bytes,
+            "tx_bytes": tx_bytes,
+            "tcp_established": tcp_est,
+            "dnstm_processes": dnstm_procs,
+            "load1": load1,
+            "mem_total_mb": mem_total,
+            "mem_used_mb": mem_used,
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}

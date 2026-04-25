@@ -2760,6 +2760,37 @@ async def tunnel_scan_resolvers(req: TunnelResolverScanRequest):
     )
 
 
+# --- Phase 4: Add-on protocols + live metrics ------------------------------
+
+class TunnelNaiveInstallRequest(BaseModel):
+    domain: str
+    username: str
+    password: str
+
+class TunnelStunTlsInstallRequest(BaseModel):
+    listen_port: int = 443
+    ssh_port: int = 22
+
+class TunnelWarpRequest(BaseModel):
+    enable: bool = True
+
+@app.post('/api/tunnel/addon/naive/install')
+async def tunnel_addon_naive(req: TunnelNaiveInstallRequest):
+    return tunnel_deployer.install_naiveproxy(req.domain, req.username, req.password)
+
+@app.post('/api/tunnel/addon/stuntls/install')
+async def tunnel_addon_stuntls(req: TunnelStunTlsInstallRequest):
+    return tunnel_deployer.install_stuntls(req.listen_port, req.ssh_port)
+
+@app.post('/api/tunnel/addon/warp')
+async def tunnel_addon_warp(req: TunnelWarpRequest):
+    return tunnel_deployer.toggle_warp(req.enable)
+
+@app.get('/api/tunnel/manage/metrics')
+async def tunnel_manage_metrics():
+    return tunnel_deployer.get_live_metrics()
+
+
 # --- DNS Resolver Scanner ---
 
 @app.post('/api/dns-scan/start')

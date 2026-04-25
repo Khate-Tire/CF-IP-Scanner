@@ -8,12 +8,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { useTranslation } from '../i18n/LanguageContext';
+import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
 import {
     tunnelConnect, tunnelDisconnect,
     tunnelManageStatus, tunnelManageRestart,
     tunnelManageUsersList, tunnelManageUserAdd, tunnelManageUserRemove,
     tunnelManageUpdate, tunnelManageUninstall,
     tunnelScanResolvers,
+    tunnelInstallNaive, tunnelInstallStunTls, tunnelToggleWarp, tunnelLiveMetrics,
 } from '../api';
 
 const LS_KEY = 'dnstun.lastHost';
@@ -42,6 +44,38 @@ export default function DeployManage() {
     const [scanDomain, setScanDomain] = useState(persisted.domain || '');
     const [scanResults, setScanResults] = useState(null);
     const [scanning, setScanning] = useState(false);
+
+    // Phase 4 — add-ons state
+    const [naiveDomain, setNaiveDomain] = useState(persisted.domain || '');
+    const [naiveUser, setNaiveUser] = useState('proxy');
+    const [naivePass, setNaivePass] = useState('');
+    const [warpEnabled, setWarpEnabled] = useState(false);
+    const [naiveResult, setNaiveResult] = useState(null);
+    const [stunResult, setStunResult] = useState(null);
+
+    // Live dashboard
+    const [liveOn, setLiveOn] = useState(false);
+    const [history, setHistory] = useState([]); // {ts, rxKbps, txKbps, tcp, load}
+    useEffect(() => {
+        if (!connected || !liveOn) return;
+        let prev = null;
+        const id = setInterval(async () => {
+            const m = await tunnelLiveMetrics();
+            if (!m?.success) return;
+            let rxKbps = 0, txKbps = 0;
+            if (prev) {
+                const dt = (m.ts - prev.ts) || 1;
+                rxKbps = Math.max(0, (m.rx_bytes - prev.rx_bytes) * 8 / 1000 / dt);
+                txKbps = Math.max(0, (m.tx_bytes - prev.tx_bytes) * 8 / 1000 / dt);
+            }
+            prev = m;
+            setHistory(h => {
+                const next = [...h, { t: new Date(m.ts * 1000).toLocaleTimeString().slice(-5), rx: Math.round(rxKbps), tx: Math.round(txKbps), tcp: m.tcp_established, load: m.load1, mem: m.mem_used_mb, memTotal: m.mem_total_mb, dnstm: m.dnstm_processes }];
+                return next.slice(-30);
+            });
+        }, 2000);
+        return () => clearInterval(id);
+    }, [connected, liveOn]);
 
     const ic = "w-full bg-gray-900/60 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500";
 
@@ -338,6 +372,159 @@ export default function DeployManage() {
                     </div>
                 )}
             </div>
+
+            {/* Phase 4 — Live dashboard (only when SSH-connected) */}
+            {connected && (
+                <div className="p-3 rounded-lg bg-black/30 border border-violet-900/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-violet-300 font-bold text-xs uppercase tracking-wider">📊 {t('dnsTunnel.liveTitle', 'Live dashboard')}</span>
+                        <button onClick={() => { setLiveOn(v => !v); if (liveOn) setHistory([]); }}
+                            className={`text-[10px] px-2 py-1 rounded ${liveOn ? 'bg-violet-500 text-black font-bold' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+                            {liveOn ? '⏸ Pause' : '▶ Start'}
+                        </button>
+                    </div>
+                    {liveOn && history.length === 0 && <p className="text-gray-500 text-xs italic">Sampling…</p>}
+                    {history.length > 0 && (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                <div className="bg-gray-900/40 rounded p-2">
+                                    <div className="text-gray-500">RX</div>
+                                    <div className="font-mono text-emerald-300">{history.at(-1).rx} kbps</div>
+                                    <ResponsiveContainer width="100%" height={32}>
+                                        <LineChart data={history}><Line type="monotone" dataKey="rx" stroke="#34d399" strokeWidth={1.5} dot={false} isAnimationActive={false} /></LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="bg-gray-900/40 rounded p-2">
+                                    <div className="text-gray-500">TX</div>
+                                    <div className="font-mono text-blue-300">{history.at(-1).tx} kbps</div>
+                                    <ResponsiveContainer width="100%" height={32}>
+                                        <LineChart data={history}><Line type="monotone" dataKey="tx" stroke="#60a5fa" strokeWidth={1.5} dot={false} isAnimationActive={false} /></LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="bg-gray-900/40 rounded p-2">
+                                    <div className="text-gray-500">TCP est.</div>
+                                    <div className="font-mono text-violet-300">{history.at(-1).tcp}</div>
+                                    <ResponsiveContainer width="100%" height={32}>
+                                        <LineChart data={history}><Line type="monotone" dataKey="tcp" stroke="#a78bfa" strokeWidth={1.5} dot={false} isAnimationActive={false} /></LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                <div className="bg-gray-900/40 rounded p-2">
+                                    <div className="text-gray-500">Load</div>
+                                    <div className="font-mono text-amber-300">{history.at(-1).load.toFixed(2)}</div>
+                                    <ResponsiveContainer width="100%" height={32}>
+                                        <LineChart data={history}><Line type="monotone" dataKey="load" stroke="#fbbf24" strokeWidth={1.5} dot={false} isAnimationActive={false} /></LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-gray-500">
+                                dnstm processes: {history.at(-1).dnstm} ·
+                                mem: {history.at(-1).mem}/{history.at(-1).memTotal} MB ·
+                                samples: {history.length}/30 (2 s)
+                            </p>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Phase 4 — Add-on protocols (only when SSH-connected) */}
+            {connected && (
+                <details className="rounded-lg bg-black/30 border border-fuchsia-900/40">
+                    <summary className="cursor-pointer px-3 py-2 text-fuchsia-300 font-bold text-xs uppercase tracking-wider">
+                        🧩 {t('dnsTunnel.addonsTitle', 'Add-on protocols (NaiveProxy / StunTLS / WARP)')}
+                    </summary>
+                    <div className="p-3 pt-0 space-y-3">
+
+                        {/* NaiveProxy */}
+                        <div className="space-y-1">
+                            <p className="text-fuchsia-300 text-xs font-bold">🛡 NaiveProxy (Caddy + forwardproxy, TLS:443, HTTP/2 + QUIC)</p>
+                            <p className="text-gray-500 text-[11px]">Best DPI evasion — looks like a regular HTTPS site. Domain must point to this server with port 443 free.</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                <input className={ic} placeholder="domain.com" value={naiveDomain} onChange={e => setNaiveDomain(e.target.value)} />
+                                <input className={ic} placeholder="username" value={naiveUser} onChange={e => setNaiveUser(e.target.value)} />
+                                <input className={ic} type="password" placeholder="password (8+ chars)" value={naivePass} onChange={e => setNaivePass(e.target.value)} />
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    setBusyAction('naive');
+                                    try {
+                                        const r = await tunnelInstallNaive(naiveDomain.trim(), naiveUser.trim(), naivePass);
+                                        setNaiveResult(r);
+                                        if (r?.success) toast.success('Naive installed'); else toast.error(r?.message || 'Naive install failed');
+                                    } catch (e) { toast.error(String(e?.message || e)); }
+                                    finally { setBusyAction(null); }
+                                }}
+                                disabled={busyAction === 'naive'}
+                                className="w-full py-1.5 rounded bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300 text-xs font-bold hover:bg-fuchsia-500/30 disabled:opacity-50"
+                            >{busyAction === 'naive' ? 'Installing… (~5 min)' : '⚙ Install Naive'}</button>
+                            {naiveResult?.client_url && (
+                                <div className="p-2 rounded bg-black/40 border border-fuchsia-900/40">
+                                    <p className="text-[10px] text-gray-500">Client URL (paste into NekoBox/Hiddify):</p>
+                                    <p className="font-mono text-[11px] text-fuchsia-300 break-all">{naiveResult.client_url}</p>
+                                    <button onClick={() => { navigator.clipboard.writeText(naiveResult.client_url); toast.success('Copied'); }} className="text-[10px] text-fuchsia-400 hover:text-white">📋 Copy</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* StunTLS */}
+                        <div className="space-y-1 border-t border-gray-800 pt-3">
+                            <p className="text-fuchsia-300 text-xs font-bold">🔐 StunTLS (SSH-over-TLS:443, self-signed)</p>
+                            <p className="text-gray-500 text-[11px]">Wraps SSH:22 in TLS on :443. Defeats DPI that blocks plain SSH but allows HTTPS. Self-signed cert (clients use verify=0).</p>
+                            <button
+                                onClick={async () => {
+                                    setBusyAction('stun');
+                                    try {
+                                        const r = await tunnelInstallStunTls(443, 22);
+                                        setStunResult(r);
+                                        if (r?.success) toast.success('StunTLS installed'); else toast.error(r?.message || 'StunTLS install failed');
+                                    } catch (e) { toast.error(String(e?.message || e)); }
+                                    finally { setBusyAction(null); }
+                                }}
+                                disabled={busyAction === 'stun'}
+                                className="w-full py-1.5 rounded bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300 text-xs font-bold hover:bg-fuchsia-500/30 disabled:opacity-50"
+                            >{busyAction === 'stun' ? 'Installing…' : '⚙ Install StunTLS'}</button>
+                            {stunResult?.client_snippet && (
+                                <div className="p-2 rounded bg-black/40 border border-fuchsia-900/40">
+                                    <p className="text-[10px] text-gray-500">stunnel client config:</p>
+                                    <pre className="font-mono text-[10px] text-fuchsia-300 whitespace-pre-wrap">{stunResult.client_snippet}</pre>
+                                    <button onClick={() => { navigator.clipboard.writeText(stunResult.client_snippet); toast.success('Copied'); }} className="text-[10px] text-fuchsia-400 hover:text-white">📋 Copy</button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* WARP */}
+                        <div className="space-y-1 border-t border-gray-800 pt-3">
+                            <p className="text-fuchsia-300 text-xs font-bold">☁ Cloudflare WARP outbound</p>
+                            <p className="text-gray-500 text-[11px]">Routes the VPS's outbound traffic through WARP — masks the server's real IP and helps when the VPS provider itself is filtered upstream.</p>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={async () => {
+                                        setBusyAction('warp-on');
+                                        try {
+                                            const r = await tunnelToggleWarp(true);
+                                            if (r?.success) { setWarpEnabled(true); toast.success('WARP enabled'); }
+                                            else toast.error(r?.message || 'WARP failed');
+                                        } finally { setBusyAction(null); }
+                                    }}
+                                    disabled={busyAction === 'warp-on' || warpEnabled}
+                                    className="flex-1 py-1.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 disabled:opacity-50"
+                                >{busyAction === 'warp-on' ? '…' : '▶ Enable WARP'}</button>
+                                <button
+                                    onClick={async () => {
+                                        setBusyAction('warp-off');
+                                        try {
+                                            const r = await tunnelToggleWarp(false);
+                                            if (r?.success) { setWarpEnabled(false); toast.success('WARP disabled'); }
+                                            else toast.error(r?.message || 'WARP off failed');
+                                        } finally { setBusyAction(null); }
+                                    }}
+                                    disabled={busyAction === 'warp-off'}
+                                    className="flex-1 py-1.5 rounded bg-gray-700/40 border border-gray-700 text-gray-300 text-xs font-bold hover:bg-gray-700/60 disabled:opacity-50"
+                                >{busyAction === 'warp-off' ? '…' : '⏸ Disable WARP'}</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+            )}
         </div>
     );
 }

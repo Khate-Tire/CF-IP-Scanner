@@ -424,6 +424,33 @@ export const tunnelScanResolvers = async (domain, top_n = 10, timeout_s = 2.5) =
     return res.json();
 };
 
+// --- Phase 4: Add-on protocols + live metrics ---
+export const tunnelInstallNaive = async (domain, username, password) => {
+    const res = await fetch(`${API_URL}/api/tunnel/addon/naive/install`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, username, password })
+    });
+    return res.json();
+};
+export const tunnelInstallStunTls = async (listen_port = 443, ssh_port = 22) => {
+    const res = await fetch(`${API_URL}/api/tunnel/addon/stuntls/install`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listen_port, ssh_port })
+    });
+    return res.json();
+};
+export const tunnelToggleWarp = async (enable) => {
+    const res = await fetch(`${API_URL}/api/tunnel/addon/warp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enable })
+    });
+    return res.json();
+};
+export const tunnelLiveMetrics = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/metrics`);
+    return res.json();
+};
+
 export const tunnelHealth = async () => {
     try {
         const res = await fetch(`${API_URL}/api/tunnel/health`);
