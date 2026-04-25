@@ -379,6 +379,42 @@ export const tunnelGetConfigs = async () => {
     return res.json();
 };
 
+// --- Phase 2: Manage existing deployment ---
+export const tunnelManageStatus = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/status`);
+    return res.json();
+};
+export const tunnelManageRestart = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/restart`, { method: 'POST' });
+    return res.json();
+};
+export const tunnelManageUsersList = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/users`);
+    return res.json();
+};
+export const tunnelManageUserAdd = async (username, password) => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/users/add`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    return res.json();
+};
+export const tunnelManageUserRemove = async (username) => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/users/remove`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+    });
+    return res.json();
+};
+export const tunnelManageUpdate = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/update`, { method: 'POST' });
+    return res.json();
+};
+export const tunnelManageUninstall = async () => {
+    const res = await fetch(`${API_URL}/api/tunnel/manage/uninstall`, { method: 'POST' });
+    return res.json();
+};
+
 export const tunnelHealth = async () => {
     try {
         const res = await fetch(`${API_URL}/api/tunnel/health`);

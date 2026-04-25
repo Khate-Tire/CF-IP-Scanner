@@ -1090,3 +1090,177 @@ def get_deployment_status() -> Dict:
 def get_tunnel_configs() -> Dict:
     """Get the generated configs from the last deployment."""
     return _deploy_state.configs or {}
+
+
+# ─── Phase 2: Manage existing deployment ─────────────────────────────────────
+# These functions assume an SSH session is already connected to a host that
+# has dnstm installed (whether or not it was deployed by THIS app). Each
+# returns a JSON-serialisable dict with at least {success, message, ...}.
+
+def manage_status() -> Dict:
+    """Probe an existing dnstm install: version, listening ports, tunnels, services."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        ver_out, _, ver_code = _exec("dnstm --version 2>&1 || dnstm version 2>&1", 10)
+        if ver_code != 0:
+            return {"success": False, "installed": False, "message": "dnstm not installed on this host"}
+        # Listening UDP/TCP on :53 and any tunnel ports
+        ss_out, _, _ = _exec("ss -tulnp 2>/dev/null | head -40 || netstat -tulnp 2>/dev/null | head -40", 10)
+        # dnstm-managed tunnels
+        tunnels_out, _, _ = _exec("dnstm tunnel list 2>&1 | head -40", 15)
+        # systemd unit health
+        units_out, _, _ = _exec(
+            "systemctl list-units --type=service --no-legend --no-pager 2>/dev/null "
+            "| awk '$1 ~ /dnstm/ {print $1\" \"$3\" \"$4}'",
+            10,
+        )
+        # uptime of any dnstm unit
+        uptime_out, _, _ = _exec(
+            "systemctl show dnstm.service -p ActiveEnterTimestamp --value 2>/dev/null", 5
+        )
+        return {
+            "success": True,
+            "installed": True,
+            "version": ver_out.strip(),
+            "listening": ss_out,
+            "tunnels": tunnels_out,
+            "units": [l for l in units_out.splitlines() if l.strip()],
+            "active_since": uptime_out.strip(),
+            "host": globals().get("_ssh_host") or "",
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_restart() -> Dict:
+    """Restart all dnstm-related systemd units."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        out, err, code = _exec(
+            "systemctl list-units --type=service --no-legend --no-pager 2>/dev/null "
+            "| awk '$1 ~ /dnstm/ {print $1}' | xargs -r systemctl restart "
+            "&& sleep 1 && systemctl list-units --type=service --no-legend --no-pager "
+            "| awk '$1 ~ /dnstm/ {print $1\" \"$3\" \"$4}'",
+            45,
+        )
+        return {"success": code == 0, "message": (out or err)[-800:] or "restarted"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_users_list() -> Dict:
+    """List SSH-tunnel users created by `dnstm install --mode multi`."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        # Prefer the dnstm subcommand if it exists; otherwise enumerate /home
+        # users that have a shell of /usr/sbin/nologin or whose group contains
+        # 'dnstm'/'tunnel'.
+        out, _, code = _exec("dnstm user list 2>&1", 15)
+        if code != 0 or "Unknown" in out or "command" in out.lower():
+            out, _, _ = _exec(
+                "getent passwd | awk -F: '$3>=1000 && $3<65000 && $7 !~ /false/ {print $1}'",
+                10,
+            )
+            users = [u.strip() for u in out.splitlines() if u.strip()]
+            return {"success": True, "users": users, "source": "passwd"}
+        # Parse dnstm output (one user per line typically)
+        users = [l.strip() for l in out.splitlines() if l.strip() and not l.startswith("#")]
+        return {"success": True, "users": users, "source": "dnstm"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_users_add(username: str, password: str) -> Dict:
+    """Add a new SSH-tunnel user (no shell, password-only, in tunnel group)."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    if not username or not username.replace("_", "").replace("-", "").isalnum():
+        return {"success": False, "message": "Invalid username"}
+    if not password or len(password) < 4:
+        return {"success": False, "message": "Password too short (min 4)"}
+    try:
+        # Try `dnstm user add` first; fall back to manual useradd + chpasswd.
+        cmd = (
+            f"dnstm user add '{username}' --password '{password}' 2>&1 || "
+            f"(id -u '{username}' >/dev/null 2>&1 || useradd -m -s /usr/sbin/nologin '{username}') "
+            f"&& echo '{username}:{password}' | chpasswd "
+            f"&& usermod -aG tunnel '{username}' 2>/dev/null; echo DONE"
+        )
+        out, err, code = _exec(cmd, 30)
+        ok = "DONE" in (out or "") or code == 0
+        return {"success": ok, "message": (out or err)[-400:]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_users_remove(username: str) -> Dict:
+    """Remove an SSH-tunnel user."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    if not username or not username.replace("_", "").replace("-", "").isalnum():
+        return {"success": False, "message": "Invalid username"}
+    if username in ("root", "ubuntu", "debian", "admin"):
+        return {"success": False, "message": "Refusing to remove system user"}
+    try:
+        cmd = (
+            f"dnstm user remove '{username}' 2>&1 || "
+            f"(pkill -KILL -u '{username}' 2>/dev/null; userdel -r '{username}' 2>&1)"
+        )
+        out, err, code = _exec(cmd, 30)
+        return {"success": code == 0 or "userdel" in (out or ""), "message": (out or err)[-400:]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_update() -> Dict:
+    """Re-download the latest dnstm release binary in place and restart units."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        arch_out, _, _ = _exec("uname -m", 5)
+        arch = (arch_out or "").strip()
+        arch_map = {"x86_64": "amd64", "aarch64": "arm64", "armv7l": "arm"}
+        gohost = arch_map.get(arch, "amd64")
+        # Match the URL pattern used by the installer
+        bin_url = (
+            f"https://github.com/net2share/dnstm/releases/latest/download/dnstm-linux-{gohost}"
+        )
+        cmd = (
+            "set -e; "
+            "cp /usr/local/bin/dnstm /usr/local/bin/dnstm.bak 2>/dev/null || true; "
+            f"curl -fsSL --max-time 120 -o /tmp/dnstm.new '{bin_url}' "
+            "&& chmod +x /tmp/dnstm.new "
+            "&& /tmp/dnstm.new --version "
+            "&& mv /tmp/dnstm.new /usr/local/bin/dnstm "
+            "&& systemctl list-units --type=service --no-legend --no-pager "
+            "| awk '$1 ~ /dnstm/ {print $1}' | xargs -r systemctl restart "
+            "&& dnstm --version"
+        )
+        out, err, code = _exec(cmd, 180)
+        return {"success": code == 0, "message": (out or err)[-800:]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+def manage_uninstall() -> Dict:
+    """Stop & remove dnstm. Best-effort — does NOT delete user accounts."""
+    if not _ssh_client:
+        return {"success": False, "message": "Not connected"}
+    try:
+        cmd = (
+            "systemctl list-units --type=service --no-legend --no-pager 2>/dev/null "
+            "| awk '$1 ~ /dnstm/ {print $1}' | xargs -r systemctl stop; "
+            "systemctl list-units --type=service --no-legend --no-pager 2>/dev/null "
+            "| awk '$1 ~ /dnstm/ {print $1}' | xargs -r systemctl disable; "
+            "dnstm uninstall --force 2>&1 || true; "
+            "rm -f /usr/local/bin/dnstm /usr/local/bin/dnstm.bak; "
+            "rm -rf /etc/dnstm /var/lib/dnstm /var/log/dnstm; "
+            "echo DONE"
+        )
+        out, err, code = _exec(cmd, 90)
+        return {"success": "DONE" in (out or ""), "message": (out or err)[-800:]}
+    except Exception as e:
+        return {"success": False, "message": str(e)}

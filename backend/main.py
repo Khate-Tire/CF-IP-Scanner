@@ -2706,6 +2706,44 @@ async def tunnel_get_configs():
     return tunnel_deployer.get_tunnel_configs()
 
 
+# --- Phase 2: Manage existing deployment -----------------------------------
+
+class TunnelUserAddRequest(BaseModel):
+    username: str
+    password: str
+
+class TunnelUserRemoveRequest(BaseModel):
+    username: str
+
+@app.get('/api/tunnel/manage/status')
+async def tunnel_manage_status():
+    return tunnel_deployer.manage_status()
+
+@app.post('/api/tunnel/manage/restart')
+async def tunnel_manage_restart():
+    return tunnel_deployer.manage_restart()
+
+@app.get('/api/tunnel/manage/users')
+async def tunnel_manage_users_list():
+    return tunnel_deployer.manage_users_list()
+
+@app.post('/api/tunnel/manage/users/add')
+async def tunnel_manage_users_add(req: TunnelUserAddRequest):
+    return tunnel_deployer.manage_users_add(req.username, req.password)
+
+@app.post('/api/tunnel/manage/users/remove')
+async def tunnel_manage_users_remove(req: TunnelUserRemoveRequest):
+    return tunnel_deployer.manage_users_remove(req.username)
+
+@app.post('/api/tunnel/manage/update')
+async def tunnel_manage_update():
+    return tunnel_deployer.manage_update()
+
+@app.post('/api/tunnel/manage/uninstall')
+async def tunnel_manage_uninstall():
+    return tunnel_deployer.manage_uninstall()
+
+
 # --- DNS Resolver Scanner ---
 
 @app.post('/api/dns-scan/start')
