@@ -88,6 +88,7 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
   const [deployStatus, setDeployStatus] = useState(null);
   const [configs, setConfigs] = useState(null);
   const [scanVlessConfig, setScanVlessConfig] = useState('');
+  const [qrPreview, setQrPreview] = useState(null);
 
   // Persist non-sensitive form fields (host/port/username/authMode/domain/backupDomains)
   useEffect(() => {
@@ -564,10 +565,16 @@ sudo ss -tulpn | grep :53     # should be empty`}</pre>
                             <p className="font-mono text-[10px] text-gray-400 break-all leading-relaxed max-h-24 overflow-y-auto">
                               {activeUrl}
                             </p>
-                            <button
-                              onClick={() => { navigator.clipboard.writeText(activeUrl); toast.success('slipnet:// URL copied'); }}
-                              className="text-xs text-emerald-300 hover:text-white px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/40 transition-all"
-                            >📋 Copy slipnet:// URL</button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => { navigator.clipboard.writeText(activeUrl); toast.success('slipnet:// URL copied'); }}
+                                className="text-xs text-emerald-300 hover:text-white px-2 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/40 transition-all"
+                              >📋 Copy slipnet:// URL</button>
+                              <button
+                                onClick={() => setQrPreview({ label: `${tag} → ${label}`, url: activeUrl })}
+                                className="text-xs text-blue-300 hover:text-white px-2 py-1 rounded bg-blue-500/20 hover:bg-blue-500/40 transition-all"
+                              >🔍 {t('dnsTunnel.maximizeQr', 'Maximize QR')}</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -678,6 +685,29 @@ sudo ss -tulpn | grep :53     # should be empty`}</pre>
             </div>
           )}
           <button onClick={()=>{setStep(0);setServerInfo(null);setConfigs(null);setDeployStatus(null);}} className="w-full py-2 rounded-lg border border-gray-700 text-gray-400 text-sm font-bold hover:text-white transition-all">🔄 {t('dnsTunnel.startOver','Start Over')}</button>
+        </div>
+      )}
+
+      {qrPreview && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setQrPreview(null)}>
+          <div className="glass-panel p-6 w-full max-w-xl flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-white text-center">{qrPreview.label}</h3>
+            <p className="text-xs text-gray-400 text-center mt-2 mb-4">{t('dnsTunnel.maximizeQrHint', 'Hold your phone farther back if the code is too close to the camera.')}</p>
+            <div className="bg-white p-4 rounded-xl">
+              <QRCodeSVG value={qrPreview.url} size={Math.min(typeof window !== 'undefined' ? Math.max(window.innerWidth - 96, 280) : 360, 420)} level="M" />
+            </div>
+            <p className="mt-4 text-[10px] text-center text-gray-400 break-all max-h-24 overflow-y-auto">{qrPreview.url}</p>
+            <div className="mt-4 flex w-full gap-3">
+              <button
+                onClick={() => { navigator.clipboard.writeText(qrPreview.url); toast.success('slipnet:// URL copied'); }}
+                className="flex-1 py-2 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-sm font-bold hover:bg-emerald-500/30 transition-all"
+              >📋 {t('dnsTunnel.copySlipnetUrl', 'Copy URL')}</button>
+              <button
+                onClick={() => setQrPreview(null)}
+                className="flex-1 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-sm font-bold hover:bg-gray-700 transition-all"
+              >{t('dnsTunnel.closeQr', 'Close')}</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

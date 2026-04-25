@@ -543,8 +543,24 @@ def generate_config(resolver: str, domain: str, tunnel_type: str = "auto", pubke
     configs = {}
 
     # SlipNet URI
-    slip_data = {"resolver": resolver, "domain": domain, "type": tunnel_type}
-    slip_b64 = base64.urlsafe_b64encode(json.dumps(slip_data).encode()).decode()
+    tunnel_map = {
+        "auto": "dnstt",
+        "dnstt": "dnstt",
+        "noizdns": "sayedns",
+        "vaydns": "vaydns",
+        "slipstream": "ss",
+    }
+    fields = [""] * 70
+    fields[0] = "18"
+    fields[1] = tunnel_map.get((tunnel_type or "auto").lower(), "dnstt")
+    fields[2] = f"scan-{domain}"
+    fields[3] = domain
+    fields[4] = f"{resolver}:53:0"
+    if pubkey:
+        fields[11] = pubkey
+    while fields and fields[-1] == "":
+        fields.pop()
+    slip_b64 = base64.b64encode("|".join(fields).encode()).decode()
     configs["slipnet_uri"] = f"slipnet://{slip_b64}"
 
     # DNSTT client config

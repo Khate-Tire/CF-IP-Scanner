@@ -2550,6 +2550,7 @@ if __name__ == '__main__':
 # ==========================================
 import tunnel_deployer
 import dns_scanner_engine
+import speed_matrix
 
 class TunnelConnectRequest(BaseModel):
     host: str
@@ -2866,3 +2867,32 @@ async def dns_generate_config(req: dict):
 async def dns_predict_best():
     """Predict best resolver using ML heuristics from local history."""
     return dns_scanner_engine.predict_best_resolver()
+
+
+# ==========================================
+# SPEED MATRIX (config × DNS × transport)
+# ==========================================
+
+@app.post('/api/speed-matrix/start')
+async def speed_matrix_start(req: dict = Body(...)):
+    """Run upload/download speed test for every config across every DNS scenario.
+
+    Body: { configs: [str], resolvers: [str], transports: [str], target_url?: str, timeout_ms?: int }
+    """
+    return speed_matrix.start_matrix_scan(
+        configs=req.get('configs') or [],
+        resolvers=req.get('resolvers') or [],
+        transports=req.get('transports'),
+        target_url=req.get('target_url') or 'https://www.cloudflare.com/cdn-cgi/trace',
+        timeout_ms=int(req.get('timeout_ms') or 6000),
+    )
+
+
+@app.get('/api/speed-matrix/{scan_id}/status')
+async def speed_matrix_status(scan_id: str):
+    return speed_matrix.get_matrix_status(scan_id)
+
+
+@app.post('/api/speed-matrix/{scan_id}/stop')
+async def speed_matrix_stop(scan_id: str):
+    return speed_matrix.stop_matrix_scan(scan_id)

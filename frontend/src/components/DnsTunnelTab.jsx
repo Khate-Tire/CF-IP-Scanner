@@ -5,6 +5,7 @@ import DeployWizard from './DeployWizard';
 import DeployManage from './DeployManage';
 import DnsOptimizer from './DnsOptimizer';
 import ConfigLab from './ConfigLab';
+import SpeedMatrix from './SpeedMatrix';
 import { sendToConfigLab, sendToDeployWizard } from '../state/optimizerBridge';
 import { tunnelHealth } from '../api';
 
@@ -97,6 +98,18 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
                         {t('dnsTunnel.labTab', 'Config Lab')}
                     </button>
                     <button
+                        onClick={() => setSubTab('matrix')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${subTab === 'matrix'
+                            ? 'bg-amber-500/15 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.3)] border border-amber-500/30'
+                            : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.05]'
+                            }`}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        {t('dnsTunnel.matrixTab', 'Speed Matrix')}
+                    </button>
+                    <button
                         onClick={() => setSubTab('manage')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${subTab === 'manage'
                             ? 'bg-cyan-500/15 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.3)] border border-cyan-500/30'
@@ -115,6 +128,7 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
             {subTab === 'deploy' && <DeployWizard onSendToAdvanced={onSendToAdvanced} onGoToOptimizer={goToOptimizer} onGoToLab={goToConfigLab} />}
             {subTab === 'optimizer' && <DnsOptimizer onSendToAdvanced={onSendToAdvanced} onSendToLab={goToConfigLab} />}
             {subTab === 'lab' && <ConfigLab onSendToDeploy={goToDeployWizard} onGoToOptimizer={goToOptimizer} />}
+            {subTab === 'matrix' && <SpeedMatrix />}
             {subTab === 'manage' && <DeployManage />}
         </div>
     );

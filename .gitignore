@@ -69,6 +69,15 @@ CF-SITES/
 .DS_Store
 Thumbs.db
 
+# i18n working / scratch files (translation pipeline inputs & per-language reports)
+frontend/*_input.json
+frontend/*_input_part*.json
+frontend/zh_fa_output.json
+frontend/untranslated_*.json
+frontend/untranslated_all_strings.json
+frontend/translate_*.cjs
+frontend/src/i18n/*_eng.json
+
 backend/dns_history.db
 backend/dns_history.db-shm
 backend/dns_history.db-wal

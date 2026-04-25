@@ -552,3 +552,26 @@ export const dnsPredictBest = async () => {
     return res.json();
 };
 
+// ==========================================
+// SPEED MATRIX (config × DNS × transport)
+// ==========================================
+
+export const speedMatrixStart = async ({ configs, resolvers, transports, target_url, timeout_ms } = {}) => {
+    const res = await fetch(`${API_URL}/api/speed-matrix/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configs, resolvers, transports, target_url, timeout_ms })
+    });
+    return res.json();
+};
+
+export const speedMatrixStatus = async (scanId) => {
+    const res = await fetch(`${API_URL}/api/speed-matrix/${scanId}/status`);
+    return res.json();
+};
+
+export const speedMatrixStop = async (scanId) => {
+    const res = await fetch(`${API_URL}/api/speed-matrix/${scanId}/stop`, { method: 'POST' });
+    return res.json();
+};
+

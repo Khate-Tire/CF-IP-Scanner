@@ -9,6 +9,7 @@ import io
 import re
 import json
 import time
+import base64
 import threading
 import traceback
 from typing import Optional, Dict, List, Any
@@ -70,6 +71,82 @@ def get_dependency_status() -> Dict:
             "requests": requests is not None,
         },
     }
+
+
+def _build_slipnet_uri(
+    config: Dict[str, Any],
+    tunnel_type_override: Optional[str] = None,
+    resolvers: Optional[List[str]] = None,
+) -> str:
+    """Build a SlipNet-compatible pipe-delimited profile.
+
+    SlipNet does not import the dnst:// JSON payload used by dnstc. It expects
+    its own pipe field layout, base64-encoded after the slipnet:// scheme.
+    """
+    tunnel_name = (tunnel_type_override or config.get("slipnet_tunnel_type") or "").strip()
+    reverse_map = {
+        "dnstt": "dnstt",
+        "dnstt + ssh": "dnstt",
+        "noizdns": "sayedns",
+        "noizdns + ssh": "sayedns",
+        "vaydns": "vaydns",
+        "vaydns + ssh": "vaydns",
+        "slipstream": "ss",
+        "slipstream + ssh": "ss",
+        "ssh": "ssh",
+        "socks5": "socks5",
+        "naive": "naive",
+    }
+    tunnel_type = reverse_map.get(tunnel_name.lower(), "dnstt")
+
+    resolver_list = [r.strip() for r in (resolvers or ["1.1.1.1", "8.8.8.8", "9.9.9.9"]) if r and r.strip()]
+    resolvers_field = ",".join(f"{resolver}:53:0" for resolver in resolver_list)
+
+    fields = [""] * 70
+
+    def set_field(index: int, value: Any) -> None:
+        if value is not None and value != "":
+            fields[index] = str(value)
+
+    def set_bool(index: int, value: bool) -> None:
+        fields[index] = "1" if value else "0"
+
+    set_field(0, 18)
+    set_field(1, tunnel_type)
+    set_field(2, config.get("_tag") or tunnel_name or tunnel_type)
+    set_field(3, config.get("domain") or "")
+    set_field(4, resolvers_field)
+    set_bool(5, False)
+    set_bool(10, False)
+    set_field(11, config.get("pubkey_hex") or "")
+
+    ssh_enabled = bool(config.get("ssh_host"))
+    set_bool(14, ssh_enabled)
+    if ssh_enabled:
+        set_field(15, config.get("ssh_user") or "")
+        set_field(16, config.get("ssh_pass") or "")
+        set_field(17, config.get("ssh_port") or 22)
+        set_field(19, config.get("ssh_host") or "")
+
+    if tunnel_type == "sayedns":
+        set_bool(38, True)
+
+    if config.get("mtu"):
+        set_field(39, config.get("mtu"))
+
+    if tunnel_type == "vaydns":
+        set_bool(41, bool(config.get("vaydns_dnstt_compat")))
+        set_field(42, config.get("vaydns_record_type") or "")
+        set_field(45, config.get("vaydns_idle_timeout") or "")
+        set_field(46, config.get("vaydns_keepalive") or "")
+        set_field(49, config.get("vaydns_clientid_size") or "")
+
+    while fields and fields[-1] == "":
+        fields.pop()
+
+    payload = "|".join(fields).encode("utf-8")
+    encoded = base64.b64encode(payload).decode("ascii")
+    return "slipnet://" + encoded
 
 # ─── Deployment State Machine ──────────────────────────────────────────────────
 
@@ -971,66 +1048,17 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                     mc["ssh_pass"] = ssh_pass
                 manual_configs[tag] = mc
 
-            # ── slipnet:// URI builder ────────────────────────────────────────
-            # SlipNet won't import dnst:// (that's the dnstc CLI's format), but
-            # it imports its own slipnet:// URIs (base64url(JSON)). The schema
-            # below is the best-effort shape inferred from the SlipNet README
-            # and DNS-Multiplexer's parser; if SlipNet rejects an import the
-            # manual_configs block above is the fallback.
-            def _slipnet_url(mc: Dict, tunnel_type_override: str = None) -> str:
-                tt = tunnel_type_override or mc.get("slipnet_tunnel_type") or ""
-                payload: Dict = {
-                    "v": 1,
-                    "name": mc.get("_tag") or tt,
-                    "tunnel_type": tt,
-                    "domain": mc.get("domain") or "",
-                    "server_host": mc.get("server_host") or "",
-                    "server_port": mc.get("server_port") or 0,
-                }
-                if mc.get("pubkey_hex"):
-                    payload["pubkey"] = mc["pubkey_hex"]
-                if mc.get("tls_cert_pem"):
-                    payload["cert"] = mc["tls_cert_pem"]
-                if mc.get("mtu"):
-                    payload["mtu"] = mc["mtu"]
-                # VayDNS extras
-                vd = {}
-                for src, dst in (("vaydns_clientid_size", "clientid_size"),
-                                 ("vaydns_idle_timeout", "idle_timeout"),
-                                 ("vaydns_keepalive", "keepalive"),
-                                 ("vaydns_record_type", "record_type"),
-                                 ("vaydns_dnstt_compat", "dnstt_compat")):
-                    if src in mc:
-                        vd[dst] = mc[src]
-                if vd:
-                    payload["vaydns"] = vd
-                # SSH block
-                if mc.get("ssh_host"):
-                    payload["ssh"] = {
-                        "host": mc.get("ssh_host"),
-                        "port": mc.get("ssh_port") or 22,
-                        "user": mc.get("ssh_user") or "",
-                        "pass": mc.get("ssh_pass") or "",
-                        "cipher": "aes128-gcm",
-                    }
-                # Default DNS resolvers — gives the SlipNet client something
-                # sensible if the user's ISP DNS is hijacking.
-                payload["resolvers"] = ["1.1.1.1", "8.8.8.8", "9.9.9.9"]
-                raw = _json.dumps(payload, separators=(",", ":")).encode("utf-8")
-                b64 = _b64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
-                return "slipnet://" + b64
-
             slipnet_urls: Dict[str, str] = {}
             slipnet_urls_noizdns: Dict[str, str] = {}
             for tag, mc in manual_configs.items():
                 mc_named = dict(mc); mc_named["_tag"] = tag
-                slipnet_urls[tag] = _slipnet_url(mc_named)
+                slipnet_urls[tag] = _build_slipnet_uri(mc_named)
                 # dnstt tunnels can ALSO be consumed in NoizDNS mode (same
                 # server binary, DPI-evasion client-side toggle).
                 if mc.get("transport") == "dnstt":
                     noiz_type = ("NoizDNS + SSH" if mc.get("backend") == "ssh"
                                  else "NoizDNS")
-                    slipnet_urls_noizdns[tag] = _slipnet_url(mc_named, noiz_type)
+                    slipnet_urls_noizdns[tag] = _build_slipnet_uri(mc_named, noiz_type)
 
             # Build config output
             configs = {
