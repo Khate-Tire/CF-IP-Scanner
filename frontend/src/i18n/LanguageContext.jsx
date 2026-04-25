@@ -92,8 +92,35 @@ export function LanguageProvider({ children }) {
         document.documentElement.lang = lang;
     }, [lang, isRtl]);
 
+    const normalizeValue = useCallback((value) => {
+        if (Array.isArray(value)) return value.map(normalizeValue);
+        if (!value || typeof value !== 'object') return value;
+        const keys = Object.keys(value);
+        if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
+            return keys
+                .map(k => Number(k))
+                .sort((a, b) => a - b)
+                .map(i => normalizeValue(value[String(i)]));
+        }
+        const out = {};
+        for (const [k, v] of Object.entries(value)) out[k] = normalizeValue(v);
+        return out;
+    }, []);
+
     // Nested key resolver: t("app.title") => locales[lang].app.title
-    const t = useCallback((key, replacements) => {
+    // Supports both:
+    // - t(key, { replacements })
+    // - t(key, "Default text", { replacements })
+    const t = useCallback((key, arg2, arg3) => {
+        let defaultText;
+        let replacements;
+        if (typeof arg2 === 'string') {
+            defaultText = arg2;
+            replacements = arg3;
+        } else {
+            replacements = arg2;
+        }
+
         const keys = key.split('.');
         let val = strings;
         for (const k of keys) {
@@ -106,13 +133,14 @@ export function LanguageProvider({ children }) {
                     if (fallback && typeof fallback === 'object' && fk in fallback) {
                         fallback = fallback[fk];
                     } else {
-                        return key; // Key not found anywhere
+                        return defaultText ?? key; // Key not found anywhere
                     }
                 }
                 val = fallback;
                 break;
             }
         }
+        val = normalizeValue(val);
         // Handle replacement tokens like {count}
         if (typeof val === 'string' && replacements) {
             return Object.entries(replacements).reduce(
@@ -120,7 +148,7 @@ export function LanguageProvider({ children }) {
             );
         }
         return val;
-    }, [strings]);
+    }, [strings, normalizeValue]);
 
     return (
         <LanguageContext.Provider value={{ lang, setLang, t, isRtl }}>

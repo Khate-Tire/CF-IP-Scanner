@@ -19,7 +19,8 @@
       "dnsTunnel": "تونل DNS",
       "about": "درباره برنامه"
     },
-    "startingEngine": "در حال راه‌اندازی موتور..."
+    "startingEngine": "در حال راه‌اندازی موتور...",
+    "startupSlow": "Startup is taking longer than expected..."
   },
   "config": {
     "configLabel": "پیکربندی VLESS",
@@ -212,7 +213,18 @@
     "sniDesc": "از طریق لیست بزرگ SNI‌ها در برابر یک آی‌پی کلادفلر فعال تکرار می‌کند.",
     "startBypass": "شروع اسکن بای‌پس",
     "scanningBypass": "در حال اسکن پیکربندی‌های بای‌پس...",
-    "checksComplete": "بررسی‌ها کامل شد"
+    "checksComplete": "بررسی‌ها کامل شد",
+    "autoConfigFor": "Auto-configured for ISP: {isp}",
+    "autoConfigFrags": "Auto-configured fragment presets for {isp}",
+    "configRequired": "VLESS config and target IP are required.",
+    "connectedDpi": "Connected from {isp}. Use this SNI list to bypass DPI.",
+    "generateRare": "Generate rare combinations",
+    "loadTopSnis": "Load top SNIs",
+    "loadedSnis": "Loaded {count} SNI targets",
+    "loadingSnis": "Loading top SNIs...",
+    "noSnisFound": "No SNI entries found for your ISP yet.",
+    "rareDesc": "Generates uncommon fragment combinations to evade strict DPI models.",
+    "waitIsp": "Please wait until your ISP is detected."
   },
   "warp": {
     "title": "اسکنر نقاط WARP",
@@ -737,7 +749,36 @@
     "dismiss": "Dismiss",
     "integrationHintTitle": "Pro tip",
     "integrationHintBody": "Run DNS Optimizer first to find the fastest resolvers, then validate them in Config Lab against your config — the result auto-flows back here.",
-    "openOptimizer": "Open DNS Optimizer →"
+    "openOptimizer": "Open DNS Optimizer →",
+    "addonsTitle": "Add-on protocols (NaiveProxy / StunTLS / WARP)",
+    "dnstShareUrls": "Advanced - dnst:// URLs (for dnstc CLI only)",
+    "dnstShareUrlsHint": "These raw dnst:// links are intended for low-level dnstc clients. SlipNet users should use slipnet:// links above.",
+    "fixHint": "Run: pip install -r backend/requirements.txt and restart the backend.",
+    "getSlipnet": "Get SlipNet (Android)",
+    "getSlipnetHint": "Install SlipNet first, then scan/import the QR below.",
+    "healthFail": "DNS Tunnel backend is degraded",
+    "liveTitle": "Live dashboard",
+    "manageDesc": "Connect to a VPS that already runs dnstm to check status, restart, manage users, update, or uninstall.",
+    "manageTab": "Manage",
+    "manageTitle": "Manage existing deployment",
+    "missingDeps": "Missing Python packages",
+    "port53FixBtn": "Fix automatically (disable systemd-resolved stub)",
+    "port53Fixed": "Port 53 is now free",
+    "port53Fixing": "Disabling stub listener...",
+    "port53Manual": "Or fix it manually (SSH into the server)",
+    "port53ManualStep1": "1) Disable the stub listener:",
+    "port53ManualStep2": "2) Point /etc/resolv.conf at a real resolver so apt / curl still work:",
+    "port53ManualStep3": "3) Restart resolved and re-check:",
+    "port53Title": "Port 53 is occupied - usually by systemd-resolved",
+    "port53Warn": "If you skip step 2 the VPS will lose DNS - apt/ping will fail until you set a resolver.",
+    "port53Why": "Fresh Ubuntu/Debian VPSes run a local DNS stub (systemd-resolved) on 127.0.0.53:53. dnstm needs port 53 on every interface, so the stub must be turned off (the rest of resolved keeps working).",
+    "resolverScanDesc": "Probes public resolvers to find which ones can reach your tunnel domain on UDP/53. Use the top results in SlipNet when ISP DNS is hijacked.",
+    "resolverScanTitle": "Find best DNS resolvers for your tunnel",
+    "slipnetImport": "Import to SlipNet (1-tap)",
+    "slipnetImportHint": "Scan this QR in SlipNet to add the tunnel instantly.",
+    "slipnetManual": "Manual fields (host/port/password)",
+    "slipnetManualHint": "Use this if QR import fails on your client.",
+    "sshDisabledNote": "SSH tunnel is disabled in this deployment"
   },
   "configLab": {
     "invalidIp": "Invalid IPv4 address",
@@ -836,6 +877,8 @@
     "tipUseOptimizer": "Want the fastest 10 resolvers for your network?",
     "openOptimizer": "Run DNS Optimizer first →",
     "applyBestTip": "Send these settings to the Deploy Wizard and switch to that tab",
-    "applyBest": "Apply best to Deploy Wizard"
+    "applyBest": "Apply best to Deploy Wizard",
+    "encryptedSlipnet": "Encrypted SlipNet profile",
+    "encryptedSlipnetBody": "Creates a locked SlipNet URI that requires the provided password before import."
   }
 }
