@@ -110,7 +110,7 @@ const DBStatusBar = () => {
                 </div>
 
                 <div className="text-[11px] font-mono font-medium text-gray-300 tracking-wide uppercase">
-                    {isTesting ? t('db.testingDb', 'Testing DB Connection...') : t('db.dbLinkOnline', { count: onlineLayers }, `DB Link: ${onlineLayers}/5 Online`)}
+                    {isTesting ? t('db.testingDb', 'Testing DB Connection...') : t('db.dbLinkOnline', `DB Link: ${onlineLayers}/5 Online`, { onlineLayers })}
                 </div>
 
                 <svg className={`w-3.5 h-3.5 text-gray-500 transform transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg>

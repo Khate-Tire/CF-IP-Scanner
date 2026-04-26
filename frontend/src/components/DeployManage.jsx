@@ -103,11 +103,13 @@ export default function DeployManage() {
         if (authMode === 'key' && !privateKey) { toast.error('Private key required'); return; }
         setConnecting(true);
         try {
-            const r = await tunnelConnect({
-                host, port: Number(port) || 22, username,
-                password: authMode === 'password' ? password : '',
-                private_key: authMode === 'key' ? privateKey : '',
-            });
+            const r = await tunnelConnect(
+                host,
+                Number(port) || 22,
+                username,
+                authMode === 'password' ? password : null,
+                authMode === 'key' ? privateKey : null,
+            );
             if (r?.success) {
                 setConnected(true);
                 persist();

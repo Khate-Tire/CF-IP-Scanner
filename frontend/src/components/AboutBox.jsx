@@ -160,6 +160,67 @@ export default function AboutBox() {
                         </div>
                     </CollapsibleSection>
 
+                    {/* Client Compatibility */}
+                    <CollapsibleSection title={t('about.clients.title', 'Client Compatibility')} icon="📱" color="text-teal-400">
+                        <p className="text-sm text-gray-400 mb-4">
+                            {t('about.clients.intro', 'After a successful scan, the QR code and Copy button give you a share link with the working bypass parameters baked in. Compatibility depends on which params your client supports:')}
+                        </p>
+                        <div className="overflow-x-auto rounded-lg border border-white/5">
+                            <table className="w-full text-xs text-left rtl:text-right">
+                                <thead className="bg-black/40 text-gray-300">
+                                    <tr>
+                                        <th className="p-3">{t('about.clients.col.param', 'Parameter')}</th>
+                                        <th className="p-3">{t('about.clients.col.use', 'Purpose')}</th>
+                                        <th className="p-3">{t('about.clients.col.support', 'Recommended Clients')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-gray-400 divide-y divide-white/5">
+                                    <tr>
+                                        <td className="p-3 font-mono text-cyan-300">sni / host</td>
+                                        <td className="p-3">{t('about.clients.row.sni', 'TLS SNI override (universal bypass)')}</td>
+                                        <td className="p-3">{t('about.clients.row.sniClients', 'All major clients (v2rayN, v2rayNG, NekoBox, Hiddify, sing-box, Streisand, Shadowrocket, FairVPN, Clash Meta)')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 font-mono text-amber-300">fragment</td>
+                                        <td className="p-3">{t('about.clients.row.fragment', 'TLS ClientHello fragmentation (DPI bypass)')}</td>
+                                        <td className="p-3">{t('about.clients.row.fragmentClients', 'Hiddify Next, NekoBox / NekoRay, sing-box ≥ 1.8, v2rayN Hiddify build. Other clients import the link but skip fragmenting.')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 font-mono text-purple-300">fp (utls)</td>
+                                        <td className="p-3">{t('about.clients.row.fp', 'Browser TLS fingerprint (chrome / firefox / safari / random)')}</td>
+                                        <td className="p-3">{t('about.clients.row.fpClients', 'Xray-core ≥ 1.8, sing-box, Hiddify, NekoBox, v2rayN, v2rayNG, Streisand')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="p-3 font-mono text-pink-300">dns_server / dns_domain</td>
+                                        <td className="p-3">{t('about.clients.row.dns', 'DNS-tunnel hint (informational only)')}</td>
+                                        <td className="p-3">{t('about.clients.row.dnsClients', 'Pair with your deployed dnstt / vaydns server in Hiddify or sing-box')}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                            <div className="bg-teal-500/10 border border-teal-500/30 rounded-lg p-3">
+                                <p className="font-bold text-teal-300 mb-1">⭐ {t('about.clients.bestTitle', 'Best overall')}</p>
+                                <p className="text-gray-400">{t('about.clients.best', 'Hiddify Next (desktop + mobile) and NekoBox / NekoRay support every parameter this scanner discovers, including fragmentation.')}</p>
+                            </div>
+                            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                                <p className="font-bold text-amber-300 mb-1">⚠️ {t('about.clients.noteTitle', 'Note')}</p>
+                                <p className="text-gray-400">{t('about.clients.note', 'iOS Shadowrocket and stock v2rayN/v2rayNG accept the link but ignore "fragment". For full DPI bypass, use a Hiddify-family client.')}</p>
+                            </div>
+                        </div>
+                    </CollapsibleSection>
+
+                    {/* Changelog / What's new */}
+                    <CollapsibleSection title={t('about.changelog.title', "What's New")} icon="🆕" color="text-yellow-300">
+                        <ul className="space-y-2 text-sm text-gray-400 list-none">
+                            <li>✅ {t('about.changelog.bypass', 'QR code & Copy now embed the working SNI / fragment / DNS combo found during the scan — no more raw input config.')}</li>
+                            <li>✅ {t('about.changelog.badge', 'Each result row shows a small badge with the bypass combo that worked.')}</li>
+                            <li>✅ {t('about.changelog.hint', 'QR modal displays a client compatibility hint when fragmentation or DNS-tunnel params are present.')}</li>
+                            <li>✅ {t('about.changelog.vip', 'Claim VIP Server now reports real scan counts in real time.')}</li>
+                            <li>✅ {t('about.changelog.i18n', 'Full RTL/LTR support across English, Persian, Arabic, Russian, Turkish, and Chinese.')}</li>
+                        </ul>
+                    </CollapsibleSection>
+
                     {/* Developer & Community */}
                     <section className="mt-6 pt-6 border-t border-white/10">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

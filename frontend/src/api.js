@@ -1,463 +1,371 @@
 /* Copyright (c) 2026 Taher AkbariSaeed */
 import { getClientId } from './utils/clientId';
-export const API_URL = "http://127.0.0.1:8000";
 
-export const scanIPs = async (config) => {
-    const cid = getClientId();
+// Resolve the backend URL.
+// Preference order:
+//  1) Vite env (VITE_API_URL) — useful for dev / docker
+//  2) Electron preload-injected window.electronAPI.getBackendUrl() (resolved lazily)
+//  3) Fallback to localhost:8000
+export const API_URL =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
+    'http://127.0.0.1:8000';
 
-    const response = await fetch(`${API_URL}/scan`, {
+// Default per-request timeout (ms). Long-running endpoints override.
+const DEFAULT_TIMEOUT_MS = 30000;
+
+/**
+ * Centralised fetch wrapper.
+ *  - Adds an AbortController-based timeout (default 30s).
+ *  - On non-2xx, parses Pydantic 422 `detail` arrays into a readable message
+ *    and throws an Error with `.status` and `.detail` populated.
+ *  - On network/abort failures, throws a normalised Error.
+ *
+ * Returns the Response object on success — callers decide json/text/blob.
+ */
+async function apiFetch(path, opts = {}) {
+    const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = opts;
+    const url = path.startsWith('http') ? path : `${API_URL}${path}`;
+    const headers = { ...(rest.headers || {}) };
+    if (rest.body && typeof rest.body === 'string' && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
+    const controller = new AbortController();
+    const timeoutId = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+        const res = await fetch(url, { ...rest, headers, signal: controller.signal });
+        if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try {
+                const j = await res.clone().json();
+                if (j && j.detail) {
+                    detail = Array.isArray(j.detail)
+                        ? j.detail.map(d => `${(d.loc || []).join('.')}: ${d.msg}`).join('; ')
+                        : (typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail));
+                } else if (j && (j.message || j.error)) {
+                    detail = j.message || j.error;
+                }
+            } catch (_) { /* not JSON */ }
+            const err = new Error(detail);
+            err.status = res.status;
+            err.detail = detail;
+            throw err;
+        }
+        return res;
+    } catch (e) {
+        if (e.name === 'AbortError') {
+            const err = new Error('Request timed out');
+            err.timeout = true;
+            throw err;
+        }
+        throw e;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
+}
+
+/** Convenience: parse JSON, propagate errors. */
+async function apiJson(path, opts = {}) {
+    const res = await apiFetch(path, opts);
+    return res.json();
+}
+
+/** Convenience: parse JSON, return a fallback object on any error (network/HTTP/abort). */
+async function apiJsonSafe(path, opts = {}, fallback = {}) {
+    try { return await apiJson(path, opts); }
+    catch (e) {
+        return { ...fallback, success: false, error: e.message, message: e.message };
+    }
+}
+
+/** POST helper that always returns a `{success, message?, ...}` shape. */
+async function apiPostSafe(path, body, opts = {}) {
+    return apiJsonSafe(path, { method: 'POST', body: JSON.stringify(body || {}), ...opts });
+}
+
+// ==========================================
+// CORE SCAN ENDPOINTS
+// ==========================================
+
+export const scanIPs = async (config) => apiJsonSafe('/scan', {
+    method: 'POST',
+    headers: { 'X-Client-ID': getClientId() },
+    body: JSON.stringify(config),
+}, { error: 'Failed to start scan' });
+
+export const rescanIP = async (vlessConfig, ip) => apiJsonSafe('/rescan-ip', {
+    method: 'POST',
+    body: JSON.stringify({ vless_config: vlessConfig, ip }),
+}, { error: 'Failed to rescan' });
+
+export const exportSubscription = async (format, vlessConfig, ips) => apiJsonSafe('/export', {
+    method: 'POST',
+    body: JSON.stringify({ format, vless_config: vlessConfig, ips }),
+}, { error: 'Export failed' });
+
+export const getScanStatus = async (scanId) =>
+    apiJsonSafe(`/scan/${encodeURIComponent(scanId)}`, { timeoutMs: 8000 }, { error: 'Status unavailable' });
+
+export const getSettings = async () =>
+    apiJsonSafe('/settings', { timeoutMs: 8000 }, { error: 'Failed to fetch settings' });
+
+export const getMyIP = async (useProxy = false) =>
+    apiJsonSafe(`/my-ip?proxy=${useProxy ? '1' : '0'}`, { timeoutMs: 10000 }, { error: 'Failed to fetch IP details' });
+
+export const getSmartRecommendations = async (isp = '', location = '', country = '', limit = 30) =>
+    apiJsonSafe('/api/smart-recommend', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
-        body: JSON.stringify(config)
-    });
-    return response.json();
-};
+        body: JSON.stringify({ isp, location, country, limit }),
+    }, { results: [], total: 0 });
 
-export const rescanIP = async (vlessConfig, ip) => {
-    const response = await fetch(`${API_URL}/rescan-ip`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vless_config: vlessConfig, ip })
-    });
-    return response.json();
-};
-
-export const exportSubscription = async (format, vlessConfig, ips) => {
-    const response = await fetch(`${API_URL}/export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ format, vless_config: vlessConfig, ips })
-    });
-    return response.json();
-};
-
-export const getScanStatus = async (scanId) => {
-    const response = await fetch(`${API_URL}/scan/${scanId}`);
-    return response.json();
-};
-
-export const getSettings = async () => {
-    try {
-        const response = await fetch(`${API_URL}/settings`);
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { error: 'Failed to fetch settings' };
-};
-
-export const getMyIP = async (useProxy = false) => {
-    try {
-        const response = await fetch(`${API_URL}/my-ip?proxy=${useProxy ? '1' : '0'}`);
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { error: 'Failed to fetch IP details' };
-};
-
-export const getSmartRecommendations = async (isp = '', location = '', country = '', limit = 30) => {
-    try {
-        const response = await fetch(`${API_URL}/api/smart-recommend`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isp, location, country, limit })
-        });
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { results: [], total: 0 };
-};
-
-export const getBestCommunityBypasses = async (isp, mode = 'fragment', limit = 5) => {
-    try {
-        const response = await fetch(`${API_URL}/api/best-bypasses?isp=${encodeURIComponent(isp)}&mode=${mode}&limit=${limit}`);
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { results: [] };
-};
+export const getBestCommunityBypasses = async (isp, mode = 'fragment', limit = 5) =>
+    apiJsonSafe(`/api/best-bypasses?isp=${encodeURIComponent(isp)}&mode=${mode}&limit=${limit}`, {}, { results: [] });
 
 export const saveSettings = async (settings) => {
     try {
-        await fetch(`${API_URL}/settings`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(settings)
-        });
+        await apiFetch('/settings', { method: 'POST', body: JSON.stringify(settings) });
         return { success: true };
     } catch (e) {
-        console.error(e);
-        return { error: "Network error" };
+        return { success: false, error: e.message };
     }
 };
 
-export const getExportLink = async (vlessConfig, ips) => {
+export const getExportLink = async (vlessConfig, ips) =>
+    apiJsonSafe('/export-link', {
+        method: 'POST',
+        body: JSON.stringify({ format: 'base64', vless_config: vlessConfig, ips }),
+    }, { error: 'Failed to create export link' });
+
+export const fetchConfigFromUrl = async (url, useProxy = false) =>
+    apiJsonSafe(`/fetch-config?proxy=${useProxy ? '1' : '0'}`, {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+        timeoutMs: 60000,
+    }, { error: 'Failed to fetch config' });
+
+export const logUsage = async (event_type, details = '') => {
     try {
-        const response = await fetch(`${API_URL}/export-link`, {
+        await apiFetch('/log-usage', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ format: 'base64', vless_config: vlessConfig, ips: ips })
+            body: JSON.stringify({ event_type, details }),
+            timeoutMs: 5000,
         });
-        if (response.ok) return await response.json();
-    } catch (e) { console.error(e); }
-    return { error: 'Failed to create export link' };
+    } catch (_) { /* fire-and-forget */ }
 };
 
-export const fetchConfigFromUrl = async (url, useProxy = false) => {
-    try {
-        const response = await fetch(`${API_URL}/fetch-config?proxy=${useProxy ? '1' : '0'}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        return await response.json();
-    } catch (e) {
-        return { error: e.message };
-    }
-};
+export const getHealth = async () =>
+    apiJsonSafe('/health', { timeoutMs: 5000 }, { internet: 'offline', database: 'offline' });
 
-export const logUsage = async (event_type, details = "") => {
-    try {
-        await fetch(`${API_URL}/log-usage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ event_type, details })
-        });
-    } catch (e) { console.error(e); }
-};
+export const proxyDatabase = async (vlessConfig) =>
+    apiJsonSafe('/proxy-db', {
+        method: 'POST',
+        body: JSON.stringify({ vless_config: vlessConfig }),
+        timeoutMs: 60000,
+    }, { status: 'error', message: 'Network error' });
 
-export const getHealth = async () => {
-    try {
-        const response = await fetch(`${API_URL}/health`);
-        return await response.json();
-    } catch (e) {
-        return { internet: 'offline', database: 'offline' };
-    }
-};
+export const getAnalytics = async (provider = 'cloudflare') =>
+    apiJsonSafe(`/analytics?provider=${encodeURIComponent(provider)}`, {}, { error: 'Failed to fetch analytics' });
 
-export const proxyDatabase = async (vlessConfig) => {
-    try {
-        const response = await fetch(`${API_URL}/proxy-db`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ vless_config: vlessConfig })
-        });
-        return await response.json();
-    } catch (e) {
-        return { status: 'error', message: e.message };
-    }
-};
+export const getGeoAnalytics = async (provider = 'cloudflare') =>
+    apiJsonSafe(`/analytics/geo?provider=${encodeURIComponent(provider)}`, {}, { error: 'Failed to fetch geo analytics' });
 
-export const getAnalytics = async (provider = 'cloudflare') => {
-    try {
-        const response = await fetch(`${API_URL}/analytics?provider=${provider}`);
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { error: 'Failed to fetch analytics' };
-};
+export const getGamificationStatus = async () =>
+    apiJsonSafe('/api/gamification/status', {
+        headers: { 'X-Client-ID': getClientId() },
+    }, { success: false, total_scans: 0, recent_scans: 0, has_scanned_recently: false, vip_unlocked: false });
 
-export const getGeoAnalytics = async (provider = 'cloudflare') => {
-    try {
-        const response = await fetch(`${API_URL}/analytics/geo?provider=${provider}`);
-        if (response.ok) return response.json();
-    } catch (e) { console.error(e); }
-    return { error: 'Failed to fetch geo analytics' };
-};
+export const getFreeConfigs = async () =>
+    apiJsonSafe('/api/free-configs', {}, { success: false, configs: [] });
 
-export const getGamificationStatus = async () => {
-    try {
-        const cid = getClientId();
+export const startMixAndTest = async () =>
+    apiPostSafe('/api/community/mix-and-test', {});
 
-        const response = await fetch(`${API_URL}/api/gamification/status`, {
-            headers: { 'X-Client-ID': cid }
-        });
-        if (response.ok) return await response.json();
-    } catch (e) { console.error(e); }
-    return { success: false, total_scans: 0, recent_scans: 0, has_scanned_recently: false, vip_unlocked: false };
-};
+export const getMixTestStatus = async (jobId) =>
+    apiJsonSafe(`/api/community/mix-status/${encodeURIComponent(jobId)}`, {},
+        { success: false, done: true, error: 'Connection failed' });
 
-export const getFreeConfigs = async () => {
-    try {
-        const response = await fetch(`${API_URL}/api/free-configs`);
-        if (response.ok) return await response.json();
-    } catch (e) { console.error(e); }
-    return { success: false, configs: [] };
-};
-
-export const startMixAndTest = async () => {
-    try {
-        const response = await fetch(`${API_URL}/api/community/mix-and-test`, { method: 'POST' });
-        if (response.ok) return await response.json();
-    } catch (e) { console.error(e); }
-    return { success: false };
-};
-
-export const getMixTestStatus = async (jobId) => {
-    try {
-        const response = await fetch(`${API_URL}/api/community/mix-status/${jobId}`);
-        if (response.ok) return await response.json();
-    } catch (e) { console.error(e); }
-    return { success: false, done: true, error: 'Connection failed' };
-};
-
-const ADMIN_PANEL_URL = import.meta.env.VITE_ADMIN_PANEL_URL || '';
+export const ADMIN_PANEL_URL =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ADMIN_PANEL_URL) || '';
 
 export const testConfigRemote = async (configString) => {
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60000);
-        const response = await fetch(`${API_URL}/test-config`, {
+        const data = await apiJson('/test-config', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ config: configString }),
-            signal: controller.signal
+            timeoutMs: 60000,
         });
-        clearTimeout(timeout);
-        const data = await response.json();
         return { success: data.ok, error: data.ok ? null : data.message, message: data.message, result: data.result || null };
     } catch (e) {
-        if (e.name === 'AbortError') {
+        if (e.timeout) {
             return { success: false, error: 'Test timed out after 60 seconds. The config may be too slow or unreachable.' };
         }
-        return { success: false, error: 'Could not reach the test server. Please try again later.' };
+        return { success: false, error: e.message || 'Could not reach the test server.' };
     }
 };
 
-export const scanAdvancedIPs = async (payload) => {
-    try {
-        const cid = getClientId();
-
-        const response = await fetch(`${API_URL}/scan-advanced`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Client-ID': cid },
-            body: JSON.stringify(payload)
-        });
-        return response.json();
-    } catch (e) {
-        return { error: e.message };
-    }
-};
+export const scanAdvancedIPs = async (payload) => apiJsonSafe('/scan-advanced', {
+    method: 'POST',
+    headers: { 'X-Client-ID': getClientId() },
+    body: JSON.stringify(payload),
+}, { error: 'Failed to start advanced scan' });
 
 export async function scanWarpIPs(data) {
-    const res = await fetch(`${API_URL}/scan-warp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    return res.json();
+    return apiJsonSafe('/scan-warp', { method: 'POST', body: JSON.stringify(data) }, { error: 'Failed to start scan' });
 }
 
 export async function getWarpScanStatus(scanId) {
-    const res = await fetch(`${API_URL}/scan-warp/${scanId}`);
-    return res.json();
+    return apiJsonSafe(`/scan-warp/${encodeURIComponent(scanId)}`, { timeoutMs: 8000 }, { error: 'Status unavailable' });
 }
 
 export async function stopWarpScan(scanId) {
-    const res = await fetch(`${API_URL}/scan-warp/${scanId}/stop`, { method: 'POST' });
-    return res.json();
+    return apiPostSafe(`/scan-warp/${encodeURIComponent(scanId)}/stop`, {});
 }
 
 export async function pauseScan(scanId) {
-    const res = await fetch(`${API_URL}/scan/${scanId}/pause`, { method: 'POST' });
-    return res.json();
+    return apiPostSafe(`/scan/${encodeURIComponent(scanId)}/pause`, {});
 }
 
 export async function resumeScan(scanId) {
-    const res = await fetch(`${API_URL}/scan/${scanId}/resume`, { method: 'POST' });
-    return res.json();
+    return apiPostSafe(`/scan/${encodeURIComponent(scanId)}/resume`, {});
 }
 
 export async function stopScan(scanId) {
-    const res = await fetch(`${API_URL}/scan/${scanId}/stop`, { method: 'POST' });
-    return res.json();
+    return apiPostSafe(`/scan/${encodeURIComponent(scanId)}/stop`, {});
 }
 
-export const exportDatabase = async () => {
-    const response = await fetch(`${API_URL}/api/db-export`, {
-        method: 'GET',
-    });
-    if (!response.ok) throw new Error("Failed to export DB");
-    return response.blob();
+export const exportDatabase = async ({ sections, passphrase, scanLimit } = {}) => {
+    const params = new URLSearchParams();
+    if (sections && sections.length) params.set('sections', Array.isArray(sections) ? sections.join(',') : sections);
+    if (passphrase) params.set('passphrase', passphrase);
+    if (scanLimit) params.set('scan_limit', String(scanLimit));
+    const qs = params.toString();
+    const res = await apiFetch(`/api/db-export${qs ? `?${qs}` : ''}`, { timeoutMs: 120000 });
+    return res.blob();
 };
 
-export const importDatabase = async (file) => {
+export const importDatabase = async (file, { passphrase, sections, dryRun } = {}) => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${API_URL}/api/db-import`, {
-        method: 'POST',
-        body: formData
-    });
-    return response.json();
+    const params = new URLSearchParams();
+    if (passphrase) params.set('passphrase', passphrase);
+    if (sections && sections.length) params.set('sections', Array.isArray(sections) ? sections.join(',') : sections);
+    if (dryRun) params.set('dry_run', 'true');
+    const qs = params.toString();
+    return apiJsonSafe(`/api/db-import${qs ? `?${qs}` : ''}`, { method: 'POST', body: formData, timeoutMs: 120000 }, { error: 'Import failed' });
 };
 
-export const startFreedom = async () => {
-    const res = await fetch(`${API_URL}/api/freedom/start`, { method: 'POST' });
+export const previewBackup = async (file, { passphrase } = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const params = new URLSearchParams();
+    if (passphrase) params.set('passphrase', passphrase);
+    const qs = params.toString();
+    return apiJsonSafe(`/api/data/preview${qs ? `?${qs}` : ''}`, { method: 'POST', body: formData, timeoutMs: 60000 }, { error: 'Preview failed' });
+};
+
+export const listBackupSections = async () =>
+    apiJsonSafe('/api/data/sections', { timeoutMs: 8000 }, { error: 'Sections unavailable' });
+
+export const listSnapshots = async () =>
+    apiJsonSafe('/api/data/snapshots', { timeoutMs: 10000 }, { error: 'Snapshots unavailable' });
+
+export const createSnapshot = async (payload = {}) =>
+    apiPostSafe('/api/data/snapshots/create', payload, { timeoutMs: 120000 });
+
+export const downloadSnapshot = async (name) => {
+    const res = await apiFetch(`/api/data/snapshots/download?name=${encodeURIComponent(name)}`, { timeoutMs: 60000 });
+    return res.blob();
+};
+
+export const deleteSnapshot = async (name) => {
+    const res = await apiFetch(`/api/data/snapshots?name=${encodeURIComponent(name)}`, { method: 'DELETE', timeoutMs: 10000 });
     return res.json();
 };
 
-export const stopFreedom = async () => {
-    const res = await fetch(`${API_URL}/api/freedom/stop`, { method: 'POST' });
-    return res.json();
-};
+export const importHistory = async () =>
+    apiJsonSafe('/api/data/history', { timeoutMs: 10000 }, { error: 'History unavailable' });
 
-export const getFreedomStatus = async () => {
-    const res = await fetch(`${API_URL}/api/freedom/status`, { method: 'GET' });
-    return res.json();
-};
-
-export const provideFreedomConfig = async (config) => {
-    const res = await fetch(`${API_URL}/api/freedom/provide-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config })
-    });
-    return res.json();
-};
+export const startFreedom = async () => apiPostSafe('/api/freedom/start', {});
+export const stopFreedom = async () => apiPostSafe('/api/freedom/stop', {});
+export const getFreedomStatus = async () => apiJsonSafe('/api/freedom/status', { timeoutMs: 8000 }, { error: 'Status unavailable' });
+export const provideFreedomConfig = async (config) =>
+    apiPostSafe('/api/freedom/provide-config', { config });
 
 // ==========================================
 // DNS TUNNEL WIZARD API
 // ==========================================
 
 export const tunnelConnect = async (host, port, username, password, privateKey) => {
-    const res = await fetch(`${API_URL}/api/tunnel/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host, port, username, password, private_key: privateKey })
-    });
-    return res.json();
+    const cleanHost = (host || '').toString().trim();
+    const cleanPort = Number.parseInt(port, 10);
+    const cleanUser = (username || '').toString().trim() || 'root';
+    if (!cleanHost) {
+        return { success: false, message: 'Host is required' };
+    }
+    return apiPostSafe('/api/tunnel/connect', {
+        host: cleanHost,
+        port: Number.isFinite(cleanPort) && cleanPort > 0 ? cleanPort : 22,
+        username: cleanUser,
+        password: password || null,
+        private_key: privateKey || null,
+    }, { timeoutMs: 30000 });
 };
 
-export const tunnelDisconnect = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/disconnect`, { method: 'POST' });
-    return res.json();
-};
+export const tunnelDisconnect = async () => apiPostSafe('/api/tunnel/disconnect', {});
+export const tunnelPreflight = async () => apiPostSafe('/api/tunnel/preflight', {}, { timeoutMs: 60000 });
+export const tunnelFixPort53 = async () => apiPostSafe('/api/tunnel/fix-port53', {}, { timeoutMs: 60000 });
 
-export const tunnelPreflight = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/preflight`, { method: 'POST' });
-    return res.json();
-};
+export const tunnelVerifyDns = async (domain, serverIp) =>
+    apiPostSafe('/api/tunnel/verify-dns', { domain, server_ip: serverIp }, { timeoutMs: 30000 });
 
-export const tunnelFixPort53 = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/fix-port53`, { method: 'POST' });
-    return res.json();
-};
+export const tunnelCloudflareDns = async (apiToken, domain, serverIp) =>
+    apiPostSafe('/api/tunnel/cloudflare-dns', { api_token: apiToken, domain, server_ip: serverIp }, { timeoutMs: 30000 });
 
-export const tunnelVerifyDns = async (domain, serverIp) => {
-    const res = await fetch(`${API_URL}/api/tunnel/verify-dns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, server_ip: serverIp })
-    });
-    return res.json();
-};
+export const tunnelDeploy = async (config) =>
+    apiPostSafe('/api/tunnel/deploy', config, { timeoutMs: 60000 });
 
-export const tunnelCloudflareDns = async (apiToken, domain, serverIp) => {
-    const res = await fetch(`${API_URL}/api/tunnel/cloudflare-dns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_token: apiToken, domain, server_ip: serverIp })
-    });
-    return res.json();
-};
+export const tunnelDeployStatus = async () =>
+    apiJsonSafe('/api/tunnel/deploy/status', { timeoutMs: 8000 }, { error: 'Status unavailable' });
 
-export const tunnelDeploy = async (config) => {
-    const res = await fetch(`${API_URL}/api/tunnel/deploy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-    });
-    return res.json();
-};
+export const tunnelDeployCancel = async () => apiPostSafe('/api/tunnel/deploy/cancel', {});
 
-export const tunnelDeployStatus = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/deploy/status`);
-    return res.json();
-};
-
-export const tunnelDeployCancel = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/deploy/cancel`, { method: 'POST' });
-    return res.json();
-};
-
-export const tunnelGetConfigs = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/configs`);
-    return res.json();
-};
+export const tunnelGetConfigs = async () =>
+    apiJsonSafe('/api/tunnel/configs', {}, { error: 'Failed to fetch configs' });
 
 // --- Phase 2: Manage existing deployment ---
-export const tunnelManageStatus = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/status`);
-    return res.json();
-};
-export const tunnelManageRestart = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/restart`, { method: 'POST' });
-    return res.json();
-};
-export const tunnelManageUsersList = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/users`);
-    return res.json();
-};
-export const tunnelManageUserAdd = async (username, password) => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/users/add`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
-    return res.json();
-};
-export const tunnelManageUserRemove = async (username) => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/users/remove`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
-    });
-    return res.json();
-};
-export const tunnelManageUpdate = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/update`, { method: 'POST' });
-    return res.json();
-};
-export const tunnelManageUninstall = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/uninstall`, { method: 'POST' });
-    return res.json();
-};
+export const tunnelManageStatus = async () =>
+    apiJsonSafe('/api/tunnel/manage/status', { timeoutMs: 10000 }, { error: 'Status unavailable' });
+export const tunnelManageRestart = async () => apiPostSafe('/api/tunnel/manage/restart', {}, { timeoutMs: 30000 });
+export const tunnelManageUsersList = async () =>
+    apiJsonSafe('/api/tunnel/manage/users', {}, { error: 'Failed to fetch users' });
+export const tunnelManageUserAdd = async (username, password) =>
+    apiPostSafe('/api/tunnel/manage/users/add', { username, password });
+export const tunnelManageUserRemove = async (username) =>
+    apiPostSafe('/api/tunnel/manage/users/remove', { username });
+export const tunnelManageUpdate = async () => apiPostSafe('/api/tunnel/manage/update', {}, { timeoutMs: 60000 });
+export const tunnelManageUninstall = async () => apiPostSafe('/api/tunnel/manage/uninstall', {}, { timeoutMs: 60000 });
 
 // --- Phase 3: Resolver scanner ---
-export const tunnelScanResolvers = async (domain, top_n = 10, timeout_s = 2.5) => {
-    const res = await fetch(`${API_URL}/api/tunnel/scan-resolvers`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, top_n, timeout_s })
-    });
-    return res.json();
-};
+export const tunnelScanResolvers = async (domain, top_n = 10, timeout_s = 2.5) =>
+    apiPostSafe('/api/tunnel/scan-resolvers', { domain, top_n, timeout_s }, { timeoutMs: 60000 });
 
 // --- Phase 4: Add-on protocols + live metrics ---
-export const tunnelInstallNaive = async (domain, username, password) => {
-    const res = await fetch(`${API_URL}/api/tunnel/addon/naive/install`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain, username, password })
-    });
-    return res.json();
-};
-export const tunnelInstallStunTls = async (listen_port = 443, ssh_port = 22) => {
-    const res = await fetch(`${API_URL}/api/tunnel/addon/stuntls/install`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listen_port, ssh_port })
-    });
-    return res.json();
-};
-export const tunnelToggleWarp = async (enable) => {
-    const res = await fetch(`${API_URL}/api/tunnel/addon/warp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enable })
-    });
-    return res.json();
-};
-export const tunnelLiveMetrics = async () => {
-    const res = await fetch(`${API_URL}/api/tunnel/manage/metrics`);
-    return res.json();
-};
+export const tunnelInstallNaive = async (domain, username, password) =>
+    apiPostSafe('/api/tunnel/addon/naive/install', { domain, username, password }, { timeoutMs: 120000 });
+export const tunnelInstallStunTls = async (listen_port = 443, ssh_port = 22) =>
+    apiPostSafe('/api/tunnel/addon/stuntls/install', { listen_port, ssh_port }, { timeoutMs: 120000 });
+export const tunnelToggleWarp = async (enable) =>
+    apiPostSafe('/api/tunnel/addon/warp', { enable }, { timeoutMs: 60000 });
+export const tunnelLiveMetrics = async () =>
+    apiJsonSafe('/api/tunnel/manage/metrics', { timeoutMs: 5000 }, { error: 'Metrics unavailable' });
 
 export const tunnelHealth = async () => {
     try {
-        const res = await fetch(`${API_URL}/api/tunnel/health`);
-        if (!res.ok) return { ok: false, missing: [`HTTP ${res.status}`], reason: 'endpoint_unavailable' };
-        return await res.json();
+        return await apiJson('/api/tunnel/health', { timeoutMs: 5000 });
     } catch (e) {
-        return { ok: false, missing: ['backend unreachable'], reason: 'network', error: String(e?.message || e) };
+        if (e.status) {
+            return { ok: false, missing: [`HTTP ${e.status}`], reason: 'endpoint_unavailable' };
+        }
+        return { ok: false, missing: ['backend unreachable'], reason: 'network', error: e.message };
     }
 };
 
@@ -465,113 +373,72 @@ export const tunnelHealth = async () => {
 // DNS RESOLVER SCANNER API
 // ==========================================
 
-export const dnsStartScan = async (config) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
-    });
-    return res.json();
-};
+export const dnsStartScan = async (config) =>
+    apiPostSafe('/api/dns-scan/start', config);
 
-export const dnsGetScanStatus = async (scanId) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/status`);
-    return res.json();
-};
+export const dnsGetScanStatus = async (scanId) =>
+    apiJsonSafe(`/api/dns-scan/${encodeURIComponent(scanId)}/status`, { timeoutMs: 8000 }, { error: 'Status unavailable' });
 
-export const dnsStopScan = async (scanId) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/stop`, { method: 'POST' });
-    return res.json();
-};
+export const dnsStopScan = async (scanId) =>
+    apiPostSafe(`/api/dns-scan/${encodeURIComponent(scanId)}/stop`, {});
 
-export const dnsQuickTest = async (resolver, domain, opts = {}) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/quick-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resolver, domain, protocol: opts.protocol || 'udp', utls_fingerprint: opts.utls_fingerprint || null })
-    });
-    return res.json();
-};
+export const dnsQuickTest = async (resolver, domain, opts = {}) =>
+    apiPostSafe('/api/dns-scan/quick-test', {
+        resolver,
+        domain,
+        protocol: opts.protocol || 'udp',
+        utls_fingerprint: opts.utls_fingerprint || null,
+    }, { timeoutMs: 30000 });
 
-export const dnsE2ETest = async (resolver, opts = {}) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/e2e-test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            resolver,
-            domain: opts.domain || 'www.cloudflare.com',
-            target_url: opts.target_url || 'https://www.cloudflare.com/cdn-cgi/trace',
-            timeout_ms: opts.timeout_ms || 8000,
-            protocol: opts.protocol || 'udp',
-        })
-    });
-    return res.json();
-};
+export const dnsE2ETest = async (resolver, opts = {}) =>
+    apiPostSafe('/api/dns-scan/e2e-test', {
+        resolver,
+        domain: opts.domain || 'www.cloudflare.com',
+        target_url: opts.target_url || 'https://www.cloudflare.com/cdn-cgi/trace',
+        timeout_ms: opts.timeout_ms || 8000,
+        protocol: opts.protocol || 'udp',
+    }, { timeoutMs: 30000 });
 
-export const dnsBestConfig = async (scanId, domain, pubkey) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/best-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scan_id: scanId, domain, pubkey })
-    });
-    return res.json();
-};
+export const dnsBestConfig = async (scanId, domain, pubkey) =>
+    apiPostSafe('/api/dns-scan/best-config', { scan_id: scanId, domain, pubkey });
 
-export const dnsGetResolvers = async () => {
-    const res = await fetch(`${API_URL}/api/dns-scan/resolvers`);
-    return res.json();
-};
+export const dnsGetResolvers = async () =>
+    apiJsonSafe('/api/dns-scan/resolvers', {}, { error: 'Failed to fetch resolvers' });
 
 export const dnsExportScan = async (scanId, fmt = 'json') => {
-    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/export?fmt=${fmt}`);
-    if (fmt === 'csv') return res.text();
-    return res.json();
+    try {
+        const res = await apiFetch(`/api/dns-scan/${encodeURIComponent(scanId)}/export?fmt=${encodeURIComponent(fmt)}`);
+        return fmt === 'csv' ? res.text() : res.json();
+    } catch (e) {
+        return fmt === 'csv' ? '' : { error: e.message };
+    }
 };
 
-export const dnsRetestTop = async (scanId, topN = 10, rounds = 10) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/${scanId}/retest-top?top_n=${topN}&rounds=${rounds}`, { method: 'POST' });
-    return res.json();
-};
+export const dnsRetestTop = async (scanId, topN = 10, rounds = 10) =>
+    apiPostSafe(
+        `/api/dns-scan/${encodeURIComponent(scanId)}/retest-top?top_n=${topN}&rounds=${rounds}`,
+        {},
+        { timeoutMs: 120000 }
+    );
 
-export const dnsGetHistory = async () => {
-    const res = await fetch(`${API_URL}/api/dns-scan/history`);
-    return res.json();
-};
+export const dnsGetHistory = async () =>
+    apiJsonSafe('/api/dns-scan/history', {}, { error: 'Failed to fetch history' });
 
-export const dnsGenerateConfig = async (resolver, domain, tunnelType = 'auto', pubkey = null) => {
-    const res = await fetch(`${API_URL}/api/dns-scan/generate-config`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resolver, domain, tunnel_type: tunnelType, pubkey })
-    });
-    return res.json();
-};
+export const dnsGenerateConfig = async (resolver, domain, tunnelType = 'auto', pubkey = null) =>
+    apiPostSafe('/api/dns-scan/generate-config', { resolver, domain, tunnel_type: tunnelType, pubkey });
 
-export const dnsPredictBest = async () => {
-    const res = await fetch(`${API_URL}/api/dns-scan/predict-best`);
-    return res.json();
-};
+export const dnsPredictBest = async () =>
+    apiJsonSafe('/api/dns-scan/predict-best', {}, { error: 'Failed to predict' });
 
 // ==========================================
 // SPEED MATRIX (config × DNS × transport)
 // ==========================================
 
-export const speedMatrixStart = async ({ configs, resolvers, transports, target_url, timeout_ms } = {}) => {
-    const res = await fetch(`${API_URL}/api/speed-matrix/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ configs, resolvers, transports, target_url, timeout_ms })
-    });
-    return res.json();
-};
+export const speedMatrixStart = async ({ configs, resolvers, transports, target_url, timeout_ms } = {}) =>
+    apiPostSafe('/api/speed-matrix/start', { configs, resolvers, transports, target_url, timeout_ms });
 
-export const speedMatrixStatus = async (scanId) => {
-    const res = await fetch(`${API_URL}/api/speed-matrix/${scanId}/status`);
-    return res.json();
-};
+export const speedMatrixStatus = async (scanId) =>
+    apiJsonSafe(`/api/speed-matrix/${encodeURIComponent(scanId)}/status`, { timeoutMs: 8000 }, { error: 'Status unavailable' });
 
-export const speedMatrixStop = async (scanId) => {
-    const res = await fetch(`${API_URL}/api/speed-matrix/${scanId}/stop`, { method: 'POST' });
-    return res.json();
-};
-
+export const speedMatrixStop = async (scanId) =>
+    apiPostSafe(`/api/speed-matrix/${encodeURIComponent(scanId)}/stop`, {});

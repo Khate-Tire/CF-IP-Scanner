@@ -560,6 +560,10 @@ def generate_config(resolver: str, domain: str, tunnel_type: str = "auto", pubke
         fields[11] = pubkey
     while fields and fields[-1] == "":
         fields.pop()
+    # SlipNet v18 requires ≥ 38 pipe-separated fields, otherwise the app
+    # rejects the profile with "Invalid v18 format".
+    if len(fields) < 38:
+        fields.extend([""] * (38 - len(fields)))
     slip_b64 = base64.b64encode("|".join(fields).encode()).decode()
     configs["slipnet_uri"] = f"slipnet://{slip_b64}"
 

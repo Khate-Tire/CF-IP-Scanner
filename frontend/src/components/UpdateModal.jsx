@@ -5,21 +5,17 @@ const UpdateModal = () => {
     const [updateStatus, setUpdateStatus] = useState(null);
 
     useEffect(() => {
-        if (window.require) {
+        if (window.electronAPI) {
             try {
-                const { ipcRenderer } = window.require('electron');
-
-                ipcRenderer.on('update_available', () => {
-                    setUpdateStatus('available');
-                });
-
-                ipcRenderer.on('update_downloaded', () => {
-                    setUpdateStatus('downloaded');
-                });
-
+                const offAvail = window.electronAPI.onUpdateAvailable
+                    ? window.electronAPI.onUpdateAvailable(() => setUpdateStatus('available'))
+                    : null;
+                const offDone = window.electronAPI.onUpdateDownloaded
+                    ? window.electronAPI.onUpdateDownloaded(() => setUpdateStatus('downloaded'))
+                    : null;
                 return () => {
-                    ipcRenderer.removeAllListeners('update_available');
-                    ipcRenderer.removeAllListeners('update_downloaded');
+                    if (offAvail) { try { offAvail(); } catch (_) { /* noop */ } }
+                    if (offDone) { try { offDone(); } catch (_) { /* noop */ } }
                 };
             } catch (e) {
                 console.log("Not running in Electron environment.", e);
@@ -28,9 +24,8 @@ const UpdateModal = () => {
     }, []);
 
     const handleRestart = () => {
-        if (window.require) {
-            const { ipcRenderer } = window.require('electron');
-            ipcRenderer.send('restart_app');
+        if (window.electronAPI && window.electronAPI.restartApp) {
+            window.electronAPI.restartApp();
         }
     };
 

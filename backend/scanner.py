@@ -639,6 +639,48 @@ def reconstruct_config(parts, new_ip):
         return reconstruct_vmess(parts, new_ip)
     return reconstruct_vless(parts, new_ip)
 
+
+def reconstruct_config_with_bypass(parts, new_ip, fragment=None, test_sni=None, advanced_dns_config=None):
+    """Reconstruct the share URL after a successful Advanced/DNS scan so the
+    QR code and copy-to-clipboard contain the *exact* bypass combination that
+    just worked, not the user's raw input config.
+
+    - test_sni        → overrides params['sni'] (and host fallback)
+    - fragment        → encoded as `fragment={packets},{length},{interval}`
+                       (Hiddify / sing-box / v2rayN style query parameter)
+    - advanced_dns_config → stored under custom params (`dns_server`,
+                       `dns_domain`, `utls`) so power users can rebuild the
+                       outbound; most clients ignore unknown params, so this
+                       is purely informational and harmless.
+    """
+    import copy
+    p = copy.deepcopy(parts)
+    p.setdefault('params', {})
+
+    if test_sni:
+        p['params']['sni'] = test_sni
+        # Some clients use `host` for SNI when ws/grpc — keep them aligned
+        # only if host was previously empty.
+        if not p['params'].get('host'):
+            p['params']['host'] = test_sni
+
+    if fragment and (fragment.get('length') or fragment.get('interval')):
+        packets = fragment.get('packets') or 'tlshello'
+        length = fragment.get('length', '')
+        interval = fragment.get('interval', '')
+        # Hiddify-style: fragment=tlshello,100-200,10-20
+        p['params']['fragment'] = f"{packets},{length},{interval}"
+
+    if advanced_dns_config:
+        srv = advanced_dns_config.get('server')
+        dom = advanced_dns_config.get('domain')
+        utls = advanced_dns_config.get('utls_fingerprint')
+        if srv: p['params']['dns_server'] = srv
+        if dom: p['params']['dns_domain'] = dom
+        if utls: p['params']['fp'] = utls
+
+    return reconstruct_config(p, new_ip)
+
 async def test_config(vless_parts, test_port=None, test_sni=None):
     """Full config validation: test config against its original IP, return detailed metrics."""
     original_ip = vless_parts.get("address", "")
@@ -997,7 +1039,23 @@ async def _scan_ip_impl(ip, vless_parts, thresholds, speed_sem=None, test_port=N
 
                  # PASSED ALL
                  result["status"] = "ok"
-                 result["link"] = reconstruct_config(vless_parts, ip)
+                 # Build the share link from the *working* bypass combination
+                 # (sni/fragment/dns) so the user's QR code and copy-to-clipboard
+                 # reflect the discovered combo, not the raw input config.
+                 result["link"] = reconstruct_config_with_bypass(
+                     vless_parts, ip,
+                     fragment=fragment,
+                     test_sni=test_sni,
+                     advanced_dns_config=advanced_dns_config,
+                 )
+                 # Surface the discovered bypass parameters on the result row
+                 # so the frontend can render badges / a details panel.
+                 if test_sni or fragment or advanced_dns_config:
+                     result["bypass"] = {
+                         "sni": test_sni or None,
+                         "fragment": fragment or None,
+                         "dns": advanced_dns_config or None,
+                     }
 
     except Exception as e:
         # print(f"Scan fatal error {ip}: {e}")

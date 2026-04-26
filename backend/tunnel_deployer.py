@@ -6,10 +6,12 @@ and config generation for Slipstream/DNSTT/VayDNS tunnels.
 """
 
 import io
+import os
 import re
 import json
 import time
 import base64
+import shlex
 import threading
 import traceback
 from typing import Optional, Dict, List, Any
@@ -141,8 +143,14 @@ def _build_slipnet_uri(
         set_field(46, config.get("vaydns_keepalive") or "")
         set_field(49, config.get("vaydns_clientid_size") or "")
 
+    # Trim trailing empties but keep SlipNet v18 minimum field count (38).
+    # SlipNet rejects profiles with fewer than 38 pipe-separated fields
+    # ("Invalid v18 format (expected at least 38 fields, got N)").
     while fields and fields[-1] == "":
         fields.pop()
+    SLIPNET_V18_MIN_FIELDS = 38
+    if len(fields) < SLIPNET_V18_MIN_FIELDS:
+        fields.extend([""] * (SLIPNET_V18_MIN_FIELDS - len(fields)))
 
     payload = "|".join(fields).encode("utf-8")
     encoded = base64.b64encode(payload).decode("ascii")
@@ -216,7 +224,24 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
                     pass
 
             client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # Pin host keys via a per-app known_hosts file. New hosts are added
+            # on first connect (TOFU — trust on first use); subsequent connects
+            # to the same host with a CHANGED key will fail loudly instead of
+            # silently trusting a potential MITM. Falls back to AutoAddPolicy
+            # if the known_hosts file cannot be created/read for any reason.
+            try:
+                known_hosts_path = os.path.join(
+                    os.path.expanduser("~"), ".cfip_tunnel_known_hosts"
+                )
+                if os.path.exists(known_hosts_path):
+                    client.load_host_keys(known_hosts_path)
+                else:
+                    # Touch the file so save_host_keys() works after first connect.
+                    open(known_hosts_path, "a").close()
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            except Exception:
+                known_hosts_path = None
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
             connect_kwargs = {
                 "hostname": host,
@@ -237,7 +262,7 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
                         key_file.seek(0)
                         key_obj = key_class.from_private_key(key_file)
                         break
-                    except:
+                    except (paramiko.SSHException, ValueError):
                         continue
                 if not key_obj:
                     return {"success": False, "message": "Invalid private key format. Supported: RSA, Ed25519, ECDSA (PEM/OpenSSH format)."}
@@ -250,6 +275,13 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
             client.connect(**connect_kwargs)
             _ssh_client = client
             globals()["_ssh_host"] = host
+            # Persist any newly-discovered host key (TOFU). On subsequent runs
+            # paramiko will reject mismatched keys for this host.
+            if known_hosts_path:
+                try:
+                    client.save_host_keys(known_hosts_path)
+                except Exception:
+                    pass
 
         # Gather server info
         info = {}
@@ -891,7 +923,7 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
             state.update(phase="Configuring authentication...", progress=75)
             if socks_auth and socks_pass:
                 state.log(f"Enabling SOCKS5 auth (user: {socks_user})...")
-                try: _exec(f'dnstm backend auth -t socks -u "{socks_user}" -p "{socks_pass}" 2>&1', 15)
+                try: _exec(f'dnstm backend auth -t socks -u {shlex.quote(socks_user)} -p {shlex.quote(socks_pass)} 2>&1', 15)
                 except TimeoutError: state.log("  ⏱ socks auth slow", "warn")
                 state.log("✓ SOCKS5 authentication enabled", "success")
             else:
@@ -902,7 +934,7 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                 state.log(f"Creating SSH tunnel user: {ssh_user}...")
                 # Download sshtun-user if not installed
                 _exec("which sshtun-user || curl -fsSL https://raw.githubusercontent.com/net2share/sshtun-user/master/install.sh | bash", 30)
-                _exec(f'sshtun-user add --user "{ssh_user}" --pass "{ssh_pass}" 2>&1', 15)
+                _exec(f'sshtun-user add --user {shlex.quote(ssh_user)} --pass {shlex.quote(ssh_pass)} 2>&1', 15)
                 state.log(f"✓ SSH tunnel user '{ssh_user}' created", "success")
 
             # Phase 8: Xray integration (if enabled)
@@ -940,11 +972,11 @@ def _start_deployment_impl(domain: str, mtu: int = 1232,
                     if not (ssh_tunnel_user and ssh_user and ssh_pass):
                         continue  # no creds -> dnstm won't emit a usable URL
                     cmd = (
-                        f"dnstm tunnel share -t {tag} "
-                        f"--user '{ssh_user}' --password '{ssh_pass}' 2>/dev/null"
+                        f"dnstm tunnel share -t {shlex.quote(str(tag))} "
+                        f"--user {shlex.quote(ssh_user)} --password {shlex.quote(ssh_pass)} 2>/dev/null"
                     )
                 else:
-                    cmd = f"dnstm tunnel share -t {tag} 2>/dev/null"
+                    cmd = f"dnstm tunnel share -t {shlex.quote(str(tag))} 2>/dev/null"
                 try:
                     out, _, code = _exec(cmd, 10)
                 except TimeoutError:

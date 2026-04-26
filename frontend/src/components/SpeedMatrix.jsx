@@ -124,9 +124,11 @@ export default function SpeedMatrix() {
             }
             setScanId(r.scan_id);
             pollRef.current && clearInterval(pollRef.current);
+            let consecutiveErrors = 0;
             pollRef.current = setInterval(async () => {
                 try {
                     const s = await speedMatrixStatus(r.scan_id);
+                    consecutiveErrors = 0;
                     setStatus(s);
                     if (s.status === 'completed' || s.status === 'cancelled') {
                         clearInterval(pollRef.current);
@@ -136,7 +138,16 @@ export default function SpeedMatrix() {
                             toast.success(t('speedMatrix.done', 'Speed matrix complete — best result ready'));
                         }
                     }
-                } catch (e) { /* keep polling */ }
+                } catch (e) {
+                    // Surface persistent failures instead of polling forever.
+                    consecutiveErrors += 1;
+                    if (consecutiveErrors >= 5) {
+                        clearInterval(pollRef.current);
+                        pollRef.current = null;
+                        setRunning(false);
+                        toast.error(t('speedMatrix.pollFailed', 'Lost connection to speed-matrix scan') + `: ${String(e)}`);
+                    }
+                }
             }, 1500);
         } catch (e) {
             toast.error(String(e));

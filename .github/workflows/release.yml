@@ -9,6 +9,43 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Read version from package.json
+        id: read
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "App version: $v"
+
+      - name: Sync CITATION.cff version + date
+        run: |
+          v="${{ steps.read.outputs.version }}"
+          today=$(date -u +%Y-%m-%d)
+          # Replace 'version: <anything>' and 'date-released: "<anything>"' in-place
+          sed -i -E "s/^version: .*/version: ${v}/" CITATION.cff
+          sed -i -E "s/^date-released: .*/date-released: \"${today}\"/" CITATION.cff
+          echo "--- CITATION.cff after sync ---"
+          grep -E '^(version|date-released):' CITATION.cff
+
+      - name: Commit CITATION.cff if changed
+        run: |
+          if ! git diff --quiet -- CITATION.cff; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add CITATION.cff
+            git commit -m "chore(citation): sync version to ${{ steps.read.outputs.version }} [skip ci]"
+            git push
+          else
+            echo "CITATION.cff already up to date"
+          fi
+
   deploy-worker:
     runs-on: ubuntu-latest
     steps:
@@ -193,7 +230,7 @@ jobs:
             dist/*.zip
 
   release:
-    needs: [build-windows, build-macos]
+    needs: [version, build-windows, build-macos]
     runs-on: ubuntu-latest
 
     steps:
@@ -216,6 +253,7 @@ jobs:
             artifacts/windows/*.exe
             artifacts/macos/*.dmg
             artifacts/macos/*.zip
-          tag_name: "v2.0.${{ github.run_number }}"
+          tag_name: "v${{ needs.version.outputs.version }}"
+          name: "v${{ needs.version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

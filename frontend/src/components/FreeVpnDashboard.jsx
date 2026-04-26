@@ -51,15 +51,21 @@ export default function FreeVpnDashboard({ onStartContribution }) {
         checkUserContribution();
     }, []);
 
-    // Poll contribution status every 15s so active scans are reflected live
-    // Poll contribution status every 15s — stop polling once requirement is met (saves CPU + backend calls)
+    // Poll contribution status so VIP progress reflects active scans LIVE.
+    // BUG FIX: previously the poll stopped as soon as `scanRequirementMet`
+    // (10 recent scans) flipped true, which froze the "X / 10,000" VIP
+    // counter — so the Claim VIP tab never showed the user's real, growing
+    // scan total. We now keep polling until VIP is actually unlocked, and
+    // we slow the cadence down once the basic requirement is met to save
+    // CPU/network.
     useEffect(() => {
-        if (scanRequirementMet) return;
+        if (scansCount >= 10000) return; // VIP already unlocked — no need to poll
+        const intervalMs = scanRequirementMet ? 30000 : 10000;
         const interval = setInterval(() => {
             checkUserContribution();
-        }, 15000);
+        }, intervalMs);
         return () => clearInterval(interval);
-    }, [scanRequirementMet]);
+    }, [scanRequirementMet, scansCount]);
 
     // Poll the backend for Telegram Auth Confirmation — auto-stops after 5 minutes (100 polls × 3s)
     useEffect(() => {

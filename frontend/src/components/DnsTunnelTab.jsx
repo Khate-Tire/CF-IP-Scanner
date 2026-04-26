@@ -16,13 +16,34 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
 
     useEffect(() => {
         let cancelled = false;
+        let timer = null;
+        // Adaptive polling: while the backend is unreachable / not ready
+        // (common during app cold-start), retry quickly. Once healthy,
+        // back off to a 30s interval. This avoids the user seeing a
+        // misleading "backend unreachable" banner for 30 seconds during
+        // the first few seconds after the Electron app boots.
         const check = async () => {
             const h = await tunnelHealth();
-            if (!cancelled) setHealth(h);
+            if (cancelled) return;
+            // Suppress the banner for transient network errors during cold
+            // start: we treat 'backend unreachable' as "still booting"
+            // for the first ~12 seconds, then fall through to showing it.
+            const isNetworkErr = h && h.reason === 'network';
+            const okOrBooting = h && (h.ok === true || (isNetworkErr && Date.now() - bootedAt < 12000));
+            if (okOrBooting && (h.ok === true)) {
+                setHealth(h);
+            } else if (isNetworkErr && Date.now() - bootedAt < 12000) {
+                // still booting — keep banner hidden, retry soon
+                setHealth(null);
+            } else {
+                setHealth(h);
+            }
+            const delay = (h && h.ok === true) ? 30000 : 4000;
+            timer = setTimeout(check, delay);
         };
+        const bootedAt = Date.now();
         check();
-        const id = setInterval(check, 30000);
-        return () => { cancelled = true; clearInterval(id); };
+        return () => { cancelled = true; if (timer) clearTimeout(timer); };
     }, []);
 
     const goToConfigLab = useCallback((payload) => {
@@ -45,16 +66,30 @@ export default function DnsTunnelTab({ onSendToAdvanced }) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z"/>
                     </svg>
                     <div className="flex-1 text-sm">
-                        <div className="font-bold mb-1">{t('dnsTunnel.healthFail', 'DNS Tunnel backend is degraded')}</div>
+                        <div className="font-bold mb-1">
+                            {health.reason === 'network'
+                                ? t('dnsTunnel.healthUnreachable', 'DNS Tunnel backend not reachable')
+                                : t('dnsTunnel.healthFail', 'DNS Tunnel backend is degraded')}
+                        </div>
                         <div className="opacity-80">
-                            {t('dnsTunnel.missingDeps', 'Missing Python packages')}:{' '}
-                            <span className="font-mono text-red-300">
-                                {[...(health.deployer?.missing || []), ...(health.scanner?.missing || [])].join(', ') || (health.missing || []).join(', ') || 'unknown'}
-                            </span>
+                            {health.reason === 'network' ? (
+                                <>
+                                    {t('dnsTunnel.unreachableHint', 'The backend service is starting up or has stopped. Retrying automatically every few seconds...')}
+                                </>
+                            ) : (
+                                <>
+                                    {t('dnsTunnel.missingDeps', 'Missing Python packages')}:{' '}
+                                    <span className="font-mono text-red-300">
+                                        {[...(health.deployer?.missing || []), ...(health.scanner?.missing || [])].join(', ') || (health.missing || []).join(', ') || 'unknown'}
+                                    </span>
+                                </>
+                            )}
                         </div>
-                        <div className="opacity-70 mt-1 text-xs">
-                            {health.hint || t('dnsTunnel.fixHint', 'Run: pip install -r backend/requirements.txt and restart the backend.')}
-                        </div>
+                        {health.reason !== 'network' && (
+                            <div className="opacity-70 mt-1 text-xs">
+                                {health.hint || t('dnsTunnel.fixHint', 'Run: pip install -r backend/requirements.txt and restart the backend.')}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

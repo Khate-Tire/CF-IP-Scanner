@@ -267,7 +267,7 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
           <p className="text-gray-400 text-sm">{t('dnsTunnel.step1Desc','Enter your VPS credentials. We\'ll connect via SSH to set up DNS tunnels.')}</p>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2"><label className="block text-gray-400 text-xs font-bold uppercase mb-1">{t('dnsTunnel.serverIp','Server IP')}</label><input className={ic} value={host} onChange={e=>setHost(e.target.value)} placeholder="1.2.3.4"/></div>
-            <div><label className="block text-gray-400 text-xs font-bold uppercase mb-1">{t('dnsTunnel.sshPort','SSH Port')}</label><input type="number" className={ic} value={port} onChange={e=>setPort(+e.target.value)}/></div>
+            <div><label className="block text-gray-400 text-xs font-bold uppercase mb-1">{t('dnsTunnel.sshPort','SSH Port')}</label><input type="number" min="1" max="65535" className={ic} value={port} onChange={e=>{ const n = parseInt(e.target.value, 10); setPort(Number.isFinite(n) && n > 0 ? n : ''); }}/></div>
           </div>
           <div><label className="block text-gray-400 text-xs font-bold uppercase mb-1">{t('dnsTunnel.username','Username')}</label><input className={ic} value={username} onChange={e=>setUsername(e.target.value)}/></div>
           <div className="flex gap-3">

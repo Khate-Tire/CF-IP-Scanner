@@ -48,8 +48,10 @@ function createWindow() {
         show: false,
         backgroundColor: '#0f172a',
         webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: false,
+            preload: path.join(__dirname, 'preload.js')
         },
         autoHideMenuBar: true,
     });
@@ -116,26 +118,34 @@ function checkBackendHealth() {
 }
 
 function killProcessOnPort(port) {
+    // Strict integer validation — these values feed into shell commands.
+    const portNum = Number(port);
+    if (!Number.isInteger(portNum) || portNum <= 0 || portNum > 65535) {
+        log(`killProcessOnPort: refusing invalid port ${port}`);
+        return;
+    }
+    const safePort = String(portNum);
+    const isValidPid = (pid) => /^[0-9]+$/.test(pid) && pid !== '0';
     if (process.platform === 'win32') {
         try {
-            const result = execSync(`netstat -ano | findstr :${port} | findstr LISTENING`, { encoding: 'utf8' });
+            const result = execSync(`netstat -ano | findstr :${safePort} | findstr LISTENING`, { encoding: 'utf8' });
             const lines = result.trim().split('\n');
             for (const line of lines) {
                 const parts = line.trim().split(/\s+/);
                 const pid = parts[parts.length - 1];
-                if (pid && pid !== '0') {
+                if (isValidPid(pid)) {
                     execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' });
-                    log(`Killed stale process PID ${pid} on port ${port}`);
+                    log(`Killed stale process PID ${pid} on port ${safePort}`);
                 }
             }
         } catch (e) { /* no process on port — normal */ }
     } else {
         try {
-            const result = execSync(`lsof -ti :${port}`, { encoding: 'utf8' });
+            const result = execSync(`lsof -ti :${safePort}`, { encoding: 'utf8' });
             for (const pid of result.trim().split('\n')) {
-                if (pid) {
+                if (isValidPid(pid)) {
                     execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
-                    log(`Killed stale process PID ${pid} on port ${port}`);
+                    log(`Killed stale process PID ${pid} on port ${safePort}`);
                 }
             }
         } catch (e) { /* no process on port — normal */ }
@@ -202,8 +212,19 @@ async function startPythonBackend() {
     });
 }
 
-// ─── Electron Log endpoint ───
-// Expose the log file path to the renderer so DebugConsole can read it
+// ─── Electron IPC ───
+// Read the log file in main and return its content (renderer no longer touches fs).
+ipcMain.handle('read-log-file', () => {
+    try {
+        if (!fs.existsSync(logPath)) return '';
+        return fs.readFileSync(logPath, 'utf8');
+    } catch (e) {
+        return '';
+    }
+});
+// Backend URL discovery (currently fixed; future: dynamic port).
+ipcMain.handle('get-backend-url', () => 'http://127.0.0.1:8000');
+// Legacy alias (kept so an old renderer build won't crash mid-upgrade).
 ipcMain.handle('get-log-path', () => logPath);
 
 app.on('ready', async () => {
@@ -273,12 +294,18 @@ app.on('window-all-closed', function () {
 app.on('will-quit', () => {
     if (pythonProcess) {
         log("Killing python backend process...");
+        const pid = pythonProcess.pid;
+        const validPid = Number.isInteger(pid) && pid > 0;
         if (process.platform === 'win32') {
-            try {
-                execSync(`taskkill /F /T /PID ${pythonProcess.pid}`, { stdio: 'ignore' });
-            } catch (e) { }
+            if (validPid) {
+                try { execSync(`taskkill /F /T /PID ${pid}`, { stdio: 'ignore' }); } catch (e) { }
+            }
         } else {
-            pythonProcess.kill('SIGTERM');
+            try { pythonProcess.kill('SIGTERM'); } catch (e) { }
+            // Force-kill after 5s if SIGTERM didn't take.
+            setTimeout(() => {
+                try { if (pythonProcess) pythonProcess.kill('SIGKILL'); } catch (e) { }
+            }, 5000);
         }
         pythonProcess = null;
     }

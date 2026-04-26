@@ -531,6 +531,37 @@
         "无任何跟踪或广告"
       ]
     },
+    "clients": {
+      "title": "客户端兼容性",
+      "intro": "扫描成功后，二维码和复制按钮会给出包含已验证绕过参数的分享链接。兼容性取决于客户端是否支持这些参数：",
+      "col": {
+        "param": "参数",
+        "use": "用途",
+        "support": "推荐客户端"
+      },
+      "row": {
+        "sni": "TLS SNI 覆盖（通用绕过）",
+        "sniClients": "主流客户端均支持（v2rayN、v2rayNG、NekoBox、Hiddify、sing-box、Streisand、Shadowrocket、FairVPN、Clash Meta）",
+        "fragment": "TLS ClientHello 分片（DPI 绕过）",
+        "fragmentClients": "Hiddify Next、NekoBox / NekoRay、sing-box >= 1.8、v2rayN Hiddify 版。其他客户端可导入链接但会忽略分片。",
+        "fp": "浏览器 TLS 指纹（chrome / firefox / safari / random）",
+        "fpClients": "Xray-core >= 1.8、sing-box、Hiddify、NekoBox、v2rayN、v2rayNG、Streisand",
+        "dns": "DNS 隧道提示（仅信息）",
+        "dnsClients": "请结合您已部署的 dnstt / vaydns 服务，在 Hiddify 或 sing-box 中使用"
+      },
+      "bestTitle": "总体最佳",
+      "best": "Hiddify Next（桌面 + 移动端）与 NekoBox / NekoRay 支持本扫描器发现的全部参数，包括分片。",
+      "noteTitle": "注意",
+      "note": "iOS Shadowrocket 与标准 v2rayN/v2rayNG 可导入链接，但会忽略 \"fragment\"。若需完整 DPI 绕过，请使用 Hiddify 系客户端。"
+    },
+    "changelog": {
+      "title": "更新内容",
+      "bypass": "二维码与复制链接现在会包含扫描中命中的 SNI / fragment / DNS 组合，不再返回原始配置。",
+      "badge": "每条结果行都会显示一个小徽章，标明命中的绕过组合。",
+      "hint": "当链接包含分片或 DNS 隧道参数时，二维码弹窗会显示客户端兼容性提示。",
+      "vip": "Claim VIP Server 现在会实时显示真实扫描计数。",
+      "i18n": "已完整支持英语、波斯语、阿拉伯语、俄语、土耳其语和中文的 RTL/LTR 显示。"
+    },
     "author": "作者与联系方式",
     "community": "社区支持",
     "starGithub": "在 GitHub 上点星",
@@ -665,10 +696,23 @@
     "unblockableLink": "防封锁数据库链路",
     "activeMode": "活跃模式",
     "testingDb": "正在测试数据库连接...",
-    "dbLinkOnline": "数据库链路：${onlineLayers}/5 在线"
+    "dbLinkOnline": "数据库链路：{onlineLayers}/5 在线"
   },
   "data": {
     "offlineSync": "离线数据同步",
+    "syncDescPro": "强大的完全离线备份引擎：17 个数据部分、可选密码加密、SHA-256 完整性清单、预览、服务器端快照以及选择性恢复。",
+    "tab": { "export": "导出", "import": "导入", "snapshots": "快照", "history": "历史" },
+    "passphrase": "密码（可选）",
+    "sectionsTitle": "要包含的部分",
+    "selectAll": "全选",
+    "deselectAll": "取消全选",
+    "scanLimit": "扫描行上限",
+    "selectFile": "选择 .agdb 文件",
+    "previewTitle": "包预览",
+    "restoreSelected": "恢复选中项",
+    "snapshots": "服务器端快照",
+    "snapNow": "立即创建快照",
+    "importHistory": "导入历史",
     "syncDesc": "导出您的完整数据库以与受限地区的其他人共享。捆绑包经过 AES 加密压缩。",
     "exportDb": "导出数据库",
     "exportDesc": "将所有应用数据打包成加密的 .agdb 文件，以供完全离线使用。",

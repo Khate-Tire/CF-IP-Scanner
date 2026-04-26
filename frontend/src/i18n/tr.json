@@ -531,6 +531,37 @@
         "Analitik izleyici, reklam, telemetri yok — tamamen açık kaynaklı"
       ]
     },
+    "clients": {
+      "title": "İstemci Uyumluluğu",
+      "intro": "Başarılı bir taramadan sonra QR kodu ve Kopyala düğmesi, çalışan bypass parametrelerini içeren bir paylaşım bağlantısı üretir. Uyumluluk, istemcinin bu parametreleri desteklemesine bağlıdır:",
+      "col": {
+        "param": "Parametre",
+        "use": "Amaç",
+        "support": "Önerilen İstemciler"
+      },
+      "row": {
+        "sni": "TLS SNI geçersiz kılma (evrensel bypass)",
+        "sniClients": "Tüm büyük istemciler (v2rayN, v2rayNG, NekoBox, Hiddify, sing-box, Streisand, Shadowrocket, FairVPN, Clash Meta)",
+        "fragment": "TLS ClientHello parçalama (DPI bypass)",
+        "fragmentClients": "Hiddify Next, NekoBox / NekoRay, sing-box >= 1.8, v2rayN Hiddify sürümü. Diğer istemciler bağlantıyı içe aktarır ama parçalamayı atlar.",
+        "fp": "Tarayıcı TLS parmak izi (chrome / firefox / safari / random)",
+        "fpClients": "Xray-core >= 1.8, sing-box, Hiddify, NekoBox, v2rayN, v2rayNG, Streisand",
+        "dns": "DNS tünel ipucu (yalnızca bilgilendirme)",
+        "dnsClients": "Hiddify veya sing-box içinde kurduğunuz dnstt / vaydns sunucusuyla birlikte kullanın"
+      },
+      "bestTitle": "Genel olarak en iyi",
+      "best": "Hiddify Next (masaustu + mobil) ve NekoBox / NekoRay bu tarayıcının bulduğu tum parametreleri, parcalama dahil, destekler.",
+      "noteTitle": "Not",
+      "note": "iOS Shadowrocket ve standart v2rayN/v2rayNG bağlantıyı kabul eder ancak \"fragment\" parametresini yok sayar. Tam DPI bypass için Hiddify ailesi bir istemci kullanın."
+    },
+    "changelog": {
+      "title": "Yenilikler",
+      "bypass": "QR kodu ve Kopyala artık tarama sırasında bulunan çalışan SNI / fragment / DNS kombinasyonunu içeriyor; ham giriş konfigi dönmüyor.",
+      "badge": "Her sonuç satırı, çalışan bypass kombinasyonunu gösteren küçük bir rozet gösterir.",
+      "hint": "Fragmentation veya DNS tunnel parametreleri olduğunda QR penceresi istemci uyumluluk ipucu gösterir.",
+      "vip": "Claim VIP Server artık gerçek tarama sayılarını anlık olarak raporlar.",
+      "i18n": "Ingilizce, Farsca, Arapca, Rusca, Turkce ve Cince dilleri icin tam RTL/LTR destegi."
+    },
     "author": "Yazar ve İletişim",
     "community": "Topluluk ve Destek",
     "starGithub": "Bize GitHub'da Yıldız Verin",
@@ -665,10 +696,23 @@
     "unblockableLink": "Engellenemez DB Bağlantısı",
     "activeMode": "Aktif Mod",
     "testingDb": "DB Bağlantısı Test Ediliyor...",
-    "dbLinkOnline": "DB Bağlantısı: ${onlineLayers}/5 Çevrimiçi"
+    "dbLinkOnline": "DB Bağlantısı: {onlineLayers}/5 Çevrimiçi"
   },
   "data": {
     "offlineSync": "Çevrimdışı Veri Senkronizasyonu",
+    "syncDescPro": "Güçlü, tamamen çevrimdışı yedekleme motoru: 17 veri bölümü, isteğe bağlı parola şifrelemesi, SHA-256 bütünlük manifestosu, ön izleme, sunucu tarafı anlık görüntüler ve seçici geri yükleme.",
+    "tab": { "export": "Dışa Aktar", "import": "İçe Aktar", "snapshots": "Anlık Görüntüler", "history": "Geçmiş" },
+    "passphrase": "Parola (isteğe bağlı)",
+    "sectionsTitle": "Dahil edilecek bölümler",
+    "selectAll": "Tümünü seç",
+    "deselectAll": "Tümünün seçimini kaldır",
+    "scanLimit": "Tarama satırı sınırı",
+    "selectFile": ".agdb dosyası seç",
+    "previewTitle": "Paket Ön İzleme",
+    "restoreSelected": "Seçileni Geri Yükle",
+    "snapshots": "Sunucu Anlık Görüntüleri",
+    "snapNow": "Şimdi Anlık Görüntü Al",
+    "importHistory": "İçe Aktarma Geçmişi",
     "syncDesc": "Kısıtlı bölgelerdeki diğer kullanıcılarla paylaşmak için tam veritabanınızı dışa aktarın. Paket şifrelenmiştir.",
     "exportDb": "Veritabanını Dışa Aktar",
     "exportDesc": "TÜM uygulama verilerini paketleyin.",

@@ -98,14 +98,17 @@ function App() {
       }
     };
     checkBackend();
-    // Also listen for Electron IPC signal
-    if (typeof window !== 'undefined' && window.require) {
+    // Also listen for Electron IPC signal (via secure preload bridge)
+    let unsubscribeBackendReady = null;
+    if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.onBackendReady) {
       try {
-        const { ipcRenderer } = window.require('electron');
-        ipcRenderer.on('backend-ready', () => setBackendReady(true));
+        unsubscribeBackendReady = window.electronAPI.onBackendReady(() => setBackendReady(true));
       } catch (e) { /* not in Electron */ }
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (unsubscribeBackendReady) { try { unsubscribeBackendReady(); } catch (_) { /* noop */ } }
+    };
   }, []);
 
   useEffect(() => {

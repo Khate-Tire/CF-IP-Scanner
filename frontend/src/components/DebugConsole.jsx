@@ -27,14 +27,11 @@ export default function DebugConsole() {
                 // Backend not reachable
             }
 
-            // Try 2: Electron log file (via IPC)
+            // Try 2: Electron log file (via secure IPC bridge)
             try {
-                if (window.require) {
-                    const { ipcRenderer } = window.require('electron');
-                    const fs = window.require('fs');
-                    const logPath = await ipcRenderer.invoke('get-log-path');
-                    if (logPath && fs.existsSync(logPath)) {
-                        const content = fs.readFileSync(logPath, 'utf8');
+                if (window.electronAPI && window.electronAPI.readLogFile) {
+                    const content = await window.electronAPI.readLogFile();
+                    if (content) {
                         const lines = content.split('\n').filter(l => l.trim());
                         setLogs(lines);
                         setSource('electron-log');

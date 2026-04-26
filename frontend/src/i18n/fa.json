@@ -508,6 +508,37 @@
         "بدون ردیاب، بدون تبلیغ، بدون تله‌متری — کاملاً متن‌باز"
       ]
     },
+    "clients": {
+      "title": "سازگاری کلاینت‌ها",
+      "intro": "پس از اسکن موفق، دکمه‌های QR و کپی یک لینک اشتراک با پارامترهای واقعی بای‌پس می‌دهند. سازگاری به پشتیبانی کلاینت از این پارامترها بستگی دارد:",
+      "col": {
+        "param": "پارامتر",
+        "use": "کاربرد",
+        "support": "کلاینت‌های پیشنهادی"
+      },
+      "row": {
+        "sni": "بازنویسی TLS SNI (بای‌پس عمومی)",
+        "sniClients": "همه کلاینت‌های اصلی (v2rayN، v2rayNG، NekoBox، Hiddify، sing-box، Streisand، Shadowrocket، FairVPN، Clash Meta)",
+        "fragment": "قطعه‌بندی TLS ClientHello (بای‌پس DPI)",
+        "fragmentClients": "Hiddify Next، NekoBox / NekoRay، sing-box >= 1.8، نسخه Hiddify از v2rayN. سایر کلاینت‌ها لینک را وارد می‌کنند اما قطعه‌بندی را نادیده می‌گیرند.",
+        "fp": "اثر انگشت TLS مرورگر (chrome / firefox / safari / random)",
+        "fpClients": "Xray-core >= 1.8، sing-box، Hiddify، NekoBox، v2rayN، v2rayNG، Streisand",
+        "dns": "راهنمای DNS tunnel (صرفاً اطلاعاتی)",
+        "dnsClients": "همراه با سرور dnstt / vaydns خود در Hiddify یا sing-box استفاده شود"
+      },
+      "bestTitle": "بهترین انتخاب",
+      "best": "Hiddify Next (موبایل و دسکتاپ) و NekoBox / NekoRay همه پارامترهای کشف‌شده از جمله fragment را پشتیبانی می‌کنند.",
+      "noteTitle": "نکته",
+      "note": "Shadowrocket در iOS و نسخه‌های عادی v2rayN/v2rayNG لینک را می‌پذیرند اما \"fragment\" را نادیده می‌گیرند. برای بای‌پس کامل DPI از کلاینت‌های خانواده Hiddify استفاده کنید."
+    },
+    "changelog": {
+      "title": "تغییرات جدید",
+      "bypass": "QR و کپی اکنون SNI / fragment / DNS واقعی موفق در اسکن را داخل لینک قرار می‌دهند و دیگر کانفیگ خام برنمی‌گردد.",
+      "badge": "هر ردیف نتیجه، یک نشان کوچک از ترکیب بای‌پس موفق را نمایش می‌دهد.",
+      "hint": "در صورت وجود fragment یا پارامترهای DNS tunnel، مودال QR راهنمای سازگاری کلاینت را نشان می‌دهد.",
+      "vip": "بخش Claim VIP Server اکنون تعداد واقعی اسکن‌ها را لحظه‌ای نمایش می‌دهد.",
+      "i18n": "پشتیبانی کامل RTL/LTR برای انگلیسی، فارسی، عربی، روسی، ترکی و چینی."
+    },
     "author": "سازنده و تماس",
     "community": "جامعه و پشتیبانی",
     "starGithub": "ستاره در گیت‌هاب",
@@ -642,10 +673,23 @@
     "unblockableLink": "لینک دیتابیس غیرقابل انسداد",
     "activeMode": "حالت فعال",
     "testingDb": "در حال آزمایش اتصال دیتابیس...",
-    "dbLinkOnline": "لینک دیتابیس: ${onlineLayers}/5 آنلاین"
+    "dbLinkOnline": "لینک دیتابیس: {onlineLayers}/5 آنلاین"
   },
   "data": {
     "offlineSync": "همگام‌سازی آفلاین داده‌ها",
+    "syncDescPro": "موتور پشتیبان‌گیری قدرتمند و کاملاً آفلاین: ۱۷ بخش داده، رمزنگاری اختیاری با عبارت عبور، مانیفست SHA-256، پیش‌نمایش، اسنپ‌شات سرور و بازیابی انتخابی.",
+    "tab": { "export": "خروجی", "import": "ورودی", "snapshots": "اسنپ‌شات", "history": "تاریخچه" },
+    "passphrase": "عبارت عبور (اختیاری)",
+    "sectionsTitle": "بخش‌های قابل انتخاب",
+    "selectAll": "انتخاب همه",
+    "deselectAll": "لغو همه",
+    "scanLimit": "حداکثر ردیف اسکن",
+    "selectFile": "انتخاب فایل .agdb",
+    "previewTitle": "پیش‌نمایش بسته",
+    "restoreSelected": "بازیابی انتخاب‌شده‌ها",
+    "snapshots": "اسنپ‌شات‌های سرور",
+    "snapNow": "اسنپ‌شات بگیر",
+    "importHistory": "تاریخچهٔ ورودی",
     "syncDesc": "کل پایگاه داده خود را صادر کنید.",
     "exportDb": "خروجی پایگاه داده",
     "exportDesc": "بسته‌بندی همه داده‌های برنامه در یک فایل .agdb برای استفاده کاملاً آفلاین.",

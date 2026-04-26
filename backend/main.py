@@ -22,9 +22,20 @@ from freedom_engine import run_play_freedom_loop, state as freedom_state
 
 app = FastAPI()
 
+# CORS lockdown: only allow localhost origins (dev Vite + Electron renderer).
+# Electron with loadFile() sends Origin: null, so we also allow that exact value
+# via allow_origin_regex. We do NOT use allow_origins=['*'] because the API
+# binds to 127.0.0.1 and any browser tab the user opens could otherwise
+# call our endpoints from a malicious page.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],
+    allow_origins=[
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ],
+    allow_origin_regex=r'^(null|file://.*|http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?)$',
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -89,6 +100,25 @@ class ExportRequest(BaseModel):
 active_scans = {}
 results = {}
 
+
+def _bg_task(coro, name=None):
+    """Wrap asyncio.create_task so unhandled exceptions are logged instead of
+    swallowed silently. Without this, a crashed background task leaves the
+    server running in a degraded state with no diagnostic."""
+    task = asyncio.create_task(coro, name=name)
+    def _on_done(t):
+        if t.cancelled():
+            return
+        exc = t.exception()
+        if exc is not None:
+            try:
+                dlog(f"[bg-task {name or t.get_name()}] crashed: {type(exc).__name__}: {exc}")
+            except Exception:
+                # dlog might not be defined yet at module-import time; fall back to print.
+                print(f"[bg-task {name or t.get_name()}] crashed: {type(exc).__name__}: {exc}")
+    task.add_done_callback(_on_done)
+    return task
+
 # --- Debug Log System ---
 import sys
 from datetime import datetime as _dt
@@ -127,21 +157,29 @@ async def _load_unfinished_scans_on_startup():
 
 async def sync_queue_db(scan_id):
     """Periodically takes the ultra-fast memory dictionary and persists it to SQLite queue"""
-    while scan_id in active_scans and active_scans[scan_id]['status'] in ['running', 'paused']:
-        s = active_scans[scan_id]
-        await update_scan_status_db(
-            scan_id, s['status'], s.get('total', 0), s.get('completed', 0), 
-            s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
-        )
+    while True:
+        s = active_scans.get(scan_id)
+        if not s or s.get('status') not in ('running', 'paused'):
+            break
+        try:
+            await update_scan_status_db(
+                scan_id, s['status'], s.get('total', 0), s.get('completed', 0),
+                s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
+            )
+        except Exception as e:
+            print(f"[sync_queue_db] {scan_id} error: {e}")
         await asyncio.sleep(2)
-        
+
     # Final sync when finished or failed
-    if scan_id in active_scans:
-        s = active_scans[scan_id]
-        await update_scan_status_db(
-            scan_id, s['status'], s.get('total', 0), s.get('completed', 0), 
-            s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
-        )
+    s = active_scans.get(scan_id)
+    if s:
+        try:
+            await update_scan_status_db(
+                scan_id, s['status'], s.get('total', 0), s.get('completed', 0),
+                s.get('found_good', 0), s.get('logs', []), s.get('stats', {}), results.get(scan_id, [])
+            )
+        except Exception as e:
+            print(f"[sync_queue_db] {scan_id} final-sync error: {e}")
 
 _debug_logs = deque(maxlen=200)
 
@@ -647,12 +685,12 @@ async def startup_event():
     # Load unfinished scans from queue — DO NOT await. On a fresh DB or slow
     # disk this can take a few hundred ms and used to delay /health
     # accepting connections, leaving the splash stuck on "Starting engine...".
-    asyncio.create_task(_load_unfinished_scans_on_startup())
+    _bg_task(_load_unfinished_scans_on_startup(), name='load_unfinished_scans')
 
     # Launch heavy DB/network work as background task so server starts immediately
-    asyncio.create_task(_background_init())
-    asyncio.create_task(update_cf_ranges_periodic())
-    asyncio.create_task(run_autopilot_scheduler())
+    _bg_task(_background_init(), name='background_init')
+    _bg_task(update_cf_ranges_periodic(), name='update_cf_ranges_periodic')
+    _bg_task(run_autopilot_scheduler(), name='autopilot_scheduler')
     dlog("=== SERVER READY (DB connecting in background) ===")
 
 async def _background_init():
@@ -2142,14 +2180,33 @@ async def run_warp_job(scan_id, req):
     wlog("WARP Scan job finished.")
 
 @app.get('/api/db-export')
-async def db_export():
+async def db_export(
+    sections: Optional[str] = None,
+    passphrase: Optional[str] = None,
+    scan_limit: int = 50000,
+):
+    """Export an enriched, encrypted backup bundle.
+
+    Query params:
+      sections   - comma-separated whitelist (e.g. "settings,scan_results"). Default: all.
+      passphrase - optional user passphrase -> AGDB03 (PBKDF2 + AES-GCM). Else AGDB02.
+      scan_limit - cap on scan rows (default 50k).
+    """
     import db
     from offline_db import encrypt_payload
+    wanted = None
+    if sections:
+        wanted = {s.strip() for s in sections.split(',') if s.strip()}
+
+    def included(name: str) -> bool:
+        return wanted is None or name in wanted
+
     try:
         # Collect ALL data needed for complete offline functionality
         data = {
-            "version": "2.0",
-            "exported_at": str(datetime.now()),
+            "version": "3.0",
+            "exported_at": datetime.now().isoformat(),
+            "app_version": "1.0.0",
             "settings": {},
             "working_configs": [],
             "vpn_admin_configs": [],
@@ -2160,28 +2217,38 @@ async def db_export():
             "geo_analytics": {},
             "country_domains": {},
             "bypass_profiles": [],
+            "tunnel_deployments": [],
+            "dns_optimizer_history": [],
+            "freedom_state": {},
+            "warp_endpoints": [],
+            "user_subscription": "",
+            "scan_history_index": [],
+            "extra_files": {},
         }
         
         # 1. App Settings
-        try:
-            settings_file = os.path.join(APP_DIR, 'settings.json')
-            if os.path.exists(settings_file):
-                with open(settings_file, 'r') as f:
-                    data["settings"] = json.load(f)
-        except Exception as e:
-            print(f"Skipped settings export: {e}")
+        if included("settings"):
+            try:
+                settings_file = os.path.join(APP_DIR, 'settings.json')
+                if os.path.exists(settings_file):
+                    with open(settings_file, 'r') as f:
+                        data["settings"] = json.load(f)
+            except Exception as e:
+                print(f"Skipped settings export: {e}")
         
         # 2. Working configs (needed for Play Freedom & DB tunnel fallback)
-        try:
-            history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
-            if os.path.exists(history_file):
-                with open(history_file, 'r') as f:
-                    data["working_configs"] = json.load(f)
-        except Exception as e:
-            print(f"Skipped working configs export: {e}")
+        if included("working_configs"):
+            try:
+                history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+                if os.path.exists(history_file):
+                    with open(history_file, 'r') as f:
+                        data["working_configs"] = json.load(f)
+            except Exception as e:
+                print(f"Skipped working configs export: {e}")
                 
         # 3. VPN Admin CF configs (needed for Play Freedom mining & free-configs tab)
-        try:
+        if included("vpn_admin_configs"):
+          try:
             import httpx
             admin_api = os.environ.get('ADMIN_API_URL', '')
             if not admin_api:
@@ -2197,7 +2264,7 @@ async def db_export():
                         decoded = text
                     lines = [l.strip() for l in decoded.split('\n') if l.strip().startswith(('vless://', 'vmess://', 'trojan://', 'ss://'))]
                     data["vpn_admin_configs"] = lines
-        except Exception as e:
+          except Exception as e:
             print(f"Skipped Admin CF Configs: {e}")
             # Fallback to offline cache
             try:
@@ -2209,7 +2276,8 @@ async def db_export():
                 pass
 
         # 4. VPN Admin vanilla configs (needed for Play Freedom Phase 1)
-        try:
+        if included("vpn_admin_vanilla_configs"):
+          try:
             import httpx
             admin_api = os.environ.get('ADMIN_API_URL', '')
             if not admin_api:
@@ -2225,17 +2293,18 @@ async def db_export():
                         decoded = text
                     lines = [l.strip() for l in decoded.split('\n') if l.strip().startswith(('vless://', 'vmess://', 'trojan://', 'ss://'))]
                     data["vpn_admin_vanilla_configs"] = lines
-        except Exception as e:
+          except Exception as e:
             print(f"Skipped Admin Vanilla Configs: {e}")
 
-        # 5. Scan Results (from MySQL or SQLite, limit 50k)
+        # 5. Scan Results (from MySQL or SQLite)
         import aiosqlite
-        try:
+        if included("scan_results"):
+         try:
             async def _fetch_mysql():
                 if hasattr(db, 'pool') and db.pool:
                     async with db.pool.acquire() as conn:
                         async with conn.cursor() as cur:
-                            await cur.execute("SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT 20000")
+                            await cur.execute(f"SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT {int(max(1, min(scan_limit, 200000)))}")
                             columns = [desc[0] for desc in cur.description] if cur.description else []
                             rows = await cur.fetchall()
                             for r in rows:
@@ -2257,7 +2326,7 @@ async def db_export():
                     async with aiosqlite.connect(sqlite_path) as ldb:
                         ldb.row_factory = aiosqlite.Row
                         try:
-                            cur = await ldb.execute("SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT 20000")
+                            cur = await ldb.execute(f"SELECT * FROM scan_results WHERE status='ok' ORDER BY timestamp DESC LIMIT {int(max(1, min(scan_limit, 200000)))}")
                             rows = await cur.fetchall()
                             for r in rows:
                                 rd = dict(r)
@@ -2283,14 +2352,15 @@ async def db_export():
                 except Exception as e:
                     print(f"SQLite fetch failed: {e}")
                     
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Scan Results: {e}")
             
         # 6. Smart Recommendations
-        try:
-            recs = await asyncio.wait_for(db.get_smart_recommendations(isp="", location="", country="", limit=100), timeout=8.0)
+        if included("smart_recommendations"):
+         try:
+            recs = await asyncio.wait_for(db.get_smart_recommendations(isp="", location="", country="", limit=500), timeout=8.0)
             data["smart_recommendations"] = recs if recs else []
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Smart Recommendations: {e}")
             # Fallback to offline cache
             try:
@@ -2302,25 +2372,31 @@ async def db_export():
                 pass
 
         # 7. Global Analytics (needed for Analytics tab offline)
-        try:
+        if included("analytics"):
+         try:
             analytics = await asyncio.wait_for(db.get_analytics(provider='cloudflare'), timeout=8.0)
             if analytics:
                 data["analytics"] = analytics
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Analytics: {e}")
 
         # 8. Geo Analytics (needed for Analytics geo map offline)
-        try:
+        if included("geo_analytics"):
+         try:
             geo = await asyncio.wait_for(db.get_geo_analytics(provider='cloudflare'), timeout=8.0)
             if geo:
                 data["geo_analytics"] = geo
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Geo Analytics: {e}")
 
         # 9. Country Domains (needed for IP generation from gold domains)
-        try:
-            # Fetch cached country domains from DB for known countries
-            known_countries = ['IR', 'CN', 'RU', 'TR', 'AE', 'PK', 'EG', 'VN', 'TH', 'ID', 'SA', 'IQ', 'AF', 'BY', 'CU', 'VE', 'MM', 'TM', 'UZ', 'TJ']
+        if included("country_domains"):
+         try:
+            # Expanded coverage: 40+ countries (was 20)
+            known_countries = ['IR', 'CN', 'RU', 'TR', 'AE', 'PK', 'EG', 'VN', 'TH', 'ID', 'SA', 'IQ',
+                               'AF', 'BY', 'CU', 'VE', 'MM', 'TM', 'UZ', 'TJ', 'IN', 'BD', 'LK', 'NP',
+                               'KZ', 'KG', 'AZ', 'AM', 'GE', 'SY', 'YE', 'OM', 'QA', 'KW', 'BH', 'JO',
+                               'LB', 'PS', 'LY', 'TN', 'DZ', 'MA', 'SD', 'ET', 'KE', 'NG', 'ZA']
             for cc in known_countries:
                 try:
                     result = await asyncio.wait_for(db.get_country_domains(cc), timeout=3.0)
@@ -2328,17 +2404,20 @@ async def db_export():
                         data["country_domains"][cc] = result['domains']
                 except:
                     pass
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Country Domains: {e}")
 
         # 10. Best Bypass Profiles (needed for ISP-specific bypass settings)
-        try:
-            # Get bypass profiles for common ISPs
-            common_isps = ['MCI', 'Irancell', 'Rightel', 'Shatel', 'Mokhaberat', 'Asiatech', 'HiWEB']
+        if included("bypass_profiles"):
+         try:
+            # Expanded ISP coverage (was 7, now 20+)
+            common_isps = ['MCI', 'Irancell', 'Rightel', 'Shatel', 'Mokhaberat', 'Asiatech', 'HiWEB',
+                           'PishGaman', 'ParsOnline', 'AsrTelecom', 'TIC', 'Datak', 'RespinaNet',
+                           'FanavaGroup', 'Sabanet', 'NeginNet', 'AryaSat', 'TCT', 'Saba', 'Aria']
             for isp_name in common_isps:
-                for mode in ['fragment', 'sni']:
+                for mode in ['fragment', 'sni', 'dns']:
                     try:
-                        bypasses = await asyncio.wait_for(db.get_best_community_bypasses(isp=isp_name, mode=mode, limit=5), timeout=3.0)
+                        bypasses = await asyncio.wait_for(db.get_best_community_bypasses(isp=isp_name, mode=mode, limit=10), timeout=3.0)
                         if bypasses and bypasses.get('results'):
                             for bp in bypasses['results']:
                                 bp['_isp'] = isp_name
@@ -2346,10 +2425,92 @@ async def db_export():
                                 data["bypass_profiles"].append(bp)
                     except:
                         pass
-        except Exception as e:
+         except Exception as e:
             print(f"Skipped Bypass Profiles: {e}")
-            
-        encrypted_bytes = encrypt_payload(data)
+
+        # 11. Tunnel deployments cache
+        if included("tunnel_deployments"):
+            try:
+                td_file = os.path.join(APP_DIR, 'tunnel_deployments.json')
+                if os.path.exists(td_file):
+                    with open(td_file, 'r') as f:
+                        data["tunnel_deployments"] = json.load(f)
+            except Exception as e:
+                print(f"Skipped Tunnel Deployments: {e}")
+
+        # 12. DNS optimizer history
+        if included("dns_optimizer_history"):
+            try:
+                dns_file = os.path.join(APP_DIR, 'dns_optimizer_history.json')
+                if os.path.exists(dns_file):
+                    with open(dns_file, 'r') as f:
+                        data["dns_optimizer_history"] = json.load(f)
+            except Exception as e:
+                print(f"Skipped DNS Optimizer History: {e}")
+
+        # 13. Play Freedom engine state snapshot
+        if included("freedom_state"):
+            try:
+                fs = freedom_state
+                data["freedom_state"] = {
+                    "status": getattr(fs, 'status', None),
+                    "phase": getattr(fs, 'phase', None),
+                    "found_configs": getattr(fs, 'found_configs', []),
+                }
+            except Exception as e:
+                print(f"Skipped Freedom State: {e}")
+
+        # 14. WARP endpoints cache
+        if included("warp_endpoints"):
+            try:
+                warp_file = os.path.join(APP_DIR, 'warp_endpoints.json')
+                if os.path.exists(warp_file):
+                    with open(warp_file, 'r') as f:
+                        data["warp_endpoints"] = json.load(f)
+            except Exception as e:
+                print(f"Skipped WARP Endpoints: {e}")
+
+        # 15. Latest user-pulled subscription text
+        if included("user_subscription"):
+            try:
+                sub_file = os.path.join(APP_DIR, 'latest_subscription.txt')
+                if os.path.exists(sub_file):
+                    with open(sub_file, 'r', encoding='utf-8', errors='ignore') as f:
+                        data["user_subscription"] = f.read()
+            except Exception as e:
+                print(f"Skipped User Subscription: {e}")
+
+        # 16. Per-scan-result JSON files index (lightweight pointers)
+        if included("scan_history_index"):
+            try:
+                results_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')
+                if os.path.isdir(results_dir):
+                    files = sorted(os.listdir(results_dir))[-100:]  # last 100
+                    data["scan_history_index"] = [
+                        {"name": fn, "size": os.path.getsize(os.path.join(results_dir, fn))}
+                        for fn in files if fn.endswith('.json')
+                    ]
+            except Exception as e:
+                print(f"Skipped Scan History Index: {e}")
+
+        # 17. Extra small JSON files (best-effort sweep of APP_DIR caches)
+        if included("extra_files"):
+            try:
+                extras = ['offline_analytics.json', 'offline_geo_analytics.json',
+                          'offline_country_domains.json', 'offline_bypass_profiles.json',
+                          'speed_matrix.json', 'claim_vip_state.json', 'ui_preferences.json']
+                for fn in extras:
+                    p = os.path.join(APP_DIR, fn)
+                    if os.path.exists(p) and os.path.getsize(p) < 5_000_000:
+                        try:
+                            with open(p, 'r', encoding='utf-8') as fh:
+                                data["extra_files"][fn] = json.load(fh)
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"Skipped Extra Files: {e}")
+
+        encrypted_bytes = encrypt_payload(data, passphrase=passphrase, version=2)
         return Response(
             content=encrypted_bytes,
             media_type="application/octet-stream",
@@ -2359,16 +2520,30 @@ async def db_export():
         return {"success": False, "error": str(e)}
 
 @app.post('/api/db-import')
-async def db_import(file: UploadFile = File(...)):
+async def db_import(
+    file: UploadFile = File(...),
+    passphrase: Optional[str] = None,
+    sections: Optional[str] = None,
+    dry_run: bool = False,
+):
     import db
-    from offline_db import decrypt_payload
+    from offline_db import decrypt_payload, peek_manifest
+    wanted = None
+    if sections:
+        wanted = {s.strip() for s in sections.split(',') if s.strip()}
+
+    def included(name: str) -> bool:
+        return wanted is None or name in wanted
+
     try:
         content = await file.read()
-        data = decrypt_payload(content)
-        stats = {}
+        if dry_run:
+            return {"success": True, "preview": peek_manifest(content, passphrase=passphrase)}
+        data = decrypt_payload(content, passphrase=passphrase)
+        stats = {"_manifest": data.get("_manifest")}
         
         # 1. Restore App Settings
-        if data.get("settings"):
+        if included("settings") and data.get("settings"):
             try:
                 settings_file = os.path.join(APP_DIR, 'settings.json')
                 with open(settings_file, 'w') as f:
@@ -2378,42 +2553,49 @@ async def db_import(file: UploadFile = File(...)):
                 print(f"Failed to restore settings: {e}")
         
         # 2. Import working configs (merge with existing)
-        history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
-        existing = []
-        if os.path.exists(history_file):
-            with open(history_file, 'r') as f:
-                existing = json.load(f)
-        for wc in data.get("working_configs", []):
-            if wc not in existing:
-                existing.insert(0, wc)
-        with open(history_file, 'w') as f:
-            json.dump(existing[:100], f)
-        stats["working_configs"] = len(data.get("working_configs", []))
+        if included("working_configs"):
+            history_file = os.path.join(APP_DIR, 'latest_working_configs.json')
+            existing = []
+            if os.path.exists(history_file):
+                try:
+                    with open(history_file, 'r') as f:
+                        existing = json.load(f)
+                except Exception:
+                    existing = []
+            for wc in data.get("working_configs", []):
+                if wc not in existing:
+                    existing.insert(0, wc)
+            with open(history_file, 'w') as f:
+                json.dump(existing[:200], f)
+            stats["working_configs"] = len(data.get("working_configs", []))
             
         # 3. Write VPN admin CF configs (for free-configs tab & Play Freedom mining)
-        admin_cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
-        cf_configs = data.get("vpn_admin_configs", [])
-        with open(admin_cache_file, 'w') as f:
-            json.dump(cf_configs, f)
-        stats["vpn_cf_configs"] = len(cf_configs)
+        if included("vpn_admin_configs"):
+            admin_cache_file = os.path.join(APP_DIR, 'offline_admin_configs.json')
+            cf_configs = data.get("vpn_admin_configs", [])
+            with open(admin_cache_file, 'w') as f:
+                json.dump(cf_configs, f)
+            stats["vpn_cf_configs"] = len(cf_configs)
 
         # 4. Write VPN admin vanilla configs (for Play Freedom Phase 1)
-        vanilla_configs = data.get("vpn_admin_vanilla_configs", [])
-        if vanilla_configs:
-            vanilla_cache_file = os.path.join(APP_DIR, 'offline_admin_vanilla_configs.json')
-            with open(vanilla_cache_file, 'w') as f:
-                json.dump(vanilla_configs, f)
-            stats["vpn_vanilla_configs"] = len(vanilla_configs)
+        if included("vpn_admin_vanilla_configs"):
+            vanilla_configs = data.get("vpn_admin_vanilla_configs", [])
+            if vanilla_configs:
+                vanilla_cache_file = os.path.join(APP_DIR, 'offline_admin_vanilla_configs.json')
+                with open(vanilla_cache_file, 'w') as f:
+                    json.dump(vanilla_configs, f)
+                stats["vpn_vanilla_configs"] = len(vanilla_configs)
 
         # 5. Write Smart Recommendations to fallback
-        recs = data.get("smart_recommendations", [])
-        recs_cache_file = os.path.join(APP_DIR, 'offline_smart_recs.json')
-        with open(recs_cache_file, 'w') as f:
-            json.dump(recs, f)
-        stats["smart_recommendations"] = len(recs)
+        if included("smart_recommendations"):
+            recs = data.get("smart_recommendations", [])
+            recs_cache_file = os.path.join(APP_DIR, 'offline_smart_recs.json')
+            with open(recs_cache_file, 'w') as f:
+                json.dump(recs, f)
+            stats["smart_recommendations"] = len(recs)
 
         # 6. Cache Analytics data for offline viewing
-        if data.get("analytics"):
+        if included("analytics") and data.get("analytics"):
             try:
                 analytics_cache = os.path.join(APP_DIR, 'offline_analytics.json')
                 with open(analytics_cache, 'w') as f:
@@ -2423,7 +2605,7 @@ async def db_import(file: UploadFile = File(...)):
                 print(f"Failed to cache analytics: {e}")
 
         # 7. Cache Geo Analytics data for offline viewing
-        if data.get("geo_analytics"):
+        if included("geo_analytics") and data.get("geo_analytics"):
             try:
                 geo_cache = os.path.join(APP_DIR, 'offline_geo_analytics.json')
                 with open(geo_cache, 'w') as f:
@@ -2433,7 +2615,7 @@ async def db_import(file: UploadFile = File(...)):
                 print(f"Failed to cache geo analytics: {e}")
 
         # 8. Cache Country Domains for IP generation
-        if data.get("country_domains"):
+        if included("country_domains") and data.get("country_domains"):
             try:
                 domains_cache = os.path.join(APP_DIR, 'offline_country_domains.json')
                 with open(domains_cache, 'w') as f:
@@ -2443,7 +2625,7 @@ async def db_import(file: UploadFile = File(...)):
                 print(f"Failed to cache country domains: {e}")
 
         # 9. Cache Bypass Profiles for ISP-specific settings
-        if data.get("bypass_profiles"):
+        if included("bypass_profiles") and data.get("bypass_profiles"):
             try:
                 bypass_cache = os.path.join(APP_DIR, 'offline_bypass_profiles.json')
                 with open(bypass_cache, 'w') as f:
@@ -2452,10 +2634,68 @@ async def db_import(file: UploadFile = File(...)):
             except Exception as e:
                 print(f"Failed to cache bypass profiles: {e}")
 
-        # 10. Import Scan Results to SQLite
+        # 10. Tunnel deployments
+        if included("tunnel_deployments") and data.get("tunnel_deployments"):
+            try:
+                td_file = os.path.join(APP_DIR, 'tunnel_deployments.json')
+                with open(td_file, 'w') as f:
+                    json.dump(data["tunnel_deployments"], f, indent=2)
+                stats["tunnel_deployments"] = len(data["tunnel_deployments"])
+            except Exception as e:
+                print(f"Failed to restore tunnel deployments: {e}")
+
+        # 11. DNS optimizer history
+        if included("dns_optimizer_history") and data.get("dns_optimizer_history"):
+            try:
+                dns_file = os.path.join(APP_DIR, 'dns_optimizer_history.json')
+                with open(dns_file, 'w') as f:
+                    json.dump(data["dns_optimizer_history"], f, indent=2)
+                stats["dns_optimizer_history"] = len(data["dns_optimizer_history"])
+            except Exception as e:
+                print(f"Failed to restore DNS history: {e}")
+
+        # 12. WARP endpoints
+        if included("warp_endpoints") and data.get("warp_endpoints"):
+            try:
+                warp_file = os.path.join(APP_DIR, 'warp_endpoints.json')
+                with open(warp_file, 'w') as f:
+                    json.dump(data["warp_endpoints"], f, indent=2)
+                stats["warp_endpoints"] = len(data["warp_endpoints"])
+            except Exception as e:
+                print(f"Failed to restore WARP endpoints: {e}")
+
+        # 13. User subscription text
+        if included("user_subscription") and data.get("user_subscription"):
+            try:
+                sub_file = os.path.join(APP_DIR, 'latest_subscription.txt')
+                with open(sub_file, 'w', encoding='utf-8') as f:
+                    f.write(data["user_subscription"])
+                stats["user_subscription"] = "restored"
+            except Exception as e:
+                print(f"Failed to restore subscription: {e}")
+
+        # 14. Extra small JSON files
+        if included("extra_files") and data.get("extra_files"):
+            try:
+                restored = 0
+                for fn, blob in (data["extra_files"] or {}).items():
+                    safe_name = os.path.basename(fn)
+                    if not safe_name.endswith('.json'):
+                        continue
+                    try:
+                        with open(os.path.join(APP_DIR, safe_name), 'w', encoding='utf-8') as fh:
+                            json.dump(blob, fh, indent=2)
+                        restored += 1
+                    except Exception:
+                        pass
+                stats["extra_files"] = restored
+            except Exception as e:
+                print(f"Failed to restore extra files: {e}")
+
+        # 15. Import Scan Results to SQLite
         import aiosqlite
         inserted = 0
-        if data.get("scan_results"):
+        if included("scan_results") and data.get("scan_results"):
             sqlite_path = getattr(db, 'local_db', None)
             sqlite_path = sqlite_path.path if sqlite_path else os.path.join(APP_DIR, 'offline_cache.db')
             async with aiosqlite.connect(sqlite_path) as ldb:
@@ -2504,7 +2744,30 @@ async def db_import(file: UploadFile = File(...)):
                     inserted += 1
                 await ldb.commit()
         stats["scan_results"] = inserted
-                
+
+        # Append history entry
+        try:
+            hist_file = os.path.join(APP_DIR, 'backup_import_history.json')
+            history = []
+            if os.path.exists(hist_file):
+                try:
+                    with open(hist_file, 'r') as fh:
+                        history = json.load(fh)
+                except Exception:
+                    history = []
+            history.insert(0, {
+                "imported_at": datetime.now().isoformat(),
+                "filename": getattr(file, 'filename', 'bundle.agdb'),
+                "size": len(content),
+                "sections": list(wanted) if wanted else "all",
+                "stats": {k: v for k, v in stats.items() if k != "_manifest"},
+            })
+            history = history[:50]
+            with open(hist_file, 'w') as fh:
+                json.dump(history, fh, indent=2)
+        except Exception as e:
+            print(f"Failed to log import history: {e}")
+
         return {
             "success": True, 
             "message": "Full import complete! All app data restored for offline use.",
@@ -2512,6 +2775,149 @@ async def db_import(file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ==========================================
+# DATA SYNC: PREVIEW / SNAPSHOTS / HISTORY
+# ==========================================
+
+@app.post('/api/data/preview')
+async def db_preview(file: UploadFile = File(...), passphrase: Optional[str] = None):
+    """Cheap dry-run: decrypt + return manifest only (no DB writes)."""
+    from offline_db import peek_manifest
+    try:
+        content = await file.read()
+        return {"success": True, "preview": peek_manifest(content, passphrase=passphrase)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+SNAPSHOT_DIR = os.path.join(APP_DIR, 'snapshots')
+os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+
+
+@app.get('/api/data/snapshots')
+async def list_snapshots():
+    try:
+        items = []
+        if os.path.isdir(SNAPSHOT_DIR):
+            for fn in sorted(os.listdir(SNAPSHOT_DIR), reverse=True):
+                p = os.path.join(SNAPSHOT_DIR, fn)
+                try:
+                    items.append({
+                        "name": fn,
+                        "size": os.path.getsize(p),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(p)).isoformat(),
+                    })
+                except Exception:
+                    pass
+        return {"success": True, "snapshots": items[:100]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+class SnapshotCreateRequest(BaseModel):
+    label: Optional[str] = None
+    passphrase: Optional[str] = None
+    sections: Optional[str] = None
+    scan_limit: int = 50000
+
+
+@app.post('/api/data/snapshots/create')
+async def create_snapshot(req: SnapshotCreateRequest):
+    """Create a server-side snapshot bundle (saved under APP_DIR/snapshots/)."""
+    try:
+        # Re-use db_export by calling it programmatically
+        resp = await db_export(sections=req.sections, passphrase=req.passphrase, scan_limit=req.scan_limit)
+        if isinstance(resp, dict):  # error return
+            return resp
+        ts = int(time.time())
+        safe_label = ''.join(c for c in (req.label or 'auto') if c.isalnum() or c in '-_')[:40] or 'auto'
+        fn = f"snapshot-{safe_label}-{ts}.agdb"
+        path = os.path.join(SNAPSHOT_DIR, fn)
+        with open(path, 'wb') as f:
+            f.write(resp.body)
+        # prune to 20 most recent
+        try:
+            files = sorted(os.listdir(SNAPSHOT_DIR))
+            if len(files) > 20:
+                for old in files[:-20]:
+                    try:
+                        os.remove(os.path.join(SNAPSHOT_DIR, old))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return {"success": True, "name": fn, "size": os.path.getsize(path)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get('/api/data/snapshots/download')
+async def download_snapshot(name: str):
+    safe = os.path.basename(name)
+    path = os.path.join(SNAPSHOT_DIR, safe)
+    if not os.path.exists(path):
+        return {"success": False, "error": "Snapshot not found"}
+    with open(path, 'rb') as f:
+        body = f.read()
+    return Response(
+        content=body,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={safe}"},
+    )
+
+
+@app.delete('/api/data/snapshots')
+async def delete_snapshot(name: str):
+    safe = os.path.basename(name)
+    path = os.path.join(SNAPSHOT_DIR, safe)
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            return {"success": True}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    return {"success": False, "error": "not found"}
+
+
+@app.get('/api/data/history')
+async def import_history():
+    try:
+        hist_file = os.path.join(APP_DIR, 'backup_import_history.json')
+        if not os.path.exists(hist_file):
+            return {"success": True, "history": []}
+        with open(hist_file, 'r') as f:
+            return {"success": True, "history": json.load(f)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@app.get('/api/data/sections')
+async def list_sections():
+    """Return list of all known backup sections + human labels for UI."""
+    return {
+        "success": True,
+        "sections": [
+            {"key": "settings", "label": "App Settings"},
+            {"key": "working_configs", "label": "Working Configs"},
+            {"key": "vpn_admin_configs", "label": "VPN CF Subscriptions"},
+            {"key": "vpn_admin_vanilla_configs", "label": "VPN Vanilla Subscriptions"},
+            {"key": "scan_results", "label": "Scan Results"},
+            {"key": "smart_recommendations", "label": "Smart Recommendations"},
+            {"key": "analytics", "label": "Analytics"},
+            {"key": "geo_analytics", "label": "Geo Analytics"},
+            {"key": "country_domains", "label": "Country Domains"},
+            {"key": "bypass_profiles", "label": "Bypass Profiles"},
+            {"key": "tunnel_deployments", "label": "Tunnel Deployments"},
+            {"key": "dns_optimizer_history", "label": "DNS Optimizer History"},
+            {"key": "warp_endpoints", "label": "WARP Endpoints"},
+            {"key": "freedom_state", "label": "Play Freedom State"},
+            {"key": "user_subscription", "label": "User Subscription"},
+            {"key": "scan_history_index", "label": "Scan History Index"},
+            {"key": "extra_files", "label": "Extra Cache Files"},
+        ]
+    }
 
 # ==========================================
 # PLAY FREEDOM AUTO-PILOT ENDPOINTS

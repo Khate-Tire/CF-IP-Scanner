@@ -254,7 +254,22 @@ export default function ResultsTable({ results, vlessConfig, onSendToAdvanced })
                         ) : (
                             sortedResults.map((res, i) => (
                                 <tr key={i} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
-                                    <td className="p-3 font-mono font-bold text-white">{res.ip}</td>
+                                    <td className="p-3 font-mono font-bold text-white">
+                                        {res.ip}
+                                        {(res.bypass || res.tested_config) && (
+                                            <div className="mt-1 text-[10px] font-normal text-purple-300 normal-case max-w-[260px] truncate"
+                                                title={res.tested_config || ''}>
+                                                {res.bypass?.sni && <span className="mr-2">SNI: {res.bypass.sni}</span>}
+                                                {res.bypass?.fragment && (
+                                                    <span className="mr-2">
+                                                        Frag: {res.bypass.fragment.length || ''}/{res.bypass.fragment.interval || ''}
+                                                    </span>
+                                                )}
+                                                {res.bypass?.dns?.server && <span className="mr-2">DNS: {res.bypass.dns.server}</span>}
+                                                {!res.bypass && res.tested_config && <span>{res.tested_config}</span>}
+                                            </div>
+                                        )}
+                                    </td>
                                     <td className={`p-3 font-mono font-bold ${res.status !== 'ok' ? 'text-red-400' : res.ping < 100 ? 'text-neon-green' : 'text-yellow-400'}`}>
                                         {res.ping > 0 ? res.ping : '—'}
                                     </td>
@@ -324,6 +339,28 @@ export default function ResultsTable({ results, vlessConfig, onSendToAdvanced })
                         <div className="bg-white p-4 rounded-lg">
                             <QRCodeCanvas value={qrData} size={256} />
                         </div>
+                        {/* Client compatibility hint based on params present in the URL */}
+                        {(() => {
+                            const hasFragment = /[?&]fragment=/i.test(qrData);
+                            const hasDnsHint = /[?&]dns_(server|domain)=/i.test(qrData);
+                            if (!hasFragment && !hasDnsHint) return null;
+                            return (
+                                <div className="mt-3 w-full text-[11px] leading-snug rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-2 text-cyan-200">
+                                    {hasFragment && (
+                                        <div>
+                                            <span className="font-bold">📦 Fragment detected.</span>{' '}
+                                            Best clients: <span className="font-semibold">Hiddify Next</span>, <span className="font-semibold">NekoBox / NekoRay</span>, <span className="font-semibold">sing-box ≥ 1.8</span>, <span className="font-semibold">v2rayN (Hiddify build)</span>. Other clients will import it but skip fragmentation.
+                                        </div>
+                                    )}
+                                    {hasDnsHint && (
+                                        <div className={hasFragment ? 'mt-1' : ''}>
+                                            <span className="font-bold">🌐 DNS-tunnel hint.</span>{' '}
+                                            These params are informational — pair this config with your deployed dnstt/vaydns server in Hiddify or sing-box.
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                         <p className="mt-4 text-xs text-center text-gray-400 break-all">{qrData}</p>
                         <button
                             onClick={() => setQrData(null)}

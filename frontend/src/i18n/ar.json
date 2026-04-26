@@ -531,6 +531,37 @@
         "مفتوح المصدر بالكامل"
       ]
     },
+    "clients": {
+      "title": "توافق التطبيقات",
+      "intro": "بعد نجاح الفحص، يمنحك زر النسخ وQR رابط مشاركة يحتوي على إعدادات التجاوز التي نجحت فعلاً. التوافق يعتمد على دعم التطبيق لهذه المعلمات:",
+      "col": {
+        "param": "المعلمة",
+        "use": "الاستخدام",
+        "support": "التطبيقات الموصى بها"
+      },
+      "row": {
+        "sni": "تجاوز TLS SNI (تجاوز عام)",
+        "sniClients": "جميع التطبيقات الشائعة (v2rayN، v2rayNG، NekoBox، Hiddify، sing-box، Streisand، Shadowrocket، FairVPN، Clash Meta)",
+        "fragment": "تجزئة TLS ClientHello (لتجاوز DPI)",
+        "fragmentClients": "Hiddify Next، NekoBox / NekoRay، sing-box >= 1.8، إصدار v2rayN الخاص بـ Hiddify. بقية التطبيقات تستورد الرابط لكنها تتجاهل التجزئة.",
+        "fp": "بصمة TLS للمتصفح (chrome / firefox / safari / random)",
+        "fpClients": "Xray-core >= 1.8، sing-box، Hiddify، NekoBox، v2rayN، v2rayNG، Streisand",
+        "dns": "تلميح DNS tunnel (للمعلومة فقط)",
+        "dnsClients": "يستخدم مع خادم dnstt / vaydns الذي قمت بنشره في Hiddify أو sing-box"
+      },
+      "bestTitle": "الأفضل بشكل عام",
+      "best": "Hiddify Next (سطح المكتب + الهاتف) وNekoBox / NekoRay يدعمان جميع المعلمات التي يكتشفها هذا الماسح، بما فيها التجزئة.",
+      "noteTitle": "ملاحظة",
+      "note": "تطبيق Shadowrocket على iOS ونسخ v2rayN/v2rayNG العادية تقبل الرابط لكنها تتجاهل \"fragment\". للحصول على تجاوز DPI كامل استخدم تطبيقاً من عائلة Hiddify."
+    },
+    "changelog": {
+      "title": "ما الجديد",
+      "bypass": "الآن رمز QR وزر النسخ يضمنان إعدادات SNI / fragment / DNS الفعلية التي نجحت في الفحص، وليس الإعداد الخام.",
+      "badge": "كل صف نتيجة يعرض شارة صغيرة توضح تركيبة التجاوز التي نجحت.",
+      "hint": "نافذة QR تعرض تلميح توافق التطبيقات عندما تكون معلمات التجزئة أو DNS tunnel موجودة.",
+      "vip": "قسم Claim VIP Server يعرض الآن أعداد الفحص الحقيقية بشكل لحظي.",
+      "i18n": "دعم كامل RTL/LTR للإنجليزية والفارسية والعربية والروسية والتركية والصينية."
+    },
     "author": "المؤلف والاتصال",
     "community": "الدعم والمجتمع",
     "starGithub": "اترك نجمة على GitHub",
@@ -665,10 +696,23 @@
     "unblockableLink": "رابط قاعدة بيانات لا يمكن حجبه",
     "activeMode": "الوضع النشط",
     "testingDb": "جاري اختبار الاتصال بقاعدة البيانات...",
-    "dbLinkOnline": "رابط قاعدة البيانات: ${onlineLayers}/5 متصل"
+    "dbLinkOnline": "رابط قاعدة البيانات: {onlineLayers}/5 متصل"
   },
   "data": {
     "offlineSync": "مزامنة البيانات دون اتصال",
+    "syncDescPro": "محرّك نسخ احتياطي قوي ومتكامل بدون اتصال: 17 قسمًا للبيانات، تشفير بعبارة مرور اختياري، بيان سلامة SHA-256، معاينة مسبقة، لقطات على الخادم واستعادة انتقائية.",
+    "tab": { "export": "تصدير", "import": "استيراد", "snapshots": "لقطات", "history": "التاريخ" },
+    "passphrase": "عبارة المرور (اختياري)",
+    "sectionsTitle": "الأقسام المدرجة",
+    "selectAll": "تحديد الكل",
+    "deselectAll": "إلغاء الكل",
+    "scanLimit": "حد صفوف الفحص",
+    "selectFile": "حدد ملف .agdb",
+    "previewTitle": "معاينة الحزمة",
+    "restoreSelected": "استعادة المحدد",
+    "snapshots": "لقطات الخادم",
+    "snapNow": "التقاط لقطة الآن",
+    "importHistory": "تاريخ الاستيراد",
     "syncDesc": "قم بتصدير قاعدة بياناتك الكاملة لمشاركتها مع الآخرين في المناطق المحظورة. الحزمة مشفرة بواسطة AES.",
     "exportDb": "تصدير قاعدة البيانات",
     "exportDesc": "حزم جميع بيانات التطبيق.",
