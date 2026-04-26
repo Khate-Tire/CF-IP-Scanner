@@ -63,4 +63,22 @@ PyInstaller.__main__.run([
     '--hidden-import=sniffio',
     '--hidden-import=pydantic',
     '--hidden-import=aiosqlite',
+    # DNS Tunnel wizard + DNS scanner deps (loaded lazily via try/except in
+    # tunnel_deployer.py / dns_scanner_engine.py, so PyInstaller can't see them):
+    '--hidden-import=paramiko',
+    '--hidden-import=paramiko.transport',
+    '--hidden-import=paramiko.client',
+    '--hidden-import=dns',
+    '--hidden-import=dns.resolver',
+    '--hidden-import=dns.message',
+    '--hidden-import=dns.query',
+    '--hidden-import=dns.rdatatype',
+    '--hidden-import=dns.asyncresolver',
+    '--hidden-import=dns.asyncquery',
+    '--hidden-import=aioquic',
+    '--hidden-import=aioquic.asyncio',
+    '--hidden-import=aioquic.h3',
+    '--hidden-import=aioquic.h3.connection',
+    '--collect-submodules=paramiko',
+    '--collect-submodules=dns',
 ])
