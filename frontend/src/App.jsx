@@ -70,7 +70,16 @@ function App() {
   const currentManualIps = useRef("");
   const retryCount = useRef(0);
 
-  const [useSystemProxy, setUseSystemProxy] = useState(false);
+  const [useSystemProxy, setUseSystemProxy] = useState(() => {
+    try {
+      const saved = localStorage.getItem('app-systemProxy');
+      if (saved !== null) return saved === '1';
+    } catch { /* ignore */ }
+    return true; // default ON — routes location/discovery through Windows system proxy / VPN
+  });
+  useEffect(() => {
+    try { localStorage.setItem('app-systemProxy', useSystemProxy ? '1' : '0'); } catch { /* ignore */ }
+  }, [useSystemProxy]);
   const isInitialMount = useRef(true);
   const [latestVersion, setLatestVersion] = useState(null);
   const [updateUrl, setUpdateUrl] = useState(null);

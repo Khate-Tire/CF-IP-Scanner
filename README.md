@@ -4,6 +4,7 @@
   <p><strong>Advanced Cloudflare IP Optimization & Censorship Bypass Tool</strong></p>
   <p>
     <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-00F3FF?style=for-the-badge&logo=rocket&logoColor=black" /></a>
+    <a href="https://github.com/Khate-Tire/CF-IP-Scanner/releases"><img src="https://img.shields.io/badge/Release-v2.1.1-FF6B35?style=for-the-badge&logo=github&logoColor=white" /></a>
     <a href="https://github.com/Khate-Tire/CF-IP-Scanner/stargazers"><img src="https://img.shields.io/github/stars/Khate-Tire/CF-IP-Scanner?style=for-the-badge&color=BC13FE&logo=github" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-GNU AGPLv3-39ff14?style=for-the-badge" /></a>
     <a href="https://t.me/ANTIGRAVITY_IP"><img src="https://img.shields.io/badge/Telegram-Community-0088cc?style=for-the-badge&logo=telegram" /></a>
@@ -253,7 +254,35 @@ python run_app.py
 <img src="docs/screenshots/about.png" alt="About Tab" width="800" />
 <br/><em>Built-in guide, FAQ, system requirements, and privacy policy</em>
 
+---
+
+### 📦 Data Sync — Encrypted Backup Engine *(2.1.1)*
+<!-- Capture with: npm run screenshots  (writes docs/screenshots/data-sync.png) -->
+<img src="docs/screenshots/data-sync.png" alt="Data Sync Tab" width="800" />
+<br/><em>4 tabs (Export · Import · Snapshots · History) with passphrase encryption, per-section selection, dry-run manifest preview, and server-side rolling snapshots</em>
+
+---
+
+### 🚇 DNS Tunnel — Deploy Wizard
+<!-- Capture with: npm run screenshots  (writes docs/screenshots/dns-tunnel.png) -->
+<img src="docs/screenshots/dns-tunnel.png" alt="DNS Tunnel Wizard" width="800" />
+<br/><em>6-step SSH wizard that provisions 8 DNS tunnels on your VPS and emits SlipNet-compatible <code>slipnet://</code> import links</em>
+
 </div>
+
+> 💡 **Regenerate screenshots**: `npm i -D playwright && npx playwright install chromium && npm run screenshots`
+> Captures all tabs at 1440×900 @2× into [`docs/screenshots/`](docs/screenshots/). See [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs).
+
+---
+
+## 🆕 What's New in v2.1.1
+
+- ✨ **Data Sync rebuilt** as a full backup engine: 17 data sections, **AES-256-GCM + PBKDF2** passphrase encryption (200k iters), per-section **SHA-256** integrity manifest, **dry-run preview**, server-side rolling **snapshots** (local, max 20), **selective restore**, and **import history**.
+- 🔧 **SlipNet `slipnet://` share links fixed** — builder now always pads to the SlipNet **v18 minimum of 38 fields**, eliminating *“Invalid v18 format (expected at least 38 fields, got 15)”* on import.
+- 🩺 **DNS Tunnel cold-start UX** — health banner is suppressed during the first ~12s of app boot and uses adaptive 4s polling until healthy, then 30s. Distinct copy for *backend unreachable* vs *missing Python packages*.
+- 🌐 **Localized changelog** — 6 languages now show the 2.1.1 release notes inside the About tab.
+
+See the full diff in the [Release notes](https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.1.1).
 
 ---
 
@@ -273,6 +302,7 @@ python run_app.py
 | 📱 **Free VPN Dashboard** | Telegram-authenticated dashboard for free community VPN configs |
 | 🧠 **Smart Recommendations** | Intelligent panel suggesting optimal scan settings based on your network profile |
 | 💾 **Data Transfer** | Full backup & import with 10 data categories in AES-256 encrypted `.agdb` format |
+| 📦 **Data Sync 2.0** | _New in 2.1.1_ — 17-section backup engine with **AES-256-GCM + PBKDF2** passphrase encryption, **SHA-256 integrity manifest**, dry-run preview, server-side rolling **snapshots** (kept locally, max 20), **selective restore**, and **import history** |
 | 📴 **Offline Mode** | Analytics, geo data, configs, and bypass profiles all work offline via local cache |
 | 🔗 **5-Layer DB Resilience** | Direct MySQL → Worker proxy → Worker+fronting → VLESS tunnel → Local SQLite |
 | 🔄 **Dropped IP Re-test** | Failed IPs shown in results table with one-click re-test button (no thresholds) |
@@ -287,7 +317,9 @@ python run_app.py
 | 🌐 **DNS Override** | Route DNS queries through encrypted DoH/DoT servers to bypass ISP poisoning |
 | 🍎 **macOS Support** | Native DMG installer for macOS alongside Windows EXE |
 | 🚇 **DNS Tunnel Wizard** | Visual 6-step wizard to deploy 8 DNS tunnels (Slipstream, DNSTT, NoizDNS, VayDNS) on your VPS via SSH |
-| 🔬 **DNS Optimizer** | Scan 200+ public DNS resolvers to find the fastest, most stable tunnel connection parameters |
+| � **SlipNet One-Click Import** | _Fixed in 2.1.1_ — `slipnet://` share links now always include the SlipNet **v18 minimum 38 fields**, so the SlipNet Android app imports them with one tap |
+| 🩺 **Smarter Tunnel Health** | _Improved in 2.1.1_ — the DNS Tunnel tab no longer flashes a misleading “backend unreachable” banner during cold-start; clear, distinct messaging for unreachable vs missing-deps |
+| �🔬 **DNS Optimizer** | Scan 200+ public DNS resolvers to find the fastest, most stable tunnel connection parameters |
 
 ---
 
