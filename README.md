@@ -4,7 +4,7 @@
   <p><strong>Advanced Cloudflare IP Optimization & Censorship Bypass Tool</strong></p>
   <p>
     <a href="#-quick-start"><img src="https://img.shields.io/badge/Quick_Start-00F3FF?style=for-the-badge&logo=rocket&logoColor=black" /></a>
-    <a href="https://github.com/Khate-Tire/CF-IP-Scanner/releases"><img src="https://img.shields.io/badge/Release-v2.1.1-FF6B35?style=for-the-badge&logo=github&logoColor=white" /></a>
+    <a href="https://github.com/Khate-Tire/CF-IP-Scanner/releases"><img src="https://img.shields.io/badge/Release-v2.1.2-FF6B35?style=for-the-badge&logo=github&logoColor=white" /></a>
     <a href="https://github.com/Khate-Tire/CF-IP-Scanner/stargazers"><img src="https://img.shields.io/github/stars/Khate-Tire/CF-IP-Scanner?style=for-the-badge&color=BC13FE&logo=github" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-GNU AGPLv3-39ff14?style=for-the-badge" /></a>
     <a href="https://t.me/ANTIGRAVITY_IP"><img src="https://img.shields.io/badge/Telegram-Community-0088cc?style=for-the-badge&logo=telegram" /></a>
@@ -274,6 +274,14 @@ python run_app.py
 > Captures all tabs at 1440×900 @2× into [`docs/screenshots/`](docs/screenshots/). See [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs).
 
 ---
+
+## 🆕 What's New in v2.1.2
+
+- 🩹 **Hotfix — DNS Tunnel routes now register in packaged builds.** The PyInstaller-frozen backend was hitting `if __name__ == '__main__': uvicorn.run(...)` *before* the DNS Tunnel / DNS Scanner / Speed Matrix endpoints were declared, so every `/api/tunnel/*` and `/api/dns-scan/*` call returned **404** in the installer build (it worked locally because `run_app.py` imports `main.py` as a module). The entrypoint guard is now at EOF with a code comment to keep it there.
+- 🛡️ **Release pipeline hardened** — `electron-builder` no longer double-publishes alongside `softprops/action-gh-release` (fixes `422 already_exists`), and stale assets from a failed run are now scrubbed before re-upload.
+- 🌐 **Default route through System Proxy / VPN** — the *“Route Location API & Discovery through Windows System Proxy / VPN”* checkbox is now ticked by default and persisted to `localStorage`.
+
+See [Release notes](https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.1.2).
 
 ## 🆕 What's New in v2.1.1
 
@@ -583,5 +591,5 @@ If you use this tool in your research, please cite it:
 
 <div align="center">
   <p><strong>🕊️ Built for a free and open internet</strong></p>
-  <p><sub>Antigravity IP Scanner v2.1.1 • © 2024-2025 Khate Tire • GNU AGPLv3 License</sub></p>
+  <p><sub>Antigravity IP Scanner v2.1.2 • © 2024-2026 Khate Tire • GNU AGPLv3 License</sub></p>
 </div>

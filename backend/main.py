@@ -2948,9 +2948,6 @@ async def freedom_status():
         "found_configs": freedom_engine.state.found_configs
     }
 
-if __name__ == '__main__':
-    uvicorn.run(app, host='127.0.0.1', port=8000)
-
 # ==========================================
 # DNS TUNNEL WIZARD ENDPOINTS
 # ==========================================
@@ -3302,3 +3299,14 @@ async def speed_matrix_status(scan_id: str):
 @app.post('/api/speed-matrix/{scan_id}/stop')
 async def speed_matrix_stop(scan_id: str):
     return speed_matrix.stop_matrix_scan(scan_id)
+
+
+# ------------------------------------------------------------------
+# IMPORTANT: this MUST be the last block in the file. PyInstaller-frozen
+# builds run main.py as __main__, so anything declared after this call
+# (e.g. extra @app.get routes) would never register and would 404 in
+# production while still working locally via run_app.py (which imports
+# main.py as a module). Keep new routes ABOVE this guard.
+# ------------------------------------------------------------------
+if __name__ == '__main__':
+    uvicorn.run(app, host='127.0.0.1', port=8000)

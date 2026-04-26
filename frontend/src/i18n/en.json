@@ -312,7 +312,7 @@
   "about": {
     "title": "Antigravity IP Scanner",
     "subtitle": "Advanced Cloudflare IP Optimization & Censorship Bypass Tool",
-    "version": "Version 2.1.1 • Open Source",
+    "version": "Version 2.1.2 • Open Source",
     "whatIs": {
       "title": "What is Antigravity?",
       "p1": "Antigravity is a professional-grade network tool designed to discover and verify Cloudflare Edge IPs and WARP endpoints that bypass Deep Packet Inspection (DPI) and geographic censorship.",
@@ -532,7 +532,7 @@
       "note": "iOS Shadowrocket and stock v2rayN/v2rayNG accept the link but ignore \"fragment\". For full DPI bypass, use a Hiddify-family client."
     },
     "changelog": {
-      "title": "What's New in 2.1.1",
+      "title": "What's New in 2.1.2",
       "dataSync": "Data Sync rebuilt as a full backup engine: 17 sections, AES-256-GCM + PBKDF2 passphrase encryption, SHA-256 integrity manifest, dry-run preview, server-side snapshots and selective restore.",
       "slipnet": "Fixed slipnet:// share links so SlipNet v18 imports them cleanly (now always pad to the required 38 fields).",
       "tunnelHealth": "DNS Tunnel tab no longer flashes a misleading 'backend unreachable' banner during cold-start; clear distinction between unreachable vs missing-deps.",

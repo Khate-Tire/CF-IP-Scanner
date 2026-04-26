@@ -555,7 +555,7 @@
       "note": "iOS Shadowrocket ve standart v2rayN/v2rayNG bağlantıyı kabul eder ancak \"fragment\" parametresini yok sayar. Tam DPI bypass için Hiddify ailesi bir istemci kullanın."
     },
     "changelog": {
-      "title": "2.1.1 Yenilikleri",
+      "title": "2.1.2 Yenilikleri",
       "bypass": "QR kodu ve Kopyala artık tarama sırasında bulunan çalışan SNI / fragment / DNS kombinasyonunu içeriyor; ham giriş konfigi dönmüyor.",
       "badge": "Her sonuç satırı, çalışan bypass kombinasyonunu gösteren küçük bir rozet gösterir.",
       "hint": "Fragmentation veya DNS tunnel parametreleri olduğunda QR penceresi istemci uyumluluk ipucu gösterir.",
