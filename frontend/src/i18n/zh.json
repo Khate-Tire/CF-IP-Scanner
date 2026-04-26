@@ -555,7 +555,7 @@
       "note": "iOS Shadowrocket 与标准 v2rayN/v2rayNG 可导入链接，但会忽略 \"fragment\"。若需完整 DPI 绕过，请使用 Hiddify 系客户端。"
     },
     "changelog": {
-      "title": "更新内容",
+      "title": "2.1.1 更新内容",
       "bypass": "二维码与复制链接现在会包含扫描中命中的 SNI / fragment / DNS 组合，不再返回原始配置。",
       "badge": "每条结果行都会显示一个小徽章，标明命中的绕过组合。",
       "hint": "当链接包含分片或 DNS 隧道参数时，二维码弹窗会显示客户端兼容性提示。",

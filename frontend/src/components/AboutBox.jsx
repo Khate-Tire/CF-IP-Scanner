@@ -211,8 +211,11 @@ export default function AboutBox() {
                     </CollapsibleSection>
 
                     {/* Changelog / What's new */}
-                    <CollapsibleSection title={t('about.changelog.title', "What's New")} icon="🆕" color="text-yellow-300">
+                    <CollapsibleSection title={t('about.changelog.title', "What's New in 2.1.1")} icon="🆕" color="text-yellow-300">
                         <ul className="space-y-2 text-sm text-gray-400 list-none">
+                            <li>✨ {t('about.changelog.dataSync', 'Data Sync rebuilt as a full backup engine: 17 sections, AES-256-GCM + PBKDF2 passphrase encryption, SHA-256 integrity manifest, dry-run preview, server-side snapshots and selective restore.')}</li>
+                            <li>🔧 {t('about.changelog.slipnet', 'Fixed slipnet:// share links so SlipNet v18 imports them cleanly (now always pad to the required 38 fields).')}</li>
+                            <li>🩺 {t('about.changelog.tunnelHealth', "DNS Tunnel tab no longer flashes a misleading 'backend unreachable' banner during cold-start; clear distinction between unreachable vs missing-deps.")}</li>
                             <li>✅ {t('about.changelog.bypass', 'QR code & Copy now embed the working SNI / fragment / DNS combo found during the scan — no more raw input config.')}</li>
                             <li>✅ {t('about.changelog.badge', 'Each result row shows a small badge with the bypass combo that worked.')}</li>
                             <li>✅ {t('about.changelog.hint', 'QR modal displays a client compatibility hint when fragmentation or DNS-tunnel params are present.')}</li>
