@@ -203,12 +203,48 @@ _ssh_host: str = ""  # remembered so we can build client connection details afte
 _ssh_lock = threading.Lock()
 
 
+def _purge_known_host(known_hosts_path: str, host: str, port: int = 22) -> int:
+    """Remove every entry in `known_hosts_path` that matches `host` (or
+    `[host]:port` when port != 22). Returns the number of lines removed.
+    Used when the user explicitly accepts a new host key after a server
+    rebuild so paramiko stops raising BadHostKeyException.
+    """
+    if not os.path.exists(known_hosts_path):
+        return 0
+    bracketed = f"[{host}]:{port}"
+    keep, removed = [], 0
+    with open(known_hosts_path, "r", encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                keep.append(line)
+                continue
+            # OpenSSH known_hosts: "<host[,host2...]> <keytype> <base64key>"
+            first = stripped.split()[0]
+            hosts_in_line = first.split(",")
+            if host in hosts_in_line or bracketed in hosts_in_line:
+                removed += 1
+                continue
+            keep.append(line)
+    if removed:
+        with open(known_hosts_path, "w", encoding="utf-8") as f:
+            f.writelines(keep)
+    return removed
+
+
 # ─── SSH Connection ────────────────────────────────────────────────────────────
 
 def ssh_connect(host: str, port: int = 22, username: str = "root",
-                password: str = None, private_key: str = None) -> Dict:
+                password: str = None, private_key: str = None,
+                accept_new_host_key: bool = False) -> Dict:
     """
     Establish SSH connection to the target server.
+
+    If the server's host key has changed since the last connect (e.g. the VPS
+    was reinstalled), the connection fails with code='host_key_mismatch'.
+    Pass accept_new_host_key=True to purge the stale entry and trust the
+    fresh key.
+
     Returns: {"success": bool, "message": str, "server_info": dict}
     """
     err = _require("paramiko")
@@ -233,6 +269,14 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
                 known_hosts_path = os.path.join(
                     os.path.expanduser("~"), ".cfip_tunnel_known_hosts"
                 )
+                # If the user explicitly accepted a new key (e.g. the VPS was
+                # reinstalled), wipe any existing entries for this host:port
+                # before loading so paramiko sees a clean slate.
+                if accept_new_host_key and os.path.exists(known_hosts_path):
+                    try:
+                        _purge_known_host(known_hosts_path, host, port)
+                    except Exception:
+                        pass
                 if os.path.exists(known_hosts_path):
                     client.load_host_keys(known_hosts_path)
                 else:
@@ -302,12 +346,38 @@ def ssh_connect(host: str, port: int = 22, username: str = "root",
             info["public_ip"] = host
 
         return {"success": True, "message": f"Connected to {info['hostname']}", "server_info": info}
+    except paramiko.BadHostKeyException as e:
+        # Server's host key changed since the last connect. Almost always
+        # because the VPS was reinstalled / SSH was rekeyed. Surface a
+        # structured error so the frontend can offer a "Trust new key" button
+        # that re-calls /api/tunnel/connect with accept_new_host_key=true.
+        try:
+            got = e.key.get_base64() if hasattr(e, "key") and e.key else "?"
+        except Exception:
+            got = "?"
+        try:
+            expected = e.expected_key.get_base64() if hasattr(e, "expected_key") and e.expected_key else "?"
+        except Exception:
+            expected = "?"
+        return {
+            "success": False,
+            "code": "host_key_mismatch",
+            "host": host,
+            "port": port,
+            "got_key": got,
+            "expected_key": expected,
+            "message": (
+                f"The SSH host key for {host} has changed since the last connect "
+                "(the server was probably reinstalled). Click \"Trust new key\" "
+                "to accept the new fingerprint and reconnect."
+            ),
+        }
     except paramiko.AuthenticationException:
-        return {"success": False, "message": "Authentication failed. Check your username, password, or private key."}
+        return {"success": False, "code": "auth_failed", "message": "Authentication failed. Check your username, password, or private key."}
     except paramiko.SSHException as e:
-        return {"success": False, "message": f"SSH error: {str(e)}"}
+        return {"success": False, "code": "ssh_error", "message": f"SSH error: {str(e)}"}
     except Exception as e:
-        return {"success": False, "message": f"Connection failed: {str(e)}"}
+        return {"success": False, "code": "unknown", "message": f"Connection failed: {str(e)}"}
 
 
 def ssh_disconnect():

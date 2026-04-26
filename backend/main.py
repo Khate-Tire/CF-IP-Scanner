@@ -2961,6 +2961,7 @@ class TunnelConnectRequest(BaseModel):
     username: str = "root"
     password: Optional[str] = None
     private_key: Optional[str] = None
+    accept_new_host_key: bool = False
 
 class TunnelDnsVerifyRequest(BaseModel):
     domain: str
@@ -3042,7 +3043,8 @@ async def tunnel_connect(req: TunnelConnectRequest):
     """Test SSH connection to the target server."""
     result = tunnel_deployer.ssh_connect(
         host=req.host, port=req.port, username=req.username,
-        password=req.password, private_key=req.private_key
+        password=req.password, private_key=req.private_key,
+        accept_new_host_key=req.accept_new_host_key,
     )
     return result
 

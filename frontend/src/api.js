@@ -294,7 +294,7 @@ export const provideFreedomConfig = async (config) =>
 // DNS TUNNEL WIZARD API
 // ==========================================
 
-export const tunnelConnect = async (host, port, username, password, privateKey) => {
+export const tunnelConnect = async (host, port, username, password, privateKey, opts = {}) => {
     const cleanHost = (host || '').toString().trim();
     const cleanPort = Number.parseInt(port, 10);
     const cleanUser = (username || '').toString().trim() || 'root';
@@ -307,6 +307,7 @@ export const tunnelConnect = async (host, port, username, password, privateKey) 
         username: cleanUser,
         password: password || null,
         private_key: privateKey || null,
+        accept_new_host_key: !!opts.acceptNewHostKey,
     }, { timeoutMs: 30000 });
 };
 

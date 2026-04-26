@@ -111,13 +111,31 @@ export default function DeployWizard({ onSendToAdvanced, onGoToOptimizer, onGoTo
     return () => clearInterval(iv);
   }, [deploying]);
 
-  const doConnect = async () => {
+  const doConnect = async (acceptNewHostKey = false) => {
     setConnecting(true); setError(null);
     try {
-      const r = await tunnelConnect(host, port, username, authMode==='password'?password:null, authMode==='key'?privateKey:null);
+      const r = await tunnelConnect(
+        host, port, username,
+        authMode === 'password' ? password : null,
+        authMode === 'key' ? privateKey : null,
+        { acceptNewHostKey },
+      );
       if (r.success) { setServerInfo(r.server_info); setStep(1); doPreflightAuto(); }
+      else if (r.code === 'host_key_mismatch') {
+        // Server was reinstalled — offer the user a one-click recovery
+        // instead of a cryptic raw paramiko error.
+        const accept = window.confirm(
+          (r.message || 'The server\'s SSH host key has changed.') +
+          '\n\nThis is normal if you reinstalled the VPS, but could also indicate a man-in-the-middle attack. Trust the new key and reconnect?'
+        );
+        if (accept) {
+          setConnecting(false);
+          return doConnect(true);
+        }
+        setError(r.message);
+      }
       else setError(r.message);
-    } catch(e) { setError(e.message); }
+    } catch (e) { setError(e.message); }
     setConnecting(false);
   };
 

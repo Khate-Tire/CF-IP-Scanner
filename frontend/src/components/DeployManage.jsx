@@ -97,7 +97,7 @@ export default function DeployManage() {
         } finally { setStatusLoading(false); }
     }, []);
 
-    const doConnect = async () => {
+    const doConnect = async (acceptNewHostKey = false) => {
         if (!host || !username) { toast.error('Host and username required'); return; }
         if (authMode === 'password' && !password) { toast.error('Password required'); return; }
         if (authMode === 'key' && !privateKey) { toast.error('Private key required'); return; }
@@ -109,12 +109,23 @@ export default function DeployManage() {
                 username,
                 authMode === 'password' ? password : null,
                 authMode === 'key' ? privateKey : null,
+                { acceptNewHostKey },
             );
             if (r?.success) {
                 setConnected(true);
                 persist();
                 toast.success(`Connected to ${host}`);
                 await refreshStatus();
+            } else if (r?.code === 'host_key_mismatch') {
+                const accept = window.confirm(
+                    (r.message || "The server's SSH host key has changed.") +
+                    '\n\nTrust the new key and reconnect?'
+                );
+                if (accept) {
+                    setConnecting(false);
+                    return doConnect(true);
+                }
+                toast.error(r.message);
             } else {
                 toast.error(r?.message || 'Connection failed');
             }
