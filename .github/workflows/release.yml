@@ -139,7 +139,7 @@ jobs:
         run: npm install
 
       - name: Build Electron App
-        run: npm run dist
+        run: npm run dist -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -217,7 +217,7 @@ jobs:
         run: npm install
 
       - name: Build Electron App (DMG)
-        run: npx electron-builder --mac
+        run: npx electron-builder --mac --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -246,8 +246,26 @@ jobs:
           name: macos-build
           path: artifacts/macos
 
+      - name: Remove stale assets from previous run (if any)
+        # Avoids "422 already_exists" when re-running the workflow for the
+        # same tag — gh exits 0 when the release or asset is missing.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="v${{ needs.version.outputs.version }}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag exists — clearing matching assets..."
+            for f in artifacts/windows/*.exe artifacts/macos/*.dmg artifacts/macos/*.zip; do
+              [ -e "$f" ] || continue
+              name="$(basename "$f")"
+              gh release delete-asset "$tag" "$name" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+            done
+          else
+            echo "Release $tag does not exist yet — nothing to clean."
+          fi
+
       - name: Upload All Artifacts to Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/windows/*.exe
@@ -255,5 +273,6 @@ jobs:
             artifacts/macos/*.zip
           tag_name: "v${{ needs.version.outputs.version }}"
           name: "v${{ needs.version.outputs.version }}"
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
