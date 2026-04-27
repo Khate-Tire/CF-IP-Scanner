@@ -68,11 +68,15 @@ if ! command -v git-filter-repo >/dev/null 2>&1 && ! python -c "import git_filte
     echo "[..] git-filter-repo not found; installing via pip..."
     python -m pip install --quiet git-filter-repo
 fi
-# Resolve invocation
-if command -v git-filter-repo >/dev/null 2>&1; then
-    FILTER_REPO="git filter-repo"
-else
+# Resolve invocation. On Windows the pip-installed git-filter-repo script
+# may not be discoverable as a `git` subcommand (no .exe wrapper), so we
+# prefer the direct script path or `python -m git_filter_repo`.
+if python -c "import git_filter_repo" 2>/dev/null; then
     FILTER_REPO="python -m git_filter_repo"
+elif command -v git-filter-repo >/dev/null 2>&1; then
+    FILTER_REPO="$(command -v git-filter-repo)"
+else
+    FILTER_REPO="git filter-repo"
 fi
 echo "[ok] git-filter-repo invocation: $FILTER_REPO"
 
