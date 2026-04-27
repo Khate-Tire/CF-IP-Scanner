@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import en from './en.json';
 import fa from './fa.json';

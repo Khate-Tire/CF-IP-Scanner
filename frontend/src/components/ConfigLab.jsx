@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { FlaskConical, Copy, Trash2, Plus, Zap, Crown, Globe, X, Settings2, ShieldAlert, Share2, Wand2, ChevronDown, ChevronUp } from 'lucide-react';

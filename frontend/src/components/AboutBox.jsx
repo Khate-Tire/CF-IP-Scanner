@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 
@@ -237,7 +237,7 @@ export default function AboutBox() {
                                     <div className="flex items-center gap-3 text-sm text-gray-300"><span className="w-6 text-center">✉️</span><a href="mailto:khatetire@proton.me" className="hover:text-neon-blue transition-colors">khatetire@proton.me</a></div>
                                     <div className="flex items-center gap-3 text-sm text-gray-300"><span className="w-6 text-center">🐙</span><a href="https://github.com/Khate-Tire" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">github.com/Khate-Tire</a></div>
                                     <div className="flex items-center gap-3 text-sm text-gray-300"><span className="w-6 text-center">✈️</span><a href="https://t.me/hossein_shiravani" target="_blank" rel="noreferrer" className="hover:text-neon-blue transition-colors">@hossein_shiravani</a></div>
-                                    <div className="flex items-center gap-3 text-sm text-gray-300"><span className="w-6 text-center">🆔</span><a href="https://orcid.org/0000-0002-9517-9773" target="_blank" rel="noreferrer" className="hover:text-green-400 transition-colors">ORCID: 0000-0002-9517-9773</a></div>
+                                    <div className="flex items-center gap-3 text-sm text-gray-300"><span className="w-6 text-center">🆔</span><a href="https://orcid.org/0000-0000-0000-0000" target="_blank" rel="noreferrer" className="hover:text-green-400 transition-colors">ORCID: 0000-0000-0000-0000</a></div>
                                 </div>
                             </div>
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useTranslation } from '../i18n/LanguageContext';

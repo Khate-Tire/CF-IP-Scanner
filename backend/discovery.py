@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 import asyncio
 import aiohttp
 import aiodns

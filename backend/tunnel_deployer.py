@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 """
 DNS Tunnel Deployer — SSH-based server deployment for dnstm-setup.
 Handles connection, pre-flight checks, DNS verification, deployment,

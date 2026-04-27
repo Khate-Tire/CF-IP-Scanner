@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed
+/* Copyright (c) 2026 Khate Tire
  * Secure preload script — exposes a minimal IPC surface to the renderer
  * via contextBridge so we can keep contextIsolation:true + nodeIntegration:false.
  */

@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import sys
 
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 
 # Determine path for local database (works with PyInstaller and dev mode)
 if getattr(sys, 'frozen', False):

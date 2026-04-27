@@ -1,5 +1,5 @@
 import os
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 import PyInstaller.__main__
 import certifi
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

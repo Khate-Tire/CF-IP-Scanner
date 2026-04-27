@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 """
 DNS Resolver Scanner Engine v2 — Advanced DNS tunnel optimizer.
 Tests 200+ resolvers across 12 regions with scoring, throughput estimation,

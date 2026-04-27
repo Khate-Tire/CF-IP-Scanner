@@ -1,5 +1,5 @@
 import json
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 import base64
 import yaml
 

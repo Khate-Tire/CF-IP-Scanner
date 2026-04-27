@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 // Tiny pub/sub bridge that lets DNS Optimizer, Config Lab, and Deploy Wizard
 // share data without prop-drilling or pulling in a state library.
 //

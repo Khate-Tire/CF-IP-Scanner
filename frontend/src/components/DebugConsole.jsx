@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useEffect, useRef } from 'react';
 import { API_URL } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';

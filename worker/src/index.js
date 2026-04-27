@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker — DB Proxy for Antigravity IP Scanner
- * Copyright (c) 2026 Taher AkbariSaeed
+ * Copyright (c) 2026 Khate Tire
  *
  * Uses Cloudflare Hyperdrive for direct MySQL access via edge network.
  * This makes the DB accessible through Cloudflare's infrastructure,

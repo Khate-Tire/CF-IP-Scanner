@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useEffect } from 'react';
 import { fetchConfigFromUrl, API_URL, testConfigRemote } from '../api';
 import GeoMap from './GeoMap';

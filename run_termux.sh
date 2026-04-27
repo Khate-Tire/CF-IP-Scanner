@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 # Termux-compatible launcher — swaps SWC for Babel (pure JS, no native binaries)
 set -e
 

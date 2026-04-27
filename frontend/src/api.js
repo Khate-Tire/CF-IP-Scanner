@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import { getClientId } from './utils/clientId';
 
 // Resolve the backend URL.

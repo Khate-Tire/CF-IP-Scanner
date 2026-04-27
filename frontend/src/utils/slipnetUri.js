@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 // slipnet:// URI parser & encoder.
 // Compatible with the SlipNet Android app, SlipNet CLI, and dnstm-setup.
 //

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 from fastapi import FastAPI, BackgroundTasks, WebSocket, Request, Response, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

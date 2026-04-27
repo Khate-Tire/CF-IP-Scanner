@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 /**
  * DeployManage — manage an EXISTING dnstm install on a remote VPS.
  * Workflow: SSH-connect (re-uses tunnelConnect from api.js) → status →

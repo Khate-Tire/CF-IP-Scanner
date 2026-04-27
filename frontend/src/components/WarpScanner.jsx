@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useEffect } from 'react';
 import { scanWarpIPs, getWarpScanStatus, stopWarpScan } from '../api';
 import { useTranslation } from '../i18n/LanguageContext';

@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useMemo } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { exportSubscription, getExportLink, rescanIP } from '../api';

@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { dnsStartScan, dnsGetScanStatus, dnsStopScan, dnsQuickTest, dnsBestConfig, dnsGetResolvers, dnsExportScan, dnsRetestTop, dnsGetHistory, dnsGenerateConfig, dnsPredictBest } from '../api';

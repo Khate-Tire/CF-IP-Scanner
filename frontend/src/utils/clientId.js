@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 // Centralized client identifier — generated once and persisted forever in localStorage.
 const KEY = 'app_client_id';
 

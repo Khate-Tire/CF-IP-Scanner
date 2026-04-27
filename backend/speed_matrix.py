@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 """Speed Matrix engine.
 
 Tests the upload/download/latency of every config across every DNS

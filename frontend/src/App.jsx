@@ -1,4 +1,4 @@
-/* Copyright (c) 2026 Taher AkbariSaeed */
+/* Copyright (c) 2026 Khate Tire */
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ConfigInput from './components/ConfigInput';
 import ResultsTable from './components/ResultsTable';

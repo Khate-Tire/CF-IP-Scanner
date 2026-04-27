@@ -1,6 +1,6 @@
 #!/bin/bash
 # CF-IP-Scanner Linux Installation Script (Debian/Ubuntu)
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 
 set -e
 

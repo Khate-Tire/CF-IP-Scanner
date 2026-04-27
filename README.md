@@ -575,7 +575,7 @@ If you use this tool in your research, please cite it:
 | 📧 **Email** | khatetire@proton.me |
 | 🐙 **GitHub** | [@Khate-Tire](https://github.com/Khate-Tire) |
 | ✈️ **Telegram** | [@hossein_shiravani](https://t.me/hossein_shiravani) |
-| 🆔 **ORCID** | [0000-0002-9517-9773](https://orcid.org/0000-0002-9517-9773) |
+| 🆔 **ORCID** | [0000-0000-0000-0000](https://orcid.org/0000-0000-0000-0000) |
 
 </div>
 

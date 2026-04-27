@@ -1,7 +1,7 @@
 import json
 import subprocess
 import time
-# Copyright (c) 2026 Taher AkbariSaeed
+# Copyright (c) 2026 Khate Tire
 import asyncio
 import aiohttp
 from aiohttp_socks import ProxyConnector
