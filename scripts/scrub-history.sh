@@ -70,15 +70,16 @@ if ! command -v git-filter-repo >/dev/null 2>&1 && ! python -c "import git_filte
 fi
 # Resolve invocation. On Windows the pip-installed git-filter-repo script
 # may not be discoverable as a `git` subcommand (no .exe wrapper), so we
-# prefer the direct script path or `python -m git_filter_repo`.
+# prefer `python -m git_filter_repo`. We use a bash array so spaces in the
+# command split correctly regardless of IFS.
 if python -c "import git_filter_repo" 2>/dev/null; then
-    FILTER_REPO="python -m git_filter_repo"
+    FILTER_REPO=(python -m git_filter_repo)
 elif command -v git-filter-repo >/dev/null 2>&1; then
-    FILTER_REPO="$(command -v git-filter-repo)"
+    FILTER_REPO=("$(command -v git-filter-repo)")
 else
-    FILTER_REPO="git filter-repo"
+    FILTER_REPO=(git filter-repo)
 fi
-echo "[ok] git-filter-repo invocation: $FILTER_REPO"
+echo "[ok] git-filter-repo invocation: ${FILTER_REPO[*]}"
 
 # -----------------------------------------------------------------------------
 # 2. Commit any in-progress work under the NEW identity (so it's in history
@@ -160,7 +161,7 @@ trap cleanup EXIT
 #    --replace-text  : scrub blob contents + commit messages
 # -----------------------------------------------------------------------------
 echo "[..] Rewriting history (this may take a minute)..."
-$FILTER_REPO \
+"${FILTER_REPO[@]}" \
     --force \
     --mailmap "$MAILMAP_FILE" \
     --replace-text "$REPLACEMENTS_FILE"
