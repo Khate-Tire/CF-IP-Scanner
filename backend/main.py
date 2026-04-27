@@ -85,6 +85,13 @@ class ScanRequest(BaseModel):
     verify_tls: bool = False
     target_country: Optional[str] = None
     use_system_proxy: bool = False
+    # Automatic SNI-fronting fallback: if the original SNI is blocked by ISP DPI,
+    # retry the same IP with each entry from sni_fallback_list (or a curated
+    # default bank if not provided). Skipped for Reality. WS Host header is
+    # preserved during fronting so worker routing still works.
+    sni_fallback_enabled: bool = False
+    sni_fallback_list: Optional[List[str]] = None
+    sni_fallback_max_tries: int = 3
 
 class FetchConfigRequest(BaseModel):
     url: str
@@ -1441,6 +1448,20 @@ def add_log(scan_id, message):
         if len(logs) > 100:
             active_scans[scan_id]['logs'] = logs[-100:]
 
+# Curated bank of "clean" SNIs used as automatic fronting fallbacks when the
+# original SNI in the user's config gets blocked by ISP DPI. All of these are
+# fronted by Cloudflare and present a valid CF cert, so the TLS handshake
+# succeeds and the inner traffic is routed by the WS Host header instead.
+DEFAULT_SNI_FALLBACK_BANK = [
+    "speed.cloudflare.com",
+    "cf.090227.xyz",
+    "cdnjs.cloudflare.com",
+    "www.visa.com.sg",
+    "www.icloud.com",
+    "discord.com",
+]
+
+
 async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
     try:
         thresholds = {
@@ -1583,6 +1604,44 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                 
                     if res['status'] == 'abort':
                         return
+
+                    # ── Automatic SNI-fronting fallback ────────────────────
+                    # If the original SNI failed and the user enabled fallback,
+                    # retry the same IP with each entry from the SNI bank.
+                    # Skipped for Reality (handshake is server-name-bound) and
+                    # for plain non-TLS configs.
+                    sec = vless_parts.get('params', {}).get('security', '')
+                    fail_states = {'unreachable', 'timeout', 'compromised', 'error', 'high_ping'}
+                    if (getattr(req, 'sni_fallback_enabled', False)
+                            and res.get('status') in fail_states
+                            and sec == 'tls'):
+                        original_sni = (vless_parts.get('params', {}).get('sni')
+                                        or vless_parts.get('params', {}).get('host')
+                                        or '').lower()
+                        candidates = [s for s in (req.sni_fallback_list or DEFAULT_SNI_FALLBACK_BANK)
+                                      if s and s.lower() != original_sni]
+                        max_tries = max(1, min(len(candidates), getattr(req, 'sni_fallback_max_tries', 3) or 3))
+                        for fb_sni in candidates[:max_tries]:
+                            if active_scans[scan_id]['status'] != 'running':
+                                break
+                            add_log(scan_id, f"  ↻ Retry {ip} with fronting SNI: {fb_sni}")
+                            retry = await scan_ip(
+                                ip, vless_parts, thresholds, speed_sem,
+                                test_port=t_port,
+                                test_sni=fb_sni,
+                                verify_tls=False,  # fronted cert won't match
+                                check_status_cb=lambda: active_scans[scan_id]['status'],
+                                provider=provider_val,
+                                front_only_tls=True,
+                            )
+                            if retry.get('status') == 'abort':
+                                return
+                            if retry.get('status') == 'ok':
+                                retry['sni_used'] = fb_sni
+                                retry['fallback_applied'] = True
+                                add_log(scan_id, f"  ✓ Fronting succeeded for {ip} via SNI '{fb_sni}'")
+                                res = retry
+                                break
                 
                 while active_scans[scan_id]['status'] == 'paused':
                     await asyncio.sleep(0.5)
@@ -1636,8 +1695,11 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                             param_str = "&".join([f"{k}={v}" for k, v in params.items()])
                             port = t_port if t_port else vless_parts.get('port', 443)
                             
-                            # Determine the Sni to put in the VLESS string
-                            sni_val = test_sni if 'test_sni' in locals() and test_sni else params.get('sni', '')
+                            # Determine the Sni to put in the VLESS string.
+                            # Priority: SNI that succeeded via fronting fallback > local test_sni > params.sni
+                            sni_val = (res.get('sni_used')
+                                       or (test_sni if 'test_sni' in locals() and test_sni else None)
+                                       or params.get('sni', ''))
                             if sni_val:
                                 params['sni'] = sni_val
                             param_str = "&".join([f"{k}={v}" for k, v in params.items()])
@@ -1679,7 +1741,7 @@ async def run_scan_job(scan_id, ips_static, vless_parts, req, user_info):
                     'datacenter': res.get('datacenter', 'Unknown'),
                     'asn': res.get('asn', 'Unknown'),
                     'network_type': vless_parts.get('params', {}).get('type', 'Unknown'),
-                    'sni': vless_parts.get('params', {}).get('sni', 'Unknown'),
+                    'sni': res.get('sni_used') or vless_parts.get('params', {}).get('sni', 'Unknown'),
                     'port': t_port if t_port else vless_parts.get('port', -1),
                     'app_version': '1.0.0',
                     'provider': "fastly" if getattr(req, 'ip_source', '') == 'fastly_cdn' else "cloudflare"

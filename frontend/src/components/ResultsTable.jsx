@@ -256,6 +256,14 @@ export default function ResultsTable({ results, vlessConfig, onSendToAdvanced })
                                 <tr key={i} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
                                     <td className="p-3 font-mono font-bold text-white">
                                         {res.ip}
+                                        {res.fallback_applied && res.sni_used && (
+                                            <span
+                                                className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                                title={`Original SNI was blocked by DPI. This IP works via SNI fronting using: ${res.sni_used}`}
+                                            >
+                                                🛡️ SNI: {res.sni_used}
+                                            </span>
+                                        )}
                                         {(res.bypass || res.tested_config) && (
                                             <div className="mt-1 text-[10px] font-normal text-purple-300 normal-case max-w-[260px] truncate"
                                                 title={res.tested_config || ''}>

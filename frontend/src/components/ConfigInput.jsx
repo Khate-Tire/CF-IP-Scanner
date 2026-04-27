@@ -26,6 +26,11 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
     const [ipVersion, setIpVersion] = useState("all");
     const [verifyTls, setVerifyTls] = useState(false);
 
+    // Auto SNI-fronting fallback (retry IP with clean SNI when ISP DPI blocks original SNI)
+    const [sniFallbackEnabled, setSniFallbackEnabled] = useState(false);
+    const [sniFallbackListText, setSniFallbackListText] = useState('');
+    const [sniFallbackMaxTries, setSniFallbackMaxTries] = useState(3);
+
     // Phase 26: Strictness Profile
     const [strictness, setStrictness] = useState("average");
 
@@ -76,8 +81,14 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
             finalMinUp = 0.1;
         }
 
+        const sniFallbackList = sniFallbackListText
+            .split(/[\n,]+/)
+            .map(s => s.trim())
+            .filter(Boolean);
+
         onStartScan(config, useManual ? manualIps.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : null, {
-            stopAfter, concurrency, maxPing: finalMaxPing, maxJitter: finalMaxJitter, minDown: finalMinDown, minUp: finalMinUp, ipVersion, ipSource, customUrl, testPorts, verifyTls, targetCountry
+            stopAfter, concurrency, maxPing: finalMaxPing, maxJitter: finalMaxJitter, minDown: finalMinDown, minUp: finalMinUp, ipVersion, ipSource, customUrl, testPorts, verifyTls, targetCountry,
+            sniFallbackEnabled, sniFallbackList, sniFallbackMaxTries
         });
     };
 
@@ -473,6 +484,59 @@ export default function ConfigInput({ onStartScan, isLoading, useSystemProxy, au
                                         {t('config.strictTls')}
                                     </span>
                                 </label>
+
+                                {/* Auto SNI-fronting fallback */}
+                                <div className="mb-4 p-3 rounded border border-emerald-500/20 bg-emerald-500/5">
+                                    <label className="flex items-start gap-2 cursor-pointer text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={sniFallbackEnabled}
+                                            onChange={(e) => setSniFallbackEnabled(e.target.checked)}
+                                            className="w-4 h-4 accent-emerald-500 mt-0.5"
+                                        />
+                                        <span className="flex-1">
+                                            <span className="text-sm font-bold text-emerald-300 inline-flex items-center gap-1">
+                                                🛡️ {t('config.sniFallback', 'Auto-rotate SNI on failure (DPI bypass)')}
+                                            </span>
+                                            <span className="block text-[11px] text-gray-400 mt-1 leading-snug">
+                                                {t('config.sniFallbackDesc', 'If your config\'s SNI is blocked by ISP DPI, retry the same IP with known clean SNIs (Cloudflare-fronted). Skipped for Reality. WS Host header is preserved so Cloudflare Workers still route correctly.')}
+                                            </span>
+                                        </span>
+                                    </label>
+
+                                    {sniFallbackEnabled && (
+                                        <div className="mt-3 space-y-2 pl-6">
+                                            <div>
+                                                <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+                                                    {t('config.sniFallbackList', 'Custom SNI list (one per line, leave blank for built-in bank)')}
+                                                </label>
+                                                <textarea
+                                                    value={sniFallbackListText}
+                                                    onChange={(e) => setSniFallbackListText(e.target.value)}
+                                                    placeholder="speed.cloudflare.com&#10;cdnjs.cloudflare.com&#10;www.icloud.com&#10;discord.com"
+                                                    rows={4}
+                                                    className="input-field w-full text-xs font-mono"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <label className="text-[10px] text-gray-400 uppercase tracking-wider">
+                                                    {t('config.sniFallbackMaxTries', 'Max retries per IP')}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={10}
+                                                    value={sniFallbackMaxTries}
+                                                    onChange={(e) => setSniFallbackMaxTries(Math.max(1, Math.min(10, Number(e.target.value) || 3)))}
+                                                    className="input-field py-0.5 px-2 w-16 text-xs"
+                                                />
+                                                <span className="text-[10px] text-amber-400/80">
+                                                    {t('config.sniFallbackWarn', '(adds ~10s per retry on failed IPs)')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
                                 <label className="block text-gray-400 text-xs mb-2">{t('config.targetPorts')}</label>
                                 <div className="flex flex-wrap gap-2">

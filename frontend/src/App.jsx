@@ -190,6 +190,12 @@ function App() {
         ip_version: settings.ipVersion,
         ip_source: settings.ipSource,
         custom_url: settings.customUrl,
+        test_ports: settings.testPorts,
+        verify_tls: settings.verifyTls,
+        target_country: settings.targetCountry,
+        sni_fallback_enabled: !!settings.sniFallbackEnabled,
+        sni_fallback_list: settings.sniFallbackList && settings.sniFallbackList.length ? settings.sniFallbackList : undefined,
+        sni_fallback_max_tries: settings.sniFallbackMaxTries || undefined,
         use_system_proxy: useSystemProxy
       });
       if (res && res.scan_id) {

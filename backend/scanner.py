@@ -141,7 +141,21 @@ def parse_config(config_url: str):
             "params": {}
         }
 
-def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None, advanced_dns_config=None):
+def generate_xray_config(vless_data, target_ip, local_port, test_port=None, fragment=None, test_sni=None, advanced_dns_config=None, front_only_tls=False):
+    """
+    Build an Xray client config for testing one IP.
+
+    test_sni:
+        Override the SNI used for tests (Advanced Bypass scenarios + automatic
+        SNI-fronting fallback in the regular Scan tab).
+    front_only_tls:
+        When True, only the TLS handshake SNI (tlsSettings.serverName) is
+        replaced with test_sni. The transport Host header (WS/H2/httpupgrade/
+        xhttp) keeps the ORIGINAL host from the user's config so Cloudflare /
+        the worker can still route to the right backend. This is required for
+        true SNI fronting against Cloudflare Workers and similar setups.
+        When False (legacy behaviour) test_sni overrides everything.
+    """
     params = vless_data.get("params", {})
     # Prepare TLS settings
     tls_settings = None
@@ -159,6 +173,13 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
             if alpn_list:
                 tls_settings["alpn"] = alpn_list
 
+    # Transport-layer Host header. When fronting (front_only_tls=True) keep the
+    # original Host so the proxy server / CDN can still demux requests.
+    if front_only_tls:
+        transport_host = params.get("host", "") or params.get("sni", "")
+    else:
+        transport_host = test_sni if test_sni else params.get("host", "")
+
     vless_stream_settings = {
         "network": params.get("type", "tcp"),
         "security": params.get("security", "none"),
@@ -172,7 +193,7 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
         "wsSettings": {
             "path": urllib.parse.unquote(params.get("path", "/")),
             "headers": {
-                "Host": test_sni if test_sni else params.get("host", "")
+                "Host": transport_host
             }
         } if params.get("type") == "ws" else None,
         "grpcSettings": {
@@ -181,18 +202,18 @@ def generate_xray_config(vless_data, target_ip, local_port, test_port=None, frag
         } if params.get("type") == "grpc" else None,
         "httpSettings": {
             "path": urllib.parse.unquote(params.get("path", "/")),
-            "host": [test_sni if test_sni else params.get("host", "")]
+            "host": [transport_host]
         } if params.get("type") in ("h2", "http") else None,
         "httpupgradeSettings": {
             "path": urllib.parse.unquote(params.get("path", "/")),
-            "host": test_sni if test_sni else params.get("host", ""),
+            "host": transport_host,
             "headers": {
-                "Host": test_sni if test_sni else params.get("host", "")
+                "Host": transport_host
             }
         } if params.get("type") == "httpupgrade" else None,
         "xhttpSettings": {
             "path": urllib.parse.unquote(params.get("path", "/")),
-            "host": test_sni if test_sni else params.get("host", ""),
+            "host": transport_host,
             "mode": params.get("mode", "auto")
         } if params.get("type") in ("xhttp", "splithttp") else None,
         "tlsSettings": tls_settings,
@@ -825,17 +846,17 @@ async def test_config(vless_parts, test_port=None, test_sni=None):
         except:
             pass
 
-async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None):
+async def scan_ip(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None, front_only_tls=False):
     """Wrapper with global 90s timeout to prevent stuck scans."""
     try:
         return await asyncio.wait_for(
-            _scan_ip_impl(ip, vless_parts, thresholds, speed_sem, test_port, fragment, test_sni, verify_tls, check_status_cb, provider, advanced_dns_config),
+            _scan_ip_impl(ip, vless_parts, thresholds, speed_sem, test_port, fragment, test_sni, verify_tls, check_status_cb, provider, advanced_dns_config, front_only_tls),
             timeout=90
         )
     except (asyncio.TimeoutError, asyncio.CancelledError):
         return {"ip": ip.strip() if ip else ip, "ping": -1, "jitter": -1, "download": -1, "upload": -1, "status": "timeout", "datacenter": "Unknown", "link": ""}
 
-async def _scan_ip_impl(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None):
+async def _scan_ip_impl(ip, vless_parts, thresholds, speed_sem=None, test_port=None, fragment=None, test_sni=None, verify_tls=False, check_status_cb=None, provider="cloudflare", advanced_dns_config=None, front_only_tls=False):
     ip = ip.strip()
     if not ip: return {"status": "error"}
     
@@ -846,7 +867,7 @@ async def _scan_ip_impl(ip, vless_parts, thresholds, speed_sem=None, test_port=N
             return {"status": "abort"}
     
     local_port = random.randint(10000, 20000)
-    config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni, advanced_dns_config=advanced_dns_config)
+    config = generate_xray_config(vless_parts, ip, local_port, test_port=test_port, fragment=fragment, test_sni=test_sni, advanced_dns_config=advanced_dns_config, front_only_tls=front_only_tls)
     
     safe_ip = ip.replace(":", "_")
     config_path = os.path.join(APP_DIR, f"config_{safe_ip}_{local_port}.json")
