@@ -89,3 +89,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/release/*.apk
+
+      - name: Publish rolling 'nightly' pre-release (debug APK)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: "Nightly (debug)"
+          body: |
+            Auto-built debug APK from the latest `main` commit.
+            Commit: ${{ github.sha }}
+            Built: ${{ github.run_id }}
+          prerelease: true
+          draft: false
+          files: android/app/build/outputs/apk/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
