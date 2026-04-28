@@ -17,6 +17,12 @@
     <string name="notif_text_connected">In orbit · %1$s · %2$d ms</string>
     <string name="notif_text_connecting">Engaging thrusters…</string>
     <string name="notif_action_disconnect">Land</string>
+    <string name="notif_action_rotate">Rotate IP</string>
+
+    <!-- Quick Settings tile -->
+    <string name="tile_label_idle">Antigravity</string>
+    <string name="tile_label_busy">Antigravity…</string>
+    <string name="tile_label_connected">In orbit</string>
 
     <!-- Buttons -->
     <string name="connect">Lift Off</string>
@@ -112,7 +118,29 @@
     <string name="settings_kill_switch_desc">Block all traffic if the tunnel drops</string>
     <string name="settings_lan_bypass">LAN bypass</string>
     <string name="settings_lan_bypass_desc">Allow direct local network access</string>
+    <string name="settings_excluded_apps">Excluded apps</string>
+    <string name="settings_excluded_apps_none">All apps go through the tunnel</string>
+    <string name="settings_excluded_apps_count">%1$d apps bypass the tunnel</string>
+    <string name="settings_net_reconnect">Auto-rotate on network change</string>
+    <string name="settings_net_reconnect_desc">Re-pick the best clean IP when Wi-Fi/cellular changes</string>
+    <string name="settings_dynamic_colors">Material You colors</string>
+    <string name="settings_dynamic_colors_desc">Use wallpaper-derived dynamic colors (Android 12+)</string>
+    <string name="settings_always_on">Always-on VPN</string>
+    <string name="settings_always_on_desc">Open system VPN settings to enable always-on &amp; block-without-VPN</string>
     <string name="settings_reset">Reset to defaults</string>
+
+    <!-- App picker -->
+    <string name="exclude_apps_title">Choose apps to bypass</string>
+    <string name="exclude_apps_help">Selected apps will NOT go through the VPN tunnel. Useful for banking apps or anything that geo-blocks VPN traffic.</string>
+    <string name="exclude_apps_search">Search apps</string>
+    <string name="exclude_apps_save">Save</string>
+
+    <!-- Share / paste IP -->
+    <string name="home_share_ip">Share clean IP</string>
+    <string name="home_share_ip_subject">Antigravity clean IP</string>
+    <string name="home_paste_ip">Paste from clipboard</string>
+    <string name="home_paste_ip_empty">Clipboard is empty</string>
+    <string name="home_paste_ip_invalid">Clipboard does not contain a valid IP</string>
 
     <!-- About screen -->
     <string name="about_title">About</string>

@@ -54,6 +54,7 @@ fun AntigravityApp(
     onOpenLink: (String) -> Unit,
 ) {
     var current by rememberSaveable { mutableStateOf(Tab.HOME) }
+    var showAppPicker by rememberSaveable { mutableStateOf(false) }
     val status by VpnStateHolder.status.collectAsState()
     val scan by ScanStateHolder.state.collectAsState()
     val ctx = LocalContext.current
@@ -95,8 +96,11 @@ fun AntigravityApp(
                     ScanStateHolder.setRunning(next)
                     if (next) RealScannerEngine.start(ctx) else RealScannerEngine.stop()
                 })
-                Tab.SETTINGS -> SettingsScreen()
+                Tab.SETTINGS -> SettingsScreen(onPickExcludedApps = { showAppPicker = true })
                 Tab.ABOUT    -> AboutScreen(anonymousId = anonymousId, onOpenLink = onOpenLink)
+            }
+            if (showAppPicker) {
+                AppPickerScreen(onClose = { showAppPicker = false })
             }
         }
     }

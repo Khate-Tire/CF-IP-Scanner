@@ -6,6 +6,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
@@ -52,6 +57,8 @@ class CfVpnService : VpnService() {
     private var connectJob: Job? = null
     private var telemetryJob: Job? = null
     private var improveJob: Job? = null
+    private var rotateJob: Job? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     /** Mutable holder so [AdaptiveConnectController.improvementLoop] can read
      *  the live config and the swap callback can mutate it. */
@@ -66,6 +73,10 @@ class CfVpnService : VpnService() {
             }
             ACTION_APPLY_MANUAL_IP -> {
                 applyManualIp()
+                return START_STICKY
+            }
+            ACTION_ROTATE -> {
+                forceRotateNow()
                 return START_STICKY
             }
             else -> startConnect()
@@ -151,6 +162,7 @@ class CfVpnService : VpnService() {
             updateNotification()
             startTelemetry()
             startImprovementLoop()
+            registerNetworkCallback()
         }
     }
 
@@ -190,6 +202,72 @@ class CfVpnService : VpnService() {
         } catch (t: Throwable) {
             Log.w(TAG, "hotSwap error: ${t.message}")
         }
+    }
+
+    /** Force a one-shot best-IP search and hot-swap to the winner. Triggered
+     *  from the QS tile, the notification "Rotate" action, or a network change. */
+    private fun forceRotateNow() {
+        val state = VpnStateHolder.status.value.state
+        if (state != VpnStatus.State.CONNECTED) {
+            Log.i(TAG, "forceRotateNow: not connected, ignoring")
+            return
+        }
+        if (AppSettings.current().manualCleanIp.isNotBlank()) {
+            Log.i(TAG, "forceRotateNow: manual IP pinned, ignoring")
+            return
+        }
+        rotateJob?.cancel()
+        rotateJob = scope.launch {
+            val slot = runCatching { AppSettings.current().selectedSlot }.getOrDefault(0)
+            val cur = liveCfg ?: return@launch
+            val fresh = AdaptiveConnectController.bestNow(applicationContext, slot) ?: return@launch
+            if (fresh.host == cur.host) {
+                Log.i(TAG, "forceRotateNow: best is still ${cur.host}")
+                return@launch
+            }
+            Log.i(TAG, "forceRotateNow: ${cur.host} -> ${fresh.host}")
+            hotSwapXray(fresh)
+        }
+    }
+
+    /** Register a [ConnectivityManager.NetworkCallback] so that whenever the
+     *  underlying network changes (Wi-Fi <-> cellular, captive portal exit,
+     *  etc.) we re-evaluate the best clean IP and hot-swap if a faster one is
+     *  available. Disabled when the user turns off auto-reconnect. */
+    private fun registerNetworkCallback() {
+        if (networkCallback != null) return
+        if (!AppSettings.current().autoReconnectOnNetChange) return
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val req = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            private var lastNet: Network? = null
+            override fun onAvailable(network: Network) {
+                if (lastNet != null && lastNet != network) {
+                    Log.i(TAG, "network changed -> rotate probe")
+                    forceRotateNow()
+                }
+                lastNet = network
+            }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                // Wi-Fi <-> cellular transitions surface here too.
+                if (lastNet == null) lastNet = network
+            }
+        }
+        try {
+            cm.registerNetworkCallback(req, cb)
+            networkCallback = cb
+        } catch (t: Throwable) {
+            Log.w(TAG, "registerNetworkCallback failed: ${t.message}")
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        val cm = getSystemService(ConnectivityManager::class.java) ?: return
+        val cb = networkCallback ?: return
+        runCatching { cm.unregisterNetworkCallback(cb) }
+        networkCallback = null
     }
 
     /** Apply (or clear) the user's manual clean-IP override on a live tunnel.
@@ -287,14 +365,26 @@ class CfVpnService : VpnService() {
             .addDnsServer("1.1.1.1")
             .addDnsServer("1.0.0.1")
             .addDisallowedApplication(packageName) // never tunnel ourselves
+        // Per-app split tunneling: exclude packages the user picked.
+        val excluded = runCatching { AppSettings.current().excludedApps }.getOrDefault(emptySet())
+        for (pkg in excluded) {
+            if (pkg.isBlank() || pkg == packageName) continue
+            try {
+                builder.addDisallowedApplication(pkg)
+            } catch (e: PackageManager.NameNotFoundException) {
+                Log.w(TAG, "excluded package not installed: $pkg")
+            }
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) builder.setMetered(false)
         return builder.establish()
     }
 
     private fun shutdown() {
         VpnStateHolder.setState(VpnStatus.State.DISCONNECTING)
+        unregisterNetworkCallback()
         telemetryJob?.cancel(); telemetryJob = null
         improveJob?.cancel(); improveJob = null
+        rotateJob?.cancel(); rotateJob = null
         liveCfg = null
         connectJob?.cancel()
         Tun2SocksController.stop()
@@ -354,16 +444,24 @@ class CfVpnService : VpnService() {
             Intent(this, CfVpnService::class.java).setAction(ACTION_DISCONNECT),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val rotate = PendingIntent.getService(
+            this, 2,
+            Intent(this, CfVpnService::class.java).setAction(ACTION_ROTATE),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_vpn)
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(text)
             .setContentIntent(openApp)
-            .addAction(0, getString(R.string.notif_action_disconnect), disconnect)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        if (s.state == VpnStatus.State.CONNECTED) {
+            builder.addAction(0, getString(R.string.notif_action_rotate), rotate)
+        }
+        builder.addAction(0, getString(R.string.notif_action_disconnect), disconnect)
+        return builder.build()
     }
 
     private fun updateNotification() {
@@ -376,6 +474,7 @@ class CfVpnService : VpnService() {
         const val ACTION_CONNECT = "org.khatetire.cfipscanner.action.CONNECT"
         const val ACTION_DISCONNECT = "org.khatetire.cfipscanner.action.DISCONNECT"
         const val ACTION_APPLY_MANUAL_IP = "org.khatetire.cfipscanner.action.APPLY_MANUAL_IP"
+        const val ACTION_ROTATE = "org.khatetire.cfipscanner.action.ROTATE"
         private const val CHANNEL_ID = "khate_vpn"
         private const val NOTIF_ID = 1001
 
@@ -390,5 +489,9 @@ class CfVpnService : VpnService() {
          *  when the manual field is cleared). No-op if the service isn't running. */
         fun applyManualIpIntent(context: Context) =
             Intent(context, CfVpnService::class.java).setAction(ACTION_APPLY_MANUAL_IP)
+
+        /** Trigger an immediate best-IP probe + hot-swap (tile / notification). */
+        fun rotateIntent(context: Context) =
+            Intent(context, CfVpnService::class.java).setAction(ACTION_ROTATE)
     }
 }

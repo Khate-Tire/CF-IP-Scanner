@@ -28,6 +28,8 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.NorthEast
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -288,6 +290,38 @@ fun HomeScreen(
         // the tunnel actually changed their egress.
         NetworkInfoCard(state = status.state)
 
+        // Share clean IP — only meaningful while connected.
+        if (status.state == VpnStatus.State.CONNECTED && status.cleanIp.isNotBlank()) {
+            val ctxShare = LocalContext.current
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = {
+                    runCatching {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, ctxShare.getString(R.string.home_share_ip_subject))
+                            putExtra(Intent.EXTRA_TEXT, status.cleanIp)
+                        }
+                        ctxShare.startActivity(
+                            Intent.createChooser(send, ctxShare.getString(R.string.home_share_ip))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AntigravityColors.Ion.copy(alpha = 0.18f)),
+            ) {
+                Icon(Icons.Rounded.Share, contentDescription = null, tint = AntigravityColors.Ion)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.home_share_ip),
+                    color = AntigravityColors.Ion,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
 
         // Support: Star on GitHub
@@ -480,6 +514,22 @@ private fun ManualIpRow() {
                         placeholder = { Text(stringResource(R.string.home_manual_ip_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Spacer(Modifier.height(8.dp))
+                    val clip = LocalClipboardManager.current
+                    val emptyMsg = stringResource(R.string.home_paste_ip_empty)
+                    val invalidMsg = stringResource(R.string.home_paste_ip_invalid)
+                    TextButton(onClick = {
+                        val raw = clip.getText()?.text?.trim().orEmpty()
+                        when {
+                            raw.isEmpty() -> Toast.makeText(ctx, emptyMsg, Toast.LENGTH_SHORT).show()
+                            !looksLikeIp(raw) -> Toast.makeText(ctx, invalidMsg, Toast.LENGTH_SHORT).show()
+                            else -> input = raw
+                        }
+                    }) {
+                        Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = AntigravityColors.Ion)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.home_paste_ip), color = AntigravityColors.Ion)
+                    }
                 }
             },
             confirmButton = {
@@ -573,4 +623,16 @@ private fun qualityFor(status: VpnStatus): String {
         status.pingMs > 250       -> stringResource(R.string.home_quality_poor)
         else                      -> stringResource(R.string.home_quality_unknown)
     }
+}
+
+/** Loose IPv4/IPv6 check used by the manual-IP paste action. */
+private fun looksLikeIp(s: String): Boolean {
+    val t = s.trim()
+    if (t.isEmpty() || t.length > 64) return false
+    val v4 = Regex("""^(\d{1,3})(\.\d{1,3}){3}$""")
+    if (v4.matches(t)) {
+        return t.split('.').all { (it.toIntOrNull() ?: -1) in 0..255 }
+    }
+    // very loose IPv6 test — colons + hex only
+    return t.contains(':') && t.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' }
 }

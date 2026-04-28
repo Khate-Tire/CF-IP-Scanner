@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +41,12 @@ data class Settings(
     val selectedSlot: Int = 0,
     /** When non-blank, pin the VPN to this clean IP and disable auto-rotation. */
     val manualCleanIp: String = "",
+    /** Package names excluded from the VPN tunnel (split-tunnel). */
+    val excludedApps: Set<String> = emptySet(),
+    /** Use Material You wallpaper-derived dynamic colors on Android 12+. */
+    val useDynamicColors: Boolean = false,
+    /** Re-evaluate best clean IP whenever the underlying network changes. */
+    val autoReconnectOnNetChange: Boolean = true,
 )
 
 object AppSettings {
@@ -52,6 +59,9 @@ object AppSettings {
     private val K_ACCENT   = intPreferencesKey("accent_theme")
     private val K_SLOT     = intPreferencesKey("selected_slot")
     private val K_MANUAL   = stringPreferencesKey("manual_clean_ip")
+    private val K_EXCLUDED = stringSetPreferencesKey("excluded_apps")
+    private val K_DYNAMIC  = booleanPreferencesKey("use_dynamic_colors")
+    private val K_NETRECON = booleanPreferencesKey("auto_reconnect_net")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(Settings())
@@ -84,6 +94,9 @@ object AppSettings {
                 prefs[K_ACCENT] = next.accent.ordinal
                 prefs[K_SLOT]   = next.selectedSlot
                 prefs[K_MANUAL] = next.manualCleanIp
+                prefs[K_EXCLUDED] = next.excludedApps
+                prefs[K_DYNAMIC]  = next.useDynamicColors
+                prefs[K_NETRECON] = next.autoReconnectOnNetChange
             }
         }
     }
@@ -100,5 +113,8 @@ object AppSettings {
         accent           = AccentTheme.entries.getOrElse(this[K_ACCENT] ?: 0) { AccentTheme.AURORA },
         selectedSlot     = this[K_SLOT]   ?: 0,
         manualCleanIp    = this[K_MANUAL] ?: "",
+        excludedApps     = this[K_EXCLUDED] ?: emptySet(),
+        useDynamicColors = this[K_DYNAMIC] ?: false,
+        autoReconnectOnNetChange = this[K_NETRECON] ?: true,
     )
 }

@@ -17,12 +17,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.AutoMode
 import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.NetworkCheck
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Lan
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Power
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Shield
@@ -59,7 +64,10 @@ import org.khatetire.cfipscanner.ui.theme.AntigravityColors
 import org.khatetire.cfipscanner.ui.theme.paletteFor
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    onPickExcludedApps: () -> Unit = {},
+) {
     val ctx = LocalContext.current
     val settings by AppSettings.state.collectAsState()
     var accentDialog by remember { mutableStateOf(false) }
@@ -144,6 +152,43 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 subtitle = stringResource(R.string.settings_lan_bypass_desc),
                 checked = settings.lanBypass,
                 onCheckedChange = { v -> AppSettings.update { it.copy(lanBypass = v) } },
+            )
+            SettingsRow(
+                icon = Icons.Rounded.Apps,
+                title = stringResource(R.string.settings_excluded_apps),
+                subtitle = if (settings.excludedApps.isEmpty())
+                    stringResource(R.string.settings_excluded_apps_none)
+                else stringResource(R.string.settings_excluded_apps_count, settings.excludedApps.size),
+                onClick = onPickExcludedApps,
+            )
+            SettingsToggle(
+                icon = Icons.Rounded.NetworkCheck,
+                title = stringResource(R.string.settings_net_reconnect),
+                subtitle = stringResource(R.string.settings_net_reconnect_desc),
+                checked = settings.autoReconnectOnNetChange,
+                onCheckedChange = { v -> AppSettings.update { it.copy(autoReconnectOnNetChange = v) } },
+            )
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                SettingsToggle(
+                    icon = Icons.Rounded.Palette,
+                    title = stringResource(R.string.settings_dynamic_colors),
+                    subtitle = stringResource(R.string.settings_dynamic_colors_desc),
+                    checked = settings.useDynamicColors,
+                    onCheckedChange = { v -> AppSettings.update { it.copy(useDynamicColors = v) } },
+                )
+            }
+            SettingsRow(
+                icon = Icons.Rounded.Link,
+                title = stringResource(R.string.settings_always_on),
+                subtitle = stringResource(R.string.settings_always_on_desc),
+                onClick = {
+                    runCatching {
+                        ctx.startActivity(
+                            android.content.Intent("android.net.vpn.SETTINGS")
+                                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                },
             )
         }
 

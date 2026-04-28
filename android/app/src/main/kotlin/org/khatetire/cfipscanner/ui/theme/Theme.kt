@@ -1,8 +1,10 @@
 package org.khatetire.cfipscanner.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -12,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
 import org.khatetire.cfipscanner.settings.AccentTheme
 import org.khatetire.cfipscanner.settings.AppSettings
 
@@ -75,8 +78,14 @@ fun AntigravityTheme(content: @Composable () -> Unit) {
     val settings by AppSettings.state.collectAsState()
     val accent = settings.accent
     val palette = paletteFor(accent)
+    val ctx = LocalContext.current
+    val scheme = if (settings.useDynamicColors && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        dynamicDarkColorScheme(ctx)
+    } else {
+        schemeFor(accent)
+    }
     CompositionLocalProvider(LocalAccent provides palette) {
-        MaterialTheme(colorScheme = schemeFor(accent), content = content)
+        MaterialTheme(colorScheme = scheme, content = content)
     }
 }
 
