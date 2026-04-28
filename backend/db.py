@@ -161,6 +161,27 @@ class LocalSQLiteDB:
                 event_type TEXT, details TEXT, synced INTEGER DEFAULT 0
             )
         """)
+        # Mirrors the Android `ip_pool` Room table — desktop scanner stores
+        # every speed-verified IP here so the connect picker / UI can prefer
+        # locally-validated edges over what the remote DB suggests. Only
+        # rows that passed BOTH download and upload speed checks land here.
+        await self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS ip_pool (
+                ip          TEXT PRIMARY KEY,
+                port        INTEGER DEFAULT 443,
+                ping_ms     REAL DEFAULT 0,
+                jitter_ms   REAL DEFAULT 0,
+                download    REAL DEFAULT 0,
+                upload      REAL DEFAULT 0,
+                datacenter  TEXT DEFAULT '',
+                isp         TEXT DEFAULT '',
+                cc          TEXT DEFAULT '',
+                last_seen   TEXT,
+                samples     INTEGER DEFAULT 0,
+                ok_samples  INTEGER DEFAULT 0,
+                score       REAL DEFAULT 0
+            )
+        """)
         await self._conn.commit()
 
     async def _get_conn(self):
@@ -247,6 +268,135 @@ class LocalSQLiteDB:
         if self._conn:
             await self._conn.close()
             self._conn = None
+
+    # ------------------------------------------------------------------
+    # Local IP pool — desktop mirror of the Android `ip_pool` Room table.
+    # Only call `pool_record` for IPs that have BOTH download > 0 AND
+    # upload > 0 (the scanner already enforces this via min_download /
+    # min_upload thresholds before promoting to status='ok').
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _pool_score(ping, jitter, download, upload):
+        if download <= 0 or upload <= 0:
+            return 0.0
+        return (
+            float(download) * 2.0
+            + float(upload) * 1.5
+            + max(150.0 - max(float(ping), 0.0), 0.0)
+            - max(float(jitter), 0.0) * 0.5
+        )
+
+    async def pool_record(self, ip, port, ping, jitter, download, upload,
+                          datacenter="", isp="", cc=""):
+        """Upsert one quality-verified probe into the local IP pool. Existing
+        stats are blended (60% old / 40% new) so a one-off bad sample does
+        not displace a long-term winner."""
+        if download is None or upload is None or download <= 0 or upload <= 0:
+            return
+        async with self._lock:
+            db = await self._get_conn()
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT * FROM ip_pool WHERE ip = ?", (ip,))
+            existing = await cur.fetchone()
+            if existing:
+                blend = lambda prev, fresh: prev * 0.6 + float(fresh) * 0.4 if prev > 0 else float(fresh)
+                ping_b = blend(existing["ping_ms"], ping or 0)
+                jitter_b = blend(existing["jitter_ms"], jitter or 0)
+                down_b = blend(existing["download"], download)
+                up_b = blend(existing["upload"], upload)
+                samples = existing["samples"] + 1
+                ok_samples = existing["ok_samples"] + 1
+                dc = datacenter or existing["datacenter"] or ""
+                isp_v = isp or existing["isp"] or ""
+                cc_v = cc or existing["cc"] or ""
+            else:
+                ping_b = float(ping or 0); jitter_b = float(jitter or 0)
+                down_b = float(download); up_b = float(upload)
+                samples = 1; ok_samples = 1
+                dc = datacenter or ""; isp_v = isp or ""; cc_v = cc or ""
+            score = self._pool_score(ping_b, jitter_b, down_b, up_b)
+            await db.execute("""
+                INSERT INTO ip_pool
+                  (ip, port, ping_ms, jitter_ms, download, upload, datacenter,
+                   isp, cc, last_seen, samples, ok_samples, score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
+                ON CONFLICT(ip) DO UPDATE SET
+                  port = excluded.port,
+                  ping_ms = excluded.ping_ms,
+                  jitter_ms = excluded.jitter_ms,
+                  download = excluded.download,
+                  upload = excluded.upload,
+                  datacenter = excluded.datacenter,
+                  isp = excluded.isp,
+                  cc = excluded.cc,
+                  last_seen = excluded.last_seen,
+                  samples = excluded.samples,
+                  ok_samples = excluded.ok_samples,
+                  score = excluded.score
+            """, (ip, int(port or 443), ping_b, jitter_b, down_b, up_b,
+                  dc, isp_v, cc_v, samples, ok_samples, score))
+            await db.commit()
+
+    async def pool_record_failure(self, ip):
+        """Re-test failed → bump samples and decay the score so the next
+        connect attempt prefers a fresher candidate."""
+        async with self._lock:
+            db = await self._get_conn()
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute("SELECT samples, score FROM ip_pool WHERE ip = ?", (ip,))
+            row = await cur.fetchone()
+            if not row:
+                return
+            await db.execute(
+                "UPDATE ip_pool SET samples = ?, score = ?, last_seen = datetime('now') WHERE ip = ?",
+                (row["samples"] + 1, max(row["score"] * 0.6, 0.0), ip),
+            )
+            await db.commit()
+
+    async def pool_top(self, limit=20, fresh_hours=24):
+        """Top-N pool entries by score, restricted to rows that recently
+        passed BOTH download and upload checks."""
+        async with self._lock:
+            db = await self._get_conn()
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(f"""
+                SELECT * FROM ip_pool
+                WHERE download > 0 AND upload > 0
+                  AND last_seen > datetime('now', '-{int(fresh_hours)} hours')
+                ORDER BY score DESC, last_seen DESC
+                LIMIT ?
+            """, (limit,))
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def pool_best_ip(self, fresh_hours=24):
+        rows = await self.pool_top(limit=1, fresh_hours=fresh_hours)
+        return rows[0]["ip"] if rows else None
+
+    async def pool_stalest(self, limit=10, older_than_minutes=30):
+        async with self._lock:
+            db = await self._get_conn()
+            db.row_factory = aiosqlite.Row
+            cur = await db.execute(f"""
+                SELECT * FROM ip_pool
+                WHERE last_seen < datetime('now', '-{int(older_than_minutes)} minutes')
+                ORDER BY score DESC LIMIT ?
+            """, (limit,))
+            return [dict(r) for r in await cur.fetchall()]
+
+    async def pool_prune(self, keep_days=7):
+        async with self._lock:
+            db = await self._get_conn()
+            await db.execute(
+                f"DELETE FROM ip_pool WHERE last_seen < datetime('now', '-{int(keep_days)} days')"
+            )
+            await db.commit()
+
+    async def pool_count(self):
+        async with self._lock:
+            db = await self._get_conn()
+            cur = await db.execute("SELECT COUNT(*) FROM ip_pool")
+            row = await cur.fetchone()
+            return row[0] if row else 0
 
 local_db = None  # Active LocalSQLiteDB instance
 
@@ -427,11 +577,80 @@ async def save_scan_result(data: dict):
             print(f"[DB] Local save failed: {e}", file=sys.stderr)
 
 async def _also_save_local(data: dict):
-    """Always save to local SQLite for gamification/offline tracking"""
+    """Always save to local SQLite for gamification/offline tracking, and
+    upsert speed-verified results into the local IP pool."""
     if local_db:
         try:
             await local_db.save_scan_result(data)
         except:
+            pass
+        try:
+            # Strict speed gate — same rule as Android: only IPs with both
+            # download AND upload > 0 (i.e. actually carry traffic) earn a
+            # spot in the local pool.
+            if (
+                data.get("status") == "ok"
+                and float(data.get("download", 0) or 0) > 0
+                and float(data.get("upload", 0) or 0) > 0
+            ):
+                await local_db.pool_record(
+                    ip=data.get("scanned_ip", ""),
+                    port=data.get("port", 443) or 443,
+                    ping=data.get("ping", 0) or 0,
+                    jitter=data.get("jitter", 0) or 0,
+                    download=data.get("download", 0) or 0,
+                    upload=data.get("upload", 0) or 0,
+                    datacenter=data.get("datacenter", "") or "",
+                    isp=data.get("user_isp", "") or "",
+                    cc=data.get("user_location", "") or "",
+                )
+        except Exception as _e:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Public IP-pool helpers — used by the connect picker / circle-check task.
+# ---------------------------------------------------------------------------
+async def pool_best_ip(fresh_hours: int = 24):
+    if not local_db:
+        return None
+    try:
+        return await local_db.pool_best_ip(fresh_hours=fresh_hours)
+    except Exception:
+        return None
+
+
+async def pool_top(limit: int = 20, fresh_hours: int = 24):
+    if not local_db:
+        return []
+    try:
+        return await local_db.pool_top(limit=limit, fresh_hours=fresh_hours)
+    except Exception:
+        return []
+
+
+async def pool_stalest(limit: int = 10, older_than_minutes: int = 30):
+    if not local_db:
+        return []
+    try:
+        return await local_db.pool_stalest(limit=limit, older_than_minutes=older_than_minutes)
+    except Exception:
+        return []
+
+
+async def pool_record_failure(ip: str):
+    if local_db:
+        try:
+            await local_db.pool_record_failure(ip)
+        except Exception:
+            pass
+
+
+async def pool_prune(keep_days: int = 7):
+    if local_db:
+        try:
+            await local_db.pool_prune(keep_days=keep_days)
+        except Exception:
             pass
 
 async def get_historical_good_ips(isp: str, location: str, limit: int = 100):

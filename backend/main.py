@@ -698,7 +698,35 @@ async def startup_event():
     _bg_task(_background_init(), name='background_init')
     _bg_task(update_cf_ranges_periodic(), name='update_cf_ranges_periodic')
     _bg_task(run_autopilot_scheduler(), name='autopilot_scheduler')
+    _bg_task(_pool_circle_check_loop(), name='ip_pool_circle_check')
     dlog("=== SERVER READY (DB connecting in background) ===")
+
+
+async def _pool_circle_check_loop():
+    """Desktop mirror of the Android `IpPoolRefreshWorker`. Runs every
+    30 minutes: prune entries older than 7 days, decay the score of
+    entries we haven't re-confirmed in the last 2 hours so the connect
+    picker rotates onto fresher candidates."""
+    import db as _dbmod
+    while True:
+        try:
+            await asyncio.sleep(30 * 60)
+            await _dbmod.pool_prune(keep_days=7)
+            stale = await _dbmod.pool_stalest(limit=10, older_than_minutes=120)
+            for row in stale:
+                ip = row.get("ip") if isinstance(row, dict) else None
+                if ip:
+                    await _dbmod.pool_record_failure(ip)
+            try:
+                if _dbmod.local_db:
+                    n = await _dbmod.local_db.pool_count()
+                    dlog(f"[ip-pool] circle-check ok pool_size={n} demoted={len(stale)}")
+            except Exception:
+                pass
+        except asyncio.CancelledError:
+            raise
+        except Exception as _e:
+            dlog(f"[ip-pool] circle-check error: {_e}")
 
 async def _background_init():
     """Heavy init work that runs AFTER the server is already listening."""
@@ -1166,9 +1194,37 @@ class SmartRecommendRequest(BaseModel):
 
 @app.post('/api/smart-recommend')
 async def smart_recommend(req: SmartRecommendRequest):
-    """Smart IP Recommendation Engine — returns scored, tiered IP recommendations."""
+    """Smart IP Recommendation Engine — returns scored, tiered IP recommendations.
+
+    The local IP pool (built from this device's own speed-verified probes)
+    is always tried first so the connect picker can prefer edges we know
+    actually carry traffic over remote-only suggestions.
+    """
     try:
         import db
+        # 1) Local pool first — only IPs that recently passed BOTH download
+        #    and upload checks land here, mirroring the Android picker.
+        local_pool = []
+        try:
+            pool_rows = await db.pool_top(limit=req.limit, fresh_hours=24)
+            for r in pool_rows:
+                local_pool.append({
+                    "scanned_ip": r.get("ip"),
+                    "ip": r.get("ip"),
+                    "port": r.get("port", 443),
+                    "ping": r.get("ping_ms", 0),
+                    "jitter": r.get("jitter_ms", 0),
+                    "download": r.get("download", 0),
+                    "upload": r.get("upload", 0),
+                    "datacenter": r.get("datacenter", ""),
+                    "isp": r.get("isp", ""),
+                    "cc": r.get("cc", ""),
+                    "score": r.get("score", 0),
+                    "source": "local_pool",
+                })
+        except Exception as _pe:
+            dlog(f"local pool fetch failed: {_pe}")
+
         results = await db.get_smart_recommendations(
             isp=req.isp or "",
             location=req.location or "",
@@ -1183,8 +1239,20 @@ async def smart_recommend(req: SmartRecommendRequest):
                 with open(recs_cache_file, 'r') as f:
                     results = json.load(f)
                     results = results[:req.limit]
-                    
-        return {"results": results, "total": len(results)}
+
+        # Merge: local-pool first, then remote (de-duped by IP).
+        seen = set()
+        merged = []
+        for row in (local_pool + (results or [])):
+            ip = row.get("scanned_ip") or row.get("ip")
+            if not ip or ip in seen:
+                continue
+            seen.add(ip)
+            merged.append(row)
+            if len(merged) >= req.limit:
+                break
+
+        return {"results": merged, "total": len(merged), "local_pool": len(local_pool)}
     except Exception as e:
         dlog(f"Smart Recommend Error: {e}")
         return {"results": [], "total": 0, "error": str(e)}

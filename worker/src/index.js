@@ -578,36 +578,57 @@ async function v1BestIps(env, cc, isp, asn, limit) {
 
         // Unified subquery — `user_isp / user_location` come from desktop,
         // `isp / cc` come from mobile. We project them to a common shape.
+        // device_id is `'desktop'` for the desktop table (we don't track per-
+        // user there) so desktop rows count as a single confirming source —
+        // mobile rows contribute one distinct device per device_uuid_hash.
         const unifiedFrom = `
-            (SELECT scanned_ip, ping, jitter, download, status,
-                    user_isp AS u_isp, user_location AS u_loc, asn AS u_asn, timestamp
+            (SELECT scanned_ip, ping, jitter, download, upload, status,
+                    user_isp AS u_isp, user_location AS u_loc, asn AS u_asn,
+                    'desktop' AS u_dev, timestamp
              FROM scan_results
              WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
              UNION ALL
-             SELECT scanned_ip, ping, jitter, download, status,
-                    isp AS u_isp, cc AS u_loc, asn AS u_asn, timestamp
+             SELECT scanned_ip, ping, jitter, download, upload, status,
+                    isp AS u_isp, cc AS u_loc, asn AS u_asn,
+                    device_uuid_hash AS u_dev, timestamp
              FROM mobile_scan_results
              WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)) u
         `;
 
+        // Community confirmation gate — to be returned as a "best IP" we now
+        // require:
+        //   * at least 2 successful samples in the last 7 days
+        //   * at least 2 distinct contributing devices (desktop counts as 1)
+        //   * a fresh confirmation within the last 24 hours (aging)
+        //   * BOTH avg_download AND avg_upload > 0 (no ping-only "clean" IPs)
+        // This implements the user's vision of sharded, repeatedly-confirmed
+        // community discovery rather than promoting one-off lucky probes.
         const score = (filterSql, params, take) =>
             conn.query(
                 `SELECT scanned_ip,
                         ROUND(AVG(ping), 1) as avg_ping,
                         ROUND(AVG(jitter), 1) as avg_jitter,
                         ROUND(AVG(download), 2) as avg_download,
+                        ROUND(AVG(upload), 2) as avg_upload,
                         SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as ok_count,
                         COUNT(*) as total,
+                        COUNT(DISTINCT u_dev) as confirmations,
+                        MAX(timestamp) as last_seen,
                         ROUND(
                             (SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
                             + GREATEST(150 - AVG(ping), 0)
                             + (AVG(download) * 1.5)
+                            + (AVG(upload) * 1.0)
                             - (AVG(jitter) * 0.5)
                         , 1) as score
                  FROM ${unifiedFrom}
                  WHERE ${filterSql}
                  GROUP BY scanned_ip
-                 HAVING ok_count >= 1 AND total >= 1
+                 HAVING ok_count >= 2
+                    AND confirmations >= 2
+                    AND avg_download > 0
+                    AND avg_upload > 0
+                    AND MAX(timestamp) > DATE_SUB(NOW(), INTERVAL 24 HOUR)
                  ORDER BY score DESC
                  LIMIT ?`,
                 [...params, take]
@@ -647,7 +668,10 @@ function toBestIp(row, tier) {
         avg_ping: row.avg_ping != null ? Number(row.avg_ping) : null,
         avg_jitter: row.avg_jitter != null ? Number(row.avg_jitter) : null,
         avg_download: row.avg_download != null ? Number(row.avg_download) : null,
+        avg_upload: row.avg_upload != null ? Number(row.avg_upload) : null,
         success_rate: row.total > 0 ? Math.round((Number(row.ok_count) / Number(row.total)) * 1000) / 10 : 0,
+        confirmations: row.confirmations != null ? Number(row.confirmations) : null,
+        last_seen: row.last_seen || null,
         score: row.score != null ? Number(row.score) : null,
         tier,
         // shareable=false hides the IP from the user UI; only IPs the user
