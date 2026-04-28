@@ -75,7 +75,7 @@ function App() {
       const saved = localStorage.getItem('app-systemProxy');
       if (saved !== null) return saved === '1';
     } catch { /* ignore */ }
-    return true; // default ON — routes location/discovery through Windows system proxy / VPN
+    return false; // default OFF — user opts in if they have a VPN/system proxy
   });
   useEffect(() => {
     try { localStorage.setItem('app-systemProxy', useSystemProxy ? '1' : '0'); } catch { /* ignore */ }
