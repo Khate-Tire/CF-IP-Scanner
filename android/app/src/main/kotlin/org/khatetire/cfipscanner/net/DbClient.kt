@@ -28,18 +28,28 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
- * Five-layer fallback client for the public `/v1/...` API on the community
- * Worker. Layers (in order):
+ * Eight-layer always-on fallback client for the public `/v1/...` API on the
+ * community Worker. The ladder is intentionally over-engineered so that the
+ * device stays "connected to the DB" under almost any blocking scenario:
  *
  *   L1: Direct HTTPS to the canonical worker host.
  *   L2: Worker via subdomain rotation (`workerFallbackHosts`).
  *   L3: Worker via clean-IP override + SNI fronting (custom Dns + Host header).
- *   L4: On-device cache from [DbCache] (24-hour TTL).
- *   L5: Bundled cold-start IP seed (from [BuildConfig.BOOTSTRAP_CLEAN_IPS]).
+ *   L4: DoH-resolved direct — [DohResolver] asks 1.1.1.1 over HTTPS for the
+ *       worker's A records, bypassing ISP DNS poisoning, then connects to
+ *       the resolved IPs with the original hostname (TLS validates fine).
+ *   L5: Static snapshot mirror on `cdn.jsdelivr.net` (refreshed by CI from
+ *       the worker every 30 min). jsDelivr is reachable on practically any
+ *       network because it doubles as an asset CDN for huge OSS projects.
+ *   L6: Local IP pool DB ([data.IpPoolStore]) — IPs this device has scanned
+ *       and verified itself. 100% offline.
+ *   L7: Rich on-device snapshot cache ([DbCache]) — the actual local backup
+ *       of the community DB; persists scores+tier metadata for 14 days.
+ *   L8: Bundled cold-start IP seed (from [BuildConfig.BOOTSTRAP_CLEAN_IPS]).
  *
- * Every layer that succeeds also refreshes the cache. The selected layer is
- * returned in [Picks.layer] so the UI can show the small "DB · L2 · 87ms"
- * badge described in the plan.
+ * Every successful layer refreshes the L7 cache, so the local backup stays
+ * warm for as long as ANY upstream worked recently. The selected layer is
+ * returned in [Picks.layer] so the UI can render "DB · L4 · 87ms".
  *
  * Auth: anonymous `X-Device-Id` derived from [AnonymousId] (sha256 hex),
  * never tied to any account. The legacy `X-API-Key` header (admin desktop
@@ -73,12 +83,18 @@ object DbClient {
             .build()
     }
 
-    /** Active client: when VPN is connected, route through Xray's HTTP inbound
-     *  so DNS for *.workers.dev is resolved remotely, bypassing local ISP blocks. */
-    private fun activeClient(): OkHttpClient {
+    /** Active client: when *our* Xray VPN is connected, route through its
+     *  HTTP inbound so DNS for *.workers.dev is resolved remotely. When an
+     *  *external* VPN is active (Hiddify, NekoBox, system Always-on, etc.)
+     *  the OS already tunnels our traffic, so we use the plain client and
+     *  let the OS do the work — trying to bind 127.0.0.1:10809 in that case
+     *  would just fail because Xray isn't running. */
+    private fun activeClient(ctx: Context? = null): OkHttpClient {
         val state = org.khatetire.cfipscanner.vpn.VpnStateHolder.status.value.state
-        return if (state == org.khatetire.cfipscanner.vpn.VpnStatus.State.CONNECTED) proxiedClient
-        else plainClient
+        if (state == org.khatetire.cfipscanner.vpn.VpnStatus.State.CONNECTED) return proxiedClient
+        // External VPN → plain client (the OS tunnels everything anyway).
+        // Pure direct → also plain client.
+        return plainClient
     }
 
     /** Default Cloudflare anycast IPs used as a permanent L5 safety net when
@@ -108,10 +124,29 @@ object DbClient {
         L1_DIRECT("L1"),
         L2_WORKER("L2"),
         L3_FRONTED("L3"),
-        L4_CACHE("L4"),
-        L5_SEED("L5"),
+        L4_DOH("L4"),
+        L5_MIRROR("L5"),
+        L6_POOL("L6"),
+        L7_CACHE("L7"),
+        L8_SEED("L8"),
         NONE("--"),
     }
+
+    /** Total number of layers reported in the badge ("working/total"). Keep
+     *  in sync with [Layer]. */
+    const val TOTAL_LAYERS = 8
+
+    /** URL of the static snapshot mirror used by [Layer.L5_MIRROR]. The CI
+     *  workflow `update-snapshot.yml` rewrites the upstream JSON every 30
+     *  minutes; jsDelivr serves it from its global edge with sub-second TTLs
+     *  and is reachable on virtually every network. */
+    private const val MIRROR_URL =
+        "https://cdn.jsdelivr.net/gh/Khate-Tire/CF-IP-Scanner@main/worker/best_ips_snapshot.json"
+
+    /** Secondary mirror via a different CDN — raw GitHub. Tried after the
+     *  jsDelivr URL fails so a single CDN outage cannot blackhole the layer. */
+    private const val MIRROR_URL_RAW =
+        "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/main/worker/best_ips_snapshot.json"
 
     data class Pick(
         val ip: String,
@@ -144,7 +179,9 @@ object DbClient {
 
     // ---- entry points ----------------------------------------------------
 
-    /** Returns up to [limit] best IPs by walking L1..L5 in order. */
+    /** Returns up to [limit] best IPs by walking L1..L8 in order. The first
+     *  network layer that returns a non-empty list ALSO updates the L7 cache,
+     *  so the offline backup grows organically as the user uses the app. */
     suspend fun bestIps(ctx: Context, limit: Int = 30): Picks = withContext(Dispatchers.IO) {
         val info = runCatching { IspContext.current() }.getOrDefault(IspContext.Info())
         val cc = info.country
@@ -152,14 +189,15 @@ object DbClient {
         val asn = info.asn
         val deviceId = deviceId(ctx)
 
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED)) {
+        // ---- L1..L4: network layers that hit the actual worker -----------
+        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
             val started = System.nanoTime()
             val picks = runCatching { fetchBestIpsViaLayer(layer, deviceId, cc, isp, asn, limit) }
                 .onFailure { Log.w(TAG, "${layer.tag} bestIps failed: ${it.message}") }
                 .getOrNull()
             val ms = (System.nanoTime() - started) / 1_000_000
             if (!picks.isNullOrEmpty()) {
-                DbCache.save(ctx, picks.map { it.ip })
+                DbCache.savePicks(ctx, picks)
                 Log.i(TAG, "bestIps: ${layer.tag} returned ${picks.size} ips in ${ms}ms")
                 org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(layer.tag, ok = true, latencyMs = ms)
                 return@withContext Picks(picks, layer, ms)
@@ -168,23 +206,96 @@ object DbClient {
             }
         }
 
-        val cached = DbCache.load(ctx)
-        if (cached.isNotEmpty()) {
-            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L4_CACHE.tag, ok = true, latencyMs = 0)
-            return@withContext Picks(cached.map { Pick(it) }, Layer.L4_CACHE, 0)
-        } else {
-            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L4_CACHE.tag, ok = false, latencyMs = 0)
+        // ---- L5: static snapshot mirror (jsdelivr / raw.github) ----------
+        run {
+            val started = System.nanoTime()
+            val picks = runCatching { fetchSnapshotMirror() }
+                .onFailure { Log.w(TAG, "L5 mirror failed: ${it.message}") }
+                .getOrNull().orEmpty()
+            val ms = (System.nanoTime() - started) / 1_000_000
+            if (picks.isNotEmpty()) {
+                DbCache.savePicks(ctx, picks)
+                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L5_MIRROR.tag, ok = true, latencyMs = ms)
+                return@withContext Picks(picks, Layer.L5_MIRROR, ms)
+            } else {
+                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L5_MIRROR.tag, ok = false, latencyMs = ms)
+            }
         }
 
+        // ---- L6: local pool of self-verified IPs --------------------------
+        run {
+            val pool = runCatching {
+                org.khatetire.cfipscanner.data.IpPoolStore.top(ctx, limit)
+            }.getOrDefault(emptyList())
+            if (pool.isNotEmpty()) {
+                val picks = pool.map { e ->
+                    Pick(
+                        ip = e.ip,
+                        avgPing = e.pingMs.toDouble(),
+                        avgDownload = e.downloadMbps,
+                        score = e.score,
+                        tier = "pool",
+                    )
+                }
+                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L6_POOL.tag, ok = true, latencyMs = 0)
+                return@withContext Picks(picks, Layer.L6_POOL, 0)
+            } else {
+                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L6_POOL.tag, ok = false, latencyMs = 0)
+            }
+        }
+
+        // ---- L7: rich snapshot cache (the local DB backup) ----------------
+        val cachedPicks = DbCache.loadPicks(ctx)
+        if (cachedPicks.isNotEmpty()) {
+            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L7_CACHE.tag, ok = true, latencyMs = 0)
+            return@withContext Picks(cachedPicks.take(limit), Layer.L7_CACHE, 0)
+        } else {
+            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L7_CACHE.tag, ok = false, latencyMs = 0)
+        }
+
+        // ---- L8: bundled bootstrap seed ----------------------------------
         val seed = bundledSeedIps()
         if (seed.isNotEmpty()) {
-            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L5_SEED.tag, ok = true, latencyMs = 0)
-            return@withContext Picks(seed.map { Pick(it) }, Layer.L5_SEED, 0)
+            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L8_SEED.tag, ok = true, latencyMs = 0)
+            return@withContext Picks(seed.map { Pick(it) }, Layer.L8_SEED, 0)
         } else {
-            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L5_SEED.tag, ok = false, latencyMs = 0)
+            org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L8_SEED.tag, ok = false, latencyMs = 0)
         }
 
         Picks(emptyList(), Layer.NONE, 0)
+    }
+
+    // ---- L5 snapshot mirror fetcher --------------------------------------
+
+    private fun fetchSnapshotMirror(): List<Pick> {
+        for (url in arrayOf(MIRROR_URL, MIRROR_URL_RAW)) {
+            val req = Request.Builder().url(url).get().build()
+            val picks = try {
+                plainClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use emptyList()
+                    val text = resp.body?.string().orEmpty()
+                    if (text.isBlank()) return@use emptyList()
+                    val obj = json.parseToJsonElement(text).jsonObject
+                    val arr = obj["results"] as? JsonArray ?: return@use emptyList()
+                    arr.mapNotNull { it as? JsonObject }.mapNotNull { o ->
+                        val ip = (o["ip"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                        Pick(
+                            ip = ip,
+                            avgPing = (o["avg_ping"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                            avgDownload = (o["avg_download"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                            successRate = (o["success_rate"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                            score = (o["score"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                            tier = (o["tier"] as? JsonPrimitive)?.content.orEmpty(),
+                        )
+                    }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "mirror $url failed: ${t.message}")
+                emptyList()
+            }
+            if (picks.isNotEmpty()) return picks
+        }
+        return emptyList()
     }
 
     /** POST a single contribution result. Best-effort; returns false on full failure. */
@@ -265,9 +376,9 @@ object DbClient {
         limit: Int,
     ): List<Pick> {
         val host = pickHost(layer) ?: return emptyList()
-        // L3 bypasses DNS by using a hardcoded clean IP, so it must NOT inherit
-        // the cooldown that L1 set on the same hostname.
-        if (layer != Layer.L3_FRONTED && isCoolingOff(host)) {
+        // L3 / L4 bypass system DNS via fronting / DoH respectively, so they
+        // must NOT inherit the cooldown that L1 set on the same hostname.
+        if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) {
             Log.d(TAG, "${layer.tag} host $host cooling off, skipping")
             return emptyList()
         }
@@ -327,9 +438,9 @@ object DbClient {
 
     private fun postV1(ctx: Context, path: String, body: JsonObject): JsonObject? {
         val deviceId = deviceId(ctx)
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED)) {
+        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
             val host = pickHost(layer) ?: continue
-            if (layer != Layer.L3_FRONTED && isCoolingOff(host)) continue
+            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) continue
             val client = clientForLayer(layer)
             val url = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
@@ -362,9 +473,9 @@ object DbClient {
 
     private fun getV1(ctx: Context, path: String, params: Map<String, String>): JsonObject? {
         val deviceId = deviceId(ctx)
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED)) {
+        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
             val host = pickHost(layer) ?: continue
-            if (layer != Layer.L3_FRONTED && isCoolingOff(host)) continue
+            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) continue
             val client = clientForLayer(layer)
             val urlBuilder = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
@@ -400,6 +511,7 @@ object DbClient {
             Layer.L1_DIRECT -> canonical
             Layer.L2_WORKER -> rotationHosts().firstOrNull { it != canonical } ?: canonical
             Layer.L3_FRONTED -> canonical
+            Layer.L4_DOH -> canonical
             else -> null
         }
     }
@@ -432,21 +544,30 @@ object DbClient {
 
     private fun clientForLayer(layer: Layer): OkHttpClient {
         val base = activeClient()
-        if (layer != Layer.L3_FRONTED) return base
-        // L3: override DNS so the worker host resolves to a known-clean
-        // Cloudflare anycast IP. SNI is left as-is so the TLS handshake still
-        // matches the worker cert (worker hosts use Cloudflare-issued certs).
-        val cleans = cleanIps()
-        if (cleans.isEmpty()) return base
-        val frontedDns = object : Dns {
-            override fun lookup(hostname: String): List<InetAddress> =
-                cleans.mapNotNull { ip ->
-                    runCatching { InetAddress.getByAddress(hostname, parseIp(ip)) }.getOrNull()
-                }.ifEmpty { Dns.SYSTEM.lookup(hostname) }
+        return when (layer) {
+            Layer.L3_FRONTED -> {
+                // L3: override DNS so the worker host resolves to a known-clean
+                // Cloudflare anycast IP. SNI is left as-is so the TLS handshake
+                // still matches the worker cert.
+                val cleans = cleanIps()
+                if (cleans.isEmpty()) base else {
+                    val frontedDns = object : Dns {
+                        override fun lookup(hostname: String): List<InetAddress> =
+                            cleans.mapNotNull { ip ->
+                                runCatching { InetAddress.getByAddress(hostname, parseIp(ip)) }.getOrNull()
+                            }.ifEmpty { Dns.SYSTEM.lookup(hostname) }
+                    }
+                    base.newBuilder().dns(frontedDns).build()
+                }
+            }
+            Layer.L4_DOH -> {
+                // L4: resolve via Cloudflare DNS-over-HTTPS, bypassing ISP DNS
+                // hijack. We always return the plain client (no proxy) because
+                // DoH itself is the network call that proves we have egress.
+                plainClient.newBuilder().dns(DohResolver.asDns()).build()
+            }
+            else -> base
         }
-        return base.newBuilder()
-            .dns(frontedDns)
-            .build()
     }
 
     private fun parseIp(ip: String): ByteArray {

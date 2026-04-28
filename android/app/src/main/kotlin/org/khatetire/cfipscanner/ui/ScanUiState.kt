@@ -3,7 +3,7 @@ package org.khatetire.cfipscanner.ui
 import org.khatetire.cfipscanner.scanner.ScanProfile
 import kotlin.math.max
 
-/** Health of one of the 5 DB-fetch fallback layers (L1..L5). */
+/** Health of one of the 8 DB-fetch fallback layers (L1..L8). */
 enum class DbLayerStatus { UNKNOWN, OK, FAIL }
 
 data class DbLayerHealth(
@@ -25,23 +25,26 @@ data class ScanUiState(
     val bestPingMs: Int = 0,
     val recent: List<ScanResultRow> = emptyList(),
     val running: Boolean = false,
-    /** Last DB fetch layer ("L1".."L5" or "--"). Plumbed in Phase 2. */
+    /** Last DB fetch layer ("L1".."L8" or "--"). Plumbed in Phase 2. */
     val dbLayer: String = "--",
     /** Round-trip latency of the last DB fetch in ms, 0 if cached / unknown. */
     val dbLatencyMs: Long = 0L,
-    /** Per-layer health for the L1..L5 fallback chain. */
+    /** Per-layer health for the L1..L8 fallback chain (always-on DB ladder). */
     val dbLayers: List<DbLayerHealth> = listOf(
         DbLayerHealth("L1", "Direct"),
         DbLayerHealth("L2", "Worker"),
         DbLayerHealth("L3", "Fronted"),
-        DbLayerHealth("L4", "Cache"),
-        DbLayerHealth("L5", "Seed"),
+        DbLayerHealth("L4", "DoH"),
+        DbLayerHealth("L5", "Mirror"),
+        DbLayerHealth("L6", "Pool"),
+        DbLayerHealth("L7", "Cache"),
+        DbLayerHealth("L8", "Seed"),
     ),
 ) {
     val cleanPct: Float get() = if (tested == 0L) 0f else (clean.toFloat() / max(1, tested))
-    /** How many of the 5 layers responded OK on their most recent attempt. */
+    /** How many of the 8 layers responded OK on their most recent attempt. */
     val dbWorkingCount: Int get() = dbLayers.count { it.status == DbLayerStatus.OK }
-    /** True when at least one layer (any of L1..L5) is currently OK. */
+    /** True when at least one layer (any of L1..L8) is currently OK. */
     val dbConnected: Boolean get() = dbWorkingCount > 0
 }
 

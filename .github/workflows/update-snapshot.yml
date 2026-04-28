@@ -1,0 +1,55 @@
+name: Refresh DB snapshot mirror
+
+# Refreshes worker/best_ips_snapshot.json from the live worker every 30 min.
+# This file is served via cdn.jsdelivr.net to feed the Android L5_MIRROR
+# fallback in DbClient — keeping the device "connected" to a recent copy of
+# the community DB even when the workers.dev hostname itself is blocked.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch latest /v1/best-ips snapshot
+        id: fetch
+        run: |
+          set -e
+          URL="${WORKER_URL:-https://cf-ip-scanner-db-proxy.amn46.workers.dev}/v1/best-ips?limit=200"
+          tmp=$(mktemp)
+          if curl -fsSL --max-time 30 "$URL" -o "$tmp"; then
+            # Validate it's JSON and has at least one row.
+            if jq -e '.results | length > 0' "$tmp" >/dev/null 2>&1; then
+              # Wrap with a top-level updated_at so the file is self-describing.
+              jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                 '{updated_at: $ts, results: .results}' \
+                 "$tmp" > worker/best_ips_snapshot.json
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Empty results — keeping previous snapshot."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Worker unreachable — keeping previous snapshot."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit if changed
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          if git diff --quiet -- worker/best_ips_snapshot.json; then
+            echo "No diff."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add worker/best_ips_snapshot.json
+            git commit -m "chore(snapshot): refresh DB mirror"
+            git push
+          fi

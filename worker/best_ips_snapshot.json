@@ -1,0 +1,18 @@
+{
+  "_comment": "Static fallback mirror — fetched by Android DbClient L5_MIRROR via cdn.jsdelivr.net. The CI workflow update-snapshot.yml refreshes this file every 30 min from /v1/best-ips. The values below are seed defaults usable on first install when the worker is unreachable.",
+  "updated_at": "seed",
+  "results": [
+    { "ip": "104.16.132.229", "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "104.17.43.81",   "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "104.18.36.214",  "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "104.19.42.10",   "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "104.20.46.55",   "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "104.21.45.62",   "avg_ping": 60, "avg_download": 50, "tier": "seed" },
+    { "ip": "172.67.171.55",  "avg_ping": 70, "avg_download": 40, "tier": "seed" },
+    { "ip": "172.67.184.49",  "avg_ping": 70, "avg_download": 40, "tier": "seed" },
+    { "ip": "172.67.214.155", "avg_ping": 70, "avg_download": 40, "tier": "seed" },
+    { "ip": "188.114.96.7",   "avg_ping": 80, "avg_download": 40, "tier": "seed" },
+    { "ip": "188.114.97.7",   "avg_ping": 80, "avg_download": 40, "tier": "seed" },
+    { "ip": "162.159.135.233","avg_ping": 80, "avg_download": 40, "tier": "seed" }
+  ]
+}
