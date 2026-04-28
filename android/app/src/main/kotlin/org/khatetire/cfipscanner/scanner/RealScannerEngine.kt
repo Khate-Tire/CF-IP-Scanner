@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.khatetire.cfipscanner.net.DbClient
+import org.khatetire.cfipscanner.net.IpQualityProbe
 import org.khatetire.cfipscanner.net.IspContext
 import org.khatetire.cfipscanner.ui.ScanResultRow
 import org.khatetire.cfipscanner.ui.ScanStateHolder
@@ -77,7 +78,10 @@ object RealScannerEngine {
         ctx: Context, profile: ScanProfile, info: IspContext.Info, ips: List<String>,
     ) {
         val parallelism = profile.parallelism.coerceAtLeast(1)
-        val results = probeAll(ips, parallelism)
+        // Full-quality probe (HTTP ping/jitter + small download/upload + colo)
+        // is gated to WiFi only — on mobile data we fall back to TCP-only.
+        val onWifi = ScanStateHolder.controller.signals.value.onWifi
+        val results = probeAll(ips, parallelism, fullQuality = onWifi)
         contribute(ctx, info, results)
     }
 
@@ -95,39 +99,69 @@ object RealScannerEngine {
         ScanStateHolder.setDbLayer("SHARD ${claim.shard}", 0)
         val ips = expandSlash24(claim.shard)
         val parallelism = profile.parallelism.coerceAtLeast(1)
-        val results = probeAll(ips, parallelism)
+        // Shard cycle = 256 IPs, never run full-quality (would burn ~150MB).
+        val results = probeAll(ips, parallelism, fullQuality = false)
         val okCount = results.count { it.second.clean }
         contribute(ctx, info, results)
         runCatching { DbClient.completeShard(ctx, claim.shard, okCount, results.size) }
     }
 
     private suspend fun probeAll(
-        ips: List<String>, parallelism: Int,
-    ): List<Pair<String, ScanResultRow>> = coroutineScope {
-        val out = mutableListOf<Pair<String, ScanResultRow>>()
+        ips: List<String>, parallelism: Int, fullQuality: Boolean,
+    ): List<Triple<String, ScanResultRow, IpQualityProbe.Quality?>> = coroutineScope {
+        val out = mutableListOf<Triple<String, ScanResultRow, IpQualityProbe.Quality?>>()
         ips.chunked(parallelism).forEach { batch ->
             if (!isActive) return@coroutineScope out
-            val rows: List<Pair<String, ScanResultRow>> =
-                batch.map { ip -> async { ip to probe(ip) } }.awaitAll()
-            rows.forEach { pair ->
-                ScanStateHolder.pushResult(pair.second)
-                out += pair
+            val rows = batch.map { ip ->
+                async { probeOne(ip, fullQuality) }
+            }.awaitAll()
+            rows.forEach { triple ->
+                ScanStateHolder.pushResult(triple.second)
+                out += triple
             }
         }
         out
     }
 
+    private suspend fun probeOne(
+        ip: String, fullQuality: Boolean,
+    ): Triple<String, ScanResultRow, IpQualityProbe.Quality?> {
+        // Always do the cheap TCP-connect first to filter dead IPs fast.
+        val tcp = probe(ip)
+        if (!fullQuality || !tcp.clean) {
+            return Triple(ip, tcp, null)
+        }
+        // Upgrade to full HTTP quality probe (ping/jitter/dl/ul/colo).
+        val q = runCatching { IpQualityProbe.probe(ip) }.getOrNull()
+        if (q == null || !q.ok) {
+            return Triple(ip, tcp, q)
+        }
+        // Replace the TCP-connect ms with the real HTTP-ping average.
+        val upgradedRow = tcp.copy(
+            pingMs = q.pingMs,
+            clean = q.pingMs in 1..400,
+        )
+        return Triple(ip, upgradedRow, q)
+    }
+
     private suspend fun contribute(
-        ctx: Context, info: IspContext.Info, results: List<Pair<String, ScanResultRow>>,
+        ctx: Context, info: IspContext.Info,
+        results: List<Triple<String, ScanResultRow, IpQualityProbe.Quality?>>,
     ) {
         if (results.isEmpty()) return
         runCatching {
-            val payload = results.map { (ip, row) ->
+            val payload = results.map { (ip, row, q) ->
                 buildJsonObject {
                     put("ip", ip)
                     put("port", PROBE_PORT)
-                    put("ping", row.pingMs)
+                    put("ping", q?.pingMs ?: row.pingMs)
                     put("status", if (row.clean) "ok" else "fail")
+                    if (q != null && q.ok) {
+                        put("jitter", q.jitterMs)
+                        put("download", q.downloadMbps)
+                        put("upload", q.uploadMbps)
+                        if (q.datacenter.isNotBlank()) put("datacenter", q.datacenter)
+                    }
                 }
             }
             DbClient.submitScanResultsBatch(
