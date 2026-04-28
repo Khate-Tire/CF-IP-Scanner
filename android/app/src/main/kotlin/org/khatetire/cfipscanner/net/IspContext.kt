@@ -41,21 +41,29 @@ object IspContext {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    // Pre-build a shared client that tries the local proxy first.
-    private val client: OkHttpClient by lazy {
+    private val directClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
-            .proxySelector(object : java.net.ProxySelector() {
-                override fun select(uri: java.net.URI): List<java.net.Proxy> {
-                    return listOf(
-                        java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress("127.0.0.1", 10809)),
-                        java.net.Proxy.NO_PROXY
-                    )
-                }
-                override fun connectFailed(uri: java.net.URI, sa: java.net.SocketAddress, ioe: java.io.IOException) {}
-            })
             .build()
+    }
+
+    private val proxiedClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .proxy(java.net.Proxy(
+                java.net.Proxy.Type.HTTP,
+                java.net.InetSocketAddress("127.0.0.1", 10809)
+            ))
+            .build()
+    }
+
+    /** Pick proxy client when VPN is up so the request resolves DNS remotely. */
+    private fun client(): OkHttpClient {
+        val state = org.khatetire.cfipscanner.vpn.VpnStateHolder.status.value.state
+        return if (state == org.khatetire.cfipscanner.vpn.VpnStatus.State.CONNECTED) proxiedClient
+        else directClient
     }
 
     suspend fun current(forceRefresh: Boolean = false): Info = withContext(Dispatchers.IO) {
@@ -72,7 +80,7 @@ object IspContext {
 
     private fun fetchMeta(): Info? {
         return try {
-            client.newCall(Request.Builder().url(URL_META).get().build()).execute().use { resp ->
+            client().newCall(Request.Builder().url(URL_META).get().build()).execute().use { resp ->
                 if (!resp.isSuccessful) return null
                 val body = resp.body?.string().orEmpty()
                 if (body.isBlank()) return null
@@ -94,7 +102,7 @@ object IspContext {
 
     private fun fetchTrace(): Info? {
         return try {
-            client.newCall(Request.Builder().url(URL_TRACE).get().build()).execute().use { resp ->
+            client().newCall(Request.Builder().url(URL_TRACE).get().build()).execute().use { resp ->
                 if (!resp.isSuccessful) return null
                 val body = resp.body?.string().orEmpty()
                 val map = body.lineSequence()

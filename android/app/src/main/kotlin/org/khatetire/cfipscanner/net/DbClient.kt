@@ -59,24 +59,26 @@ object DbClient {
         OkHttpClient.Builder()
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
-            // ProxySelector: try the local Xray HTTP inbound first (remote DNS),
-            // then fall back to a direct connection. This rescues L1/L2 from
-            // local ISPs that block DNS for *.workers.dev.
-            .proxySelector(object : java.net.ProxySelector() {
-                override fun select(uri: java.net.URI): List<java.net.Proxy> = listOf(
-                    java.net.Proxy(
-                        java.net.Proxy.Type.HTTP,
-                        java.net.InetSocketAddress("127.0.0.1", 10809)
-                    ),
-                    java.net.Proxy.NO_PROXY
-                )
-                override fun connectFailed(
-                    uri: java.net.URI,
-                    sa: java.net.SocketAddress,
-                    ioe: java.io.IOException,
-                ) {}
-            })
             .build()
+    }
+
+    private val proxiedClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .proxy(java.net.Proxy(
+                java.net.Proxy.Type.HTTP,
+                java.net.InetSocketAddress("127.0.0.1", 10809)
+            ))
+            .build()
+    }
+
+    /** Active client: when VPN is connected, route through Xray's HTTP inbound
+     *  so DNS for *.workers.dev is resolved remotely, bypassing local ISP blocks. */
+    private fun activeClient(): OkHttpClient {
+        val state = org.khatetire.cfipscanner.vpn.VpnStateHolder.status.value.state
+        return if (state == org.khatetire.cfipscanner.vpn.VpnStatus.State.CONNECTED) proxiedClient
+        else plainClient
     }
 
     /** Default Cloudflare anycast IPs used as a permanent L5 safety net when
@@ -429,19 +431,20 @@ object DbClient {
     private fun bundledSeedIps(): List<String> = cleanIps()
 
     private fun clientForLayer(layer: Layer): OkHttpClient {
-        if (layer != Layer.L3_FRONTED) return plainClient
+        val base = activeClient()
+        if (layer != Layer.L3_FRONTED) return base
         // L3: override DNS so the worker host resolves to a known-clean
         // Cloudflare anycast IP. SNI is left as-is so the TLS handshake still
         // matches the worker cert (worker hosts use Cloudflare-issued certs).
         val cleans = cleanIps()
-        if (cleans.isEmpty()) return plainClient
+        if (cleans.isEmpty()) return base
         val frontedDns = object : Dns {
             override fun lookup(hostname: String): List<InetAddress> =
                 cleans.mapNotNull { ip ->
                     runCatching { InetAddress.getByAddress(hostname, parseIp(ip)) }.getOrNull()
                 }.ifEmpty { Dns.SYSTEM.lookup(hostname) }
         }
-        return plainClient.newBuilder()
+        return base.newBuilder()
             .dns(frontedDns)
             .build()
     }
