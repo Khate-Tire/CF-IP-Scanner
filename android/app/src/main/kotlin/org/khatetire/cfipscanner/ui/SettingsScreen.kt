@@ -232,6 +232,16 @@ fun SettingsScreen(
                 fontWeight = FontWeight.Medium,
             )
         }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "v${org.khatetire.cfipscanner.BuildConfig.VERSION_NAME}  ·  build ${org.khatetire.cfipscanner.BuildConfig.GIT_COMMIT_COUNT}",
+            color = AntigravityColors.Stardust.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
         Spacer(Modifier.height(24.dp))
     }
 
