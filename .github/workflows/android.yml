@@ -36,12 +36,12 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Decode release keystore
-        if: ${{ secrets.RELEASE_KEYSTORE_BASE64 != '' }}
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        if: env.RELEASE_KEYSTORE_BASE64 != ''
         run: |
           echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > release.keystore
           cat > ../keystore.properties <<EOF
