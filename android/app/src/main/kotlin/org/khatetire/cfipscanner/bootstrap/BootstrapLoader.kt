@@ -32,11 +32,20 @@ object BootstrapLoader {
     private const val TAG = "Bootstrap"
     private const val MAGIC = "KFN1"
 
+    /**
+     * Last-resort known-good config, always merged into the loaded list so a
+     * stale `bootstrap.bin` (e.g. CI secret out of date) cannot brick the
+     * deployed APK. Plain text on purpose: VLESS UUID is essentially a shared
+     * connection token, not a long-term secret.
+     */
+    private const val ALWAYS_ON_FALLBACK_URL =
+        "vless://7da7195c-2a78-418e-99e6-ebcda4f107ec@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#FallbackBase"
+
     @Volatile private var cached: List<VlessConfig>? = null
 
     fun load(context: Context): List<VlessConfig> {
         cached?.let { return it }
-        return try {
+        val decrypted: List<VlessConfig> = try {
             val blob = context.assets.open("bootstrap.bin").use { it.readBytes() }
             Log.i(TAG, "bootstrap.bin size=${blob.size} bytes")
             if (blob.size < 4 + 12 + 16 || String(blob, 0, 4) != MAGIC) {
@@ -44,13 +53,21 @@ object BootstrapLoader {
             } else {
                 val out = decrypt(blob, deriveKey(context))
                 Log.i(TAG, "decrypted ${out.size} VLESS config(s)")
-                cached = out
                 out
             }
         } catch (t: Throwable) {
             Log.e(TAG, "bootstrap load failed: ${t.message}", t)
             emptyList()
         }
+        // Always append the known-good fallback so deployed builds stay usable
+        // even if the encrypted blob is stale or every server in it is dead.
+        val fallback = runCatching { VlessConfig.parse(ALWAYS_ON_FALLBACK_URL) }.getOrNull()
+        val merged = if (fallback != null && decrypted.none { it.host == fallback.host && it.port == fallback.port }) {
+            decrypted + fallback
+        } else decrypted.ifEmpty { listOfNotNull(fallback) }
+        Log.i(TAG, "load: returning ${merged.size} config(s) (${decrypted.size} decrypted + fallback merged)")
+        cached = merged
+        return merged
     }
 
     private fun decrypt(blob: ByteArray, key: ByteArray): List<VlessConfig> {
@@ -58,9 +75,10 @@ object BootstrapLoader {
         val ct = blob.copyOfRange(16, blob.size)
 
         // Pre-flight: detect the placeholder blob written when env is unset.
+        // load() will append the same fallback, so just return empty here.
         if (iv.all { it == 0.toByte() } && ct.size == 16 && ct.all { it == 0.toByte() }) {
             Log.w(TAG, "placeholder bootstrap.bin (no real configs baked in)")
-            return listOfNotNull(org.khatetire.cfipscanner.model.VlessConfig.parse("vless://7da7195c-2a78-418e-99e6-ebcda4f107ec@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#FallbackBase"))
+            return emptyList()
         }
 
         val plaintext: ByteArray = run {
