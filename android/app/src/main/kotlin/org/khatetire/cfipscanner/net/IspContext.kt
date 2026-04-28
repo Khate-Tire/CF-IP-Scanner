@@ -41,6 +41,23 @@ object IspContext {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    // Pre-build a shared client that tries the local proxy first.
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .proxySelector(object : java.net.ProxySelector() {
+                override fun select(uri: java.net.URI): List<java.net.Proxy> {
+                    return listOf(
+                        java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress("127.0.0.1", 10809)),
+                        java.net.Proxy.NO_PROXY
+                    )
+                }
+                override fun connectFailed(uri: java.net.URI, sa: java.net.SocketAddress, ioe: java.io.IOException) {}
+            })
+            .build()
+    }
+
     suspend fun current(forceRefresh: Boolean = false): Info = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         cached?.let { c ->
@@ -54,10 +71,6 @@ object IspContext {
     }
 
     private fun fetchMeta(): Info? {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .build()
         return try {
             client.newCall(Request.Builder().url(URL_META).get().build()).execute().use { resp ->
                 if (!resp.isSuccessful) return null
@@ -80,10 +93,6 @@ object IspContext {
     }
 
     private fun fetchTrace(): Info? {
-        val client = OkHttpClient.Builder()
-            .connectTimeout(5, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .build()
         return try {
             client.newCall(Request.Builder().url(URL_TRACE).get().build()).execute().use { resp ->
                 if (!resp.isSuccessful) return null

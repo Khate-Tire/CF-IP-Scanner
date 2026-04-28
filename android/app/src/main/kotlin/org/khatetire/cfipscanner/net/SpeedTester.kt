@@ -47,6 +47,8 @@ object SpeedTester {
                 val mbps = if (ms > 0) (bytes * 8.0) / (ms * 1000.0) else 0.0
                 Result(ok = true, bytes = bytes, millis = ms, mbps = mbps)
             }
+        } catch (t: java.net.UnknownHostException) {
+            Result(false, 0, 0, 0.0, "DNS blocked or offline")
         } catch (t: Throwable) {
             Result(false, 0, 0, 0.0, t.message ?: t::class.java.simpleName)
         }
