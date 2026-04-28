@@ -283,7 +283,10 @@ class CfVpnService : VpnService() {
         scope.launch {
             val manual = AppSettings.current().manualCleanIp.trim()
             val target = if (manual.isNotEmpty()) {
-                cur.copy(host = manual)
+                // Manual IP must be paired with the always-on fallback's
+                // UUID/SNI/path or the VLESS handshake fails.
+                val authBase = BootstrapLoader.fallback() ?: cur
+                authBase.copy(host = manual)
             } else {
                 // Cleared → fall back to the bootstrap host for the selected slot.
                 val slot = AppSettings.current().selectedSlot

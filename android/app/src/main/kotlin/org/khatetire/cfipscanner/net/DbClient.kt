@@ -114,6 +114,12 @@ object DbClient {
         "162.159.135.233",
     )
 
+    /** Hardcoded fallback worker host used when [BuildConfig.DB_PROXY_URL]
+     *  is unset (e.g. dev builds without `db.properties`). The community
+     *  worker accepts anonymous reads on `/v1/best-ips`, so L1–L4 still
+     *  yield clean IPs without a baked-in API key. */
+    private const val DEFAULT_CANONICAL_HOST = "cf-ip-scanner-db-proxy.amn46.workers.dev"
+
     /** Per-host failure backoff so we cool off broken layers briefly. */
     private val recentFailures = HashMap<String, Long>()
     private const val FAILURE_BACKOFF_MS = 60_000L
@@ -517,8 +523,16 @@ object DbClient {
     }
 
     private fun canonicalHost(): String? {
-        val raw = BuildConfig.DB_PROXY_URL.takeIf { it.isNotBlank() } ?: return null
-        return runCatching { raw.toHttpUrl().host }.getOrNull()
+        val raw = BuildConfig.DB_PROXY_URL.takeIf { it.isNotBlank() }
+        if (raw != null) {
+            val h = runCatching { raw.toHttpUrl().host }.getOrNull()
+            if (!h.isNullOrBlank()) return h
+        }
+        // Hardcoded fallback so dev builds (no db.properties) still attempt
+        // L1–L4 against the public community worker. Authenticated POSTs
+        // will still fail without an API key, but anonymous GET /v1/best-ips
+        // is reachable, which is what L1–L4 actually need.
+        return DEFAULT_CANONICAL_HOST
     }
 
     private fun rotationHosts(): List<String> {

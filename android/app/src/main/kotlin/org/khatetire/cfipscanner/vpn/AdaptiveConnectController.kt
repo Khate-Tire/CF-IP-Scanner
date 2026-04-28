@@ -62,11 +62,15 @@ object AdaptiveConnectController {
         val effectiveSlot = slot.coerceIn(0, bootstrap.lastIndex)
         val base = bootstrap[effectiveSlot]
 
-        // Manual override wins.
+        // Manual override wins. Use the always-on fallback config's auth
+        // params (UUID/SNI/path), NOT the user-selected slot's — the manual
+        // IP belongs to a specific server farm and won't authenticate
+        // against arbitrary other configs.
         val manual = AppSettings.current().manualCleanIp.trim()
         if (manual.isNotEmpty()) {
-            Log.i(TAG, "manual clean IP override -> $manual (auto-rotation disabled)")
-            return@withContext base.copy(host = manual)
+            val authBase = BootstrapLoader.fallback() ?: base
+            Log.i(TAG, "manual clean IP override -> $manual via ${authBase.sni} (auto-rotation disabled)")
+            return@withContext authBase.copy(host = manual)
         }
 
         // Local pool wins over the remote DB — anything in the pool was

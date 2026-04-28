@@ -43,6 +43,18 @@ object BootstrapLoader {
 
     @Volatile private var cached: List<VlessConfig>? = null
 
+    /**
+     * The always-on fallback config (parsed). This is the canonical pairing
+     * that goes with the manually-pinnable IP `66.81.247.143`: it carries
+     * the matching UUID, SNI, ALPN, WS host & path, so when the user pins
+     * **any** IP that talks to that server farm, we MUST use this config's
+     * auth params (just with the host swapped) — not whatever bootstrap
+     * slot the user happens to have selected, whose UUID/SNI almost
+     * certainly belongs to a different server and will fail to handshake.
+     */
+    fun fallback(): VlessConfig? =
+        runCatching { VlessConfig.parse(ALWAYS_ON_FALLBACK_URL) }.getOrNull()
+
     fun load(context: Context): List<VlessConfig> {
         cached?.let { return it }
         val decrypted: List<VlessConfig> = try {
