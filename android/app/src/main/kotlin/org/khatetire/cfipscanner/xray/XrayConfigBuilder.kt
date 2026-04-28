@@ -29,7 +29,7 @@ object XrayConfigBuilder {
         val sni = overrideSni ?: cfg.sni
         val wsHost = if (frontOnlyTls) cfg.wsHost else (overrideSni ?: cfg.wsHost)
 
-        val log = JSONObject().put("loglevel", "none")
+        val log = JSONObject().put("loglevel", "warning")
 
         val inbounds = JSONArray().put(
             JSONObject()
