@@ -1,0 +1,50 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - ".github/workflows/worker-deploy.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install worker dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Inject Hyperdrive ID into wrangler.toml
+        env:
+          HYPERDRIVE_ID: ${{ secrets.HYPERDRIVE_ID }}
+        run: |
+          if [ -z "$HYPERDRIVE_ID" ]; then
+            echo "ERROR: HYPERDRIVE_ID secret is not set"
+            exit 1
+          fi
+          sed -i "s/YOUR_HYPERDRIVE_ID/${HYPERDRIVE_ID}/g" wrangler.toml
+          echo "wrangler.toml after substitution:"
+          grep -E '^id\s*=' wrangler.toml || true
+
+      - name: Deploy with Wrangler
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: deploy

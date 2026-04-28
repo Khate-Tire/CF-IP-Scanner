@@ -21,14 +21,25 @@ export default {
             return cors(new Response(null, { status: 204 }));
         }
 
-        // Auth check
+        const url = new URL(request.url);
+        const path = url.pathname;
+
+        // --- Public /v1/* API for the Android client (anonymous, no admin API_KEY) ---
+        // Auth is per-device: requires X-Device-Id (sha256 hex of the install UUID).
+        if (path.startsWith("/v1/")) {
+            try {
+                return await handleV1(request, env, ctx, url, path);
+            } catch (err) {
+                console.error("v1 worker error:", err);
+                return cors(json({ error: err.message || "internal" }, 500));
+            }
+        }
+
+        // Auth check (admin / desktop client)
         const apiKey = request.headers.get("X-API-Key");
         if (apiKey !== env.API_KEY) {
             return cors(json({ error: "Unauthorized" }, 401));
         }
-
-        const url = new URL(request.url);
-        const path = url.pathname;
 
         try {
             if (path === "/api/health") {
@@ -445,3 +456,559 @@ async function handleSaveCountryDomains(conn, body) {
     );
     return { ok: true };
 }
+
+// ============================================================================
+// /v1/* — Public REST API for the Android client
+// ----------------------------------------------------------------------------
+// Auth:   X-Device-Id header (sha256 hex of the install UUID; opaque to server,
+//         used only as a rate-limit key — no PII).
+// Cache:  Best-IPs and SNI bank are cached per (cc,isp) for 5 min in worker mem.
+// Schema: First write to mobile_scan_results auto-creates the table.
+// ============================================================================
+
+const v1Cache = new Map(); // key -> { time, data }
+const V1_CACHE_TTL_MS = 5 * 60 * 1000;
+const V1_BEST_IPS_LIMIT_MAX = 200;
+const V1_BATCH_LIMIT = 200;
+
+// Curated SNI bank per country code. These mirror the desktop scanner's
+// fronting bank (worker subdomains that historically bypass DPI).
+const V1_SNI_BANK_DEFAULT = [
+    "speed.cloudflare.com",
+    "cdnjs.cloudflare.com",
+    "1.1.1.1.cloudflare-dns.com",
+    "www.visa.com",
+    "discord.com",
+];
+const V1_SNI_BANK_BY_CC = {
+    IR: ["speed.cloudflare.com", "cdnjs.cloudflare.com", "www.visa.com", "discord.com", "1.1.1.1.cloudflare-dns.com"],
+    RU: ["speed.cloudflare.com", "cdnjs.cloudflare.com", "1.1.1.1.cloudflare-dns.com", "www.cloudflare.com"],
+    CN: ["cdnjs.cloudflare.com", "1.1.1.1.cloudflare-dns.com", "speed.cloudflare.com"],
+};
+
+const V1_LATEST_VERSION = {
+    versionCode: 1,
+    versionName: "0.1.0",
+    minSupportedVersionCode: 1,
+    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/latest",
+    sha256: null,
+    changelog: "Initial Phase 2 release: 5-layer DB client, per-ISP best IPs, anonymous contribution.",
+    forceUpdate: false,
+};
+
+async function handleV1(request, env, ctx, url, path) {
+    const deviceId = request.headers.get("X-Device-Id") || "";
+    // Allow /v1/version and /v1/community-stats without a device id (cold-start).
+    const requiresDevice = !(path === "/v1/version" || path === "/v1/community-stats");
+    if (requiresDevice && !/^[a-f0-9]{32,128}$/i.test(deviceId)) {
+        return cors(json({ error: "Missing or invalid X-Device-Id" }, 401));
+    }
+
+    if (request.method === "GET") {
+        if (path === "/v1/version") {
+            return cors(json(V1_LATEST_VERSION));
+        }
+        if (path === "/v1/best-ips") {
+            const cc = (url.searchParams.get("cc") || "").toUpperCase().slice(0, 4);
+            const isp = (url.searchParams.get("isp") || "").slice(0, 80);
+            const asn = (url.searchParams.get("asn") || "").slice(0, 32);
+            const limit = clampInt(url.searchParams.get("limit"), 50, 1, V1_BEST_IPS_LIMIT_MAX);
+            return await v1BestIps(env, cc, isp, asn, limit);
+        }
+        if (path === "/v1/sni-bank") {
+            const cc = (url.searchParams.get("cc") || "").toUpperCase().slice(0, 4);
+            const banks = V1_SNI_BANK_BY_CC[cc] || V1_SNI_BANK_DEFAULT;
+            return cors(json({ cc, snis: banks }));
+        }
+        if (path === "/v1/community-stats") {
+            return await v1CommunityStats(env);
+        }
+        if (path === "/v1/leaderboard") {
+            const cc = (url.searchParams.get("cc") || "").toUpperCase().slice(0, 4);
+            return await v1Leaderboard(env, cc, deviceId);
+        }
+        return cors(json({ error: "Not found" }, 404));
+    }
+
+    if (request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        if (path === "/v1/scan-result") {
+            return await v1ScanResult(env, deviceId, body);
+        }
+        if (path === "/v1/scan-results-batch") {
+            return await v1ScanResultsBatch(env, deviceId, body);
+        }
+        if (path === "/v1/scan-shard/claim") {
+            return await v1ShardClaim(env, deviceId, body);
+        }
+        if (path === "/v1/scan-shard/complete") {
+            return await v1ShardComplete(env, deviceId, body);
+        }
+        return cors(json({ error: "Not found" }, 404));
+    }
+
+    return cors(json({ error: "Method not allowed" }, 405));
+}
+
+function clampInt(v, def, min, max) {
+    const n = parseInt(v, 10);
+    if (!Number.isFinite(n)) return def;
+    return Math.min(max, Math.max(min, n));
+}
+
+async function v1BestIps(env, cc, isp, asn, limit) {
+    const cacheKey = `bestips:${cc}:${isp}:${asn}:${limit}`;
+    const cached = v1Cache.get(cacheKey);
+    const now = Date.now();
+    if (cached && now - cached.time < V1_CACHE_TTL_MS) {
+        return cors(json(cached.data));
+    }
+
+    const conn = await getConn(env);
+    try {
+        await ensureMobileTable(conn);
+        // Tiered selection — desktop scan_results UNION ALL mobile_scan_results
+        // so VPN community scans contribute to the same ranking signal:
+        //   T0: same ASN within 7 days     (mobile only — desktop has no asn match key)
+        //   T1: same ISP within 7 days     (both tables)
+        //   T2: same country within 7 days (both tables)
+        //   T3: global within 7 days       (both tables)
+        const seen = new Set();
+        const results = [];
+
+        // Unified subquery — `user_isp / user_location` come from desktop,
+        // `isp / cc` come from mobile. We project them to a common shape.
+        const unifiedFrom = `
+            (SELECT scanned_ip, ping, jitter, download, status,
+                    user_isp AS u_isp, user_location AS u_loc, asn AS u_asn, timestamp
+             FROM scan_results
+             WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)
+             UNION ALL
+             SELECT scanned_ip, ping, jitter, download, status,
+                    isp AS u_isp, cc AS u_loc, asn AS u_asn, timestamp
+             FROM mobile_scan_results
+             WHERE timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)) u
+        `;
+
+        const score = (filterSql, params, take) =>
+            conn.query(
+                `SELECT scanned_ip,
+                        ROUND(AVG(ping), 1) as avg_ping,
+                        ROUND(AVG(jitter), 1) as avg_jitter,
+                        ROUND(AVG(download), 2) as avg_download,
+                        SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) as ok_count,
+                        COUNT(*) as total,
+                        ROUND(
+                            (SUM(CASE WHEN status='ok' THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+                            + GREATEST(150 - AVG(ping), 0)
+                            + (AVG(download) * 1.5)
+                            - (AVG(jitter) * 0.5)
+                        , 1) as score
+                 FROM ${unifiedFrom}
+                 WHERE ${filterSql}
+                 GROUP BY scanned_ip
+                 HAVING ok_count >= 1 AND total >= 1
+                 ORDER BY score DESC
+                 LIMIT ?`,
+                [...params, take]
+            );
+
+        const tASNTake = asn ? Math.max(1, Math.floor(limit * 0.4)) : 0;
+        const t1Take   = Math.max(1, Math.floor(limit * (asn ? 0.3 : 0.6)));
+        const t2Take   = Math.max(1, Math.floor(limit * 0.2));
+        const t3Take   = Math.max(1, limit - tASNTake - t1Take - t2Take);
+
+        if (asn) {
+            const [r0] = await score("u_asn = ?", [asn], tASNTake);
+            for (const r of r0) if (!seen.has(r.scanned_ip)) { seen.add(r.scanned_ip); results.push(toBestIp(r, "asn")); }
+        }
+        if (isp) {
+            const [r1] = await score("u_isp = ?", [isp], t1Take);
+            for (const r of r1) if (!seen.has(r.scanned_ip)) { seen.add(r.scanned_ip); results.push(toBestIp(r, "isp")); }
+        }
+        if (cc) {
+            const [r2] = await score("u_loc LIKE ?", [`${cc}%`], t2Take);
+            for (const r of r2) if (!seen.has(r.scanned_ip)) { seen.add(r.scanned_ip); results.push(toBestIp(r, "country")); }
+        }
+        const [r3] = await score("1=1", [], t3Take);
+        for (const r of r3) if (!seen.has(r.scanned_ip)) { seen.add(r.scanned_ip); results.push(toBestIp(r, "global")); }
+
+        const data = { cc, isp, asn, results: results.slice(0, limit), count: Math.min(results.length, limit) };
+        v1Cache.set(cacheKey, { time: now, data });
+        return cors(json(data));
+    } finally {
+        conn.end();
+    }
+}
+
+function toBestIp(row, tier) {
+    return {
+        ip: row.scanned_ip,
+        avg_ping: row.avg_ping != null ? Number(row.avg_ping) : null,
+        avg_jitter: row.avg_jitter != null ? Number(row.avg_jitter) : null,
+        avg_download: row.avg_download != null ? Number(row.avg_download) : null,
+        success_rate: row.total > 0 ? Math.round((Number(row.ok_count) / Number(row.total)) * 1000) / 10 : 0,
+        score: row.score != null ? Number(row.score) : null,
+        tier,
+        // shareable=false hides the IP from the user UI; only IPs the user
+        // discovers via their own scan are shown as "shareable".
+        shareable: false,
+    };
+}
+
+async function v1ScanResult(env, deviceId, body) {
+    if (!body || !body.ip) return cors(json({ error: "Missing ip" }, 400));
+    const conn = await getConn(env);
+    try {
+        await ensureMobileTable(conn);
+        await conn.execute(
+            `INSERT INTO mobile_scan_results
+                (timestamp, device_uuid_hash, app_version, cc, isp,
+                 scanned_ip, port, sni, ping, jitter, download, upload,
+                 status, datacenter, asn, network_type)
+             VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                deviceId,
+                String(body.app_version || "0.1.0").slice(0, 16),
+                String(body.cc || "").toUpperCase().slice(0, 4),
+                String(body.isp || "").slice(0, 80),
+                String(body.ip).slice(0, 64),
+                Number.isFinite(body.port) ? body.port : -1,
+                String(body.sni || "").slice(0, 128),
+                Number.isFinite(body.ping) ? body.ping : -1,
+                Number.isFinite(body.jitter) ? body.jitter : -1,
+                Number.isFinite(body.download) ? body.download : -1,
+                Number.isFinite(body.upload) ? body.upload : -1,
+                String(body.status || "unknown").slice(0, 32),
+                String(body.datacenter || "").slice(0, 16),
+                String(body.asn || "").slice(0, 32),
+                String(body.network_type || "").slice(0, 16),
+            ]
+        );
+        return cors(json({ ok: true }));
+    } finally {
+        conn.end();
+    }
+}
+
+async function v1ScanResultsBatch(env, deviceId, body) {
+    const items = Array.isArray(body && body.results) ? body.results : null;
+    if (!items || items.length === 0) return cors(json({ error: "Empty batch" }, 400));
+    if (items.length > V1_BATCH_LIMIT) {
+        return cors(json({ error: `Batch too large (>${V1_BATCH_LIMIT})` }, 413));
+    }
+    const conn = await getConn(env);
+    try {
+        await ensureMobileTable(conn);
+        const cc = String((body && body.cc) || "").toUpperCase().slice(0, 4);
+        const isp = String((body && body.isp) || "").slice(0, 80);
+        const appVersion = String((body && body.app_version) || "0.1.0").slice(0, 16);
+
+        const placeholders = items.map(() =>
+            "(NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).join(", ");
+        const params = [];
+        for (const r of items) {
+            params.push(
+                deviceId, appVersion, cc, isp,
+                String(r.ip || "").slice(0, 64),
+                Number.isFinite(r.port) ? r.port : -1,
+                String(r.sni || "").slice(0, 128),
+                Number.isFinite(r.ping) ? r.ping : -1,
+                Number.isFinite(r.jitter) ? r.jitter : -1,
+                Number.isFinite(r.download) ? r.download : -1,
+                Number.isFinite(r.upload) ? r.upload : -1,
+                String(r.status || "unknown").slice(0, 32),
+                String(r.datacenter || "").slice(0, 16),
+                String(r.asn || "").slice(0, 32),
+                String(r.network_type || "").slice(0, 16),
+            );
+        }
+        await conn.query(
+            `INSERT INTO mobile_scan_results
+                (timestamp, device_uuid_hash, app_version, cc, isp,
+                 scanned_ip, port, sni, ping, jitter, download, upload,
+                 status, datacenter, asn, network_type)
+             VALUES ${placeholders}`,
+            params
+        );
+        return cors(json({ ok: true, accepted: items.length }));
+    } finally {
+        conn.end();
+    }
+}
+
+async function v1CommunityStats(env) {
+    const cacheKey = "communityStats";
+    const now = Date.now();
+    const cached = v1Cache.get(cacheKey);
+    if (cached && now - cached.time < V1_CACHE_TTL_MS) {
+        return cors(json(cached.data));
+    }
+    const conn = await getConn(env);
+    try {
+        await ensureMobileTable(conn);
+        const [[totals], [active], [topCc]] = await Promise.all([
+            conn.query(
+                `SELECT COUNT(DISTINCT scanned_ip) as ips_total,
+                        COUNT(*) as samples_total
+                 FROM mobile_scan_results
+                 WHERE timestamp > DATE_SUB(NOW(), INTERVAL 30 DAY)`
+            ),
+            conn.query(
+                `SELECT COUNT(DISTINCT device_uuid_hash) as users_active
+                 FROM mobile_scan_results
+                 WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)`
+            ),
+            conn.query(
+                `SELECT cc, COUNT(DISTINCT device_uuid_hash) as users
+                 FROM mobile_scan_results
+                 WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                   AND cc != ''
+                 GROUP BY cc
+                 ORDER BY users DESC
+                 LIMIT 10`
+            ),
+        ]);
+        const data = {
+            ips_total: Number(totals[0]?.ips_total || 0),
+            samples_total: Number(totals[0]?.samples_total || 0),
+            users_active_24h: Number(active[0]?.users_active || 0),
+            top_countries_24h: topCc.map((r) => ({
+                cc: r.cc, users: Number(r.users) || 0,
+            })),
+        };
+        v1Cache.set(cacheKey, { time: now, data });
+        return cors(json(data));
+    } finally {
+        conn.end();
+    }
+}
+
+async function v1Leaderboard(env, cc, deviceId) {
+    const conn = await getConn(env);
+    try {
+        await ensureMobileTable(conn);
+        const ccFilter = cc ? "AND cc = ?" : "";
+        const params = cc ? [cc] : [];
+        const [rows] = await conn.query(
+            `SELECT device_uuid_hash, COUNT(*) as contributions
+             FROM mobile_scan_results
+             WHERE timestamp > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+               ${ccFilter}
+             GROUP BY device_uuid_hash
+             ORDER BY contributions DESC
+             LIMIT 1000`,
+            params
+        );
+        let myRank = null;
+        let myCount = 0;
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i].device_uuid_hash === deviceId) {
+                myRank = i + 1;
+                myCount = Number(rows[i].contributions) || 0;
+                break;
+            }
+        }
+        return cors(json({
+            cc: cc || null,
+            total_devices: rows.length,
+            my_rank: myRank,
+            my_contributions_24h: myCount,
+        }));
+    } finally {
+        conn.end();
+    }
+}
+
+let _mobileTableEnsured = false;
+async function ensureMobileTable(conn) {
+    if (_mobileTableEnsured) return;
+    await conn.query(`
+        CREATE TABLE IF NOT EXISTS mobile_scan_results (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            timestamp DATETIME NOT NULL,
+            device_uuid_hash VARCHAR(128) NOT NULL,
+            app_version VARCHAR(16) NOT NULL DEFAULT '',
+            cc VARCHAR(4) NOT NULL DEFAULT '',
+            isp VARCHAR(80) NOT NULL DEFAULT '',
+            scanned_ip VARCHAR(64) NOT NULL,
+            port INT NOT NULL DEFAULT -1,
+            sni VARCHAR(128) NOT NULL DEFAULT '',
+            ping INT NOT NULL DEFAULT -1,
+            jitter INT NOT NULL DEFAULT -1,
+            download DECIMAL(8,2) NOT NULL DEFAULT -1,
+            upload DECIMAL(8,2) NOT NULL DEFAULT -1,
+            status VARCHAR(32) NOT NULL DEFAULT 'unknown',
+            datacenter VARCHAR(16) NOT NULL DEFAULT '',
+            asn VARCHAR(32) NOT NULL DEFAULT '',
+            network_type VARCHAR(16) NOT NULL DEFAULT '',
+            INDEX idx_mobile_time (timestamp),
+            INDEX idx_mobile_cc_isp_time (cc, isp, timestamp),
+            INDEX idx_mobile_device_time (device_uuid_hash, timestamp),
+            INDEX idx_mobile_scanned_ip (scanned_ip)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    _mobileTableEnsured = true;
+}
+
+// ============================================================================
+// Shard coordination — scan_shards table + claim/complete endpoints
+// ============================================================================
+// When the per-ISP DB is exhausted, VPN clients claim a /24 of CF address
+// space, scan all 256 IPs, and submit results back. Lease prevents two
+// devices from scanning the same shard simultaneously.
+
+let _shardTableEnsured = false;
+async function ensureShardTable(conn) {
+    if (_shardTableEnsured) return;
+    await conn.query(`
+        CREATE TABLE IF NOT EXISTS scan_shards (
+            shard_cidr VARCHAR(32) NOT NULL PRIMARY KEY,
+            last_scanned_at DATETIME DEFAULT NULL,
+            scanned_by_device VARCHAR(128) DEFAULT NULL,
+            ok_count INT NOT NULL DEFAULT 0,
+            total_count INT NOT NULL DEFAULT 0,
+            lease_owner VARCHAR(128) DEFAULT NULL,
+            lease_expires_at DATETIME DEFAULT NULL,
+            INDEX idx_shard_lease_exp (lease_expires_at),
+            INDEX idx_shard_scanned (last_scanned_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    _shardTableEnsured = true;
+}
+
+// Hardcoded CF /24 universe — derived from official AS13335 prefixes,
+// expanded to /24s. ~3000 shards covering the bulk of CF anycast space.
+// Stored as ranges to avoid a 60KB constant; expanded on first claim.
+const CF_PREFIXES = [
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+];
+
+function expandPrefixToSlash24(cidr) {
+    const [base, bitsStr] = cidr.split("/");
+    const bits = parseInt(bitsStr, 10);
+    if (bits >= 24) return [`${base}/24`];
+    const [a, b, c] = base.split(".").map(n => parseInt(n, 10));
+    const count = 1 << (24 - bits);
+    const out = [];
+    let cBase = c;
+    let bBase = b;
+    let aBase = a;
+    for (let i = 0; i < count; i++) {
+        out.push(`${aBase}.${bBase}.${cBase}.0/24`);
+        cBase++;
+        if (cBase > 255) { cBase = 0; bBase++; }
+        if (bBase > 255) { bBase = 0; aBase++; }
+    }
+    return out;
+}
+
+let _allCfShardsCache = null;
+function allCfShards() {
+    if (_allCfShardsCache) return _allCfShardsCache;
+    const out = [];
+    for (const p of CF_PREFIXES) {
+        for (const s of expandPrefixToSlash24(p)) out.push(s);
+    }
+    _allCfShardsCache = out;
+    return out;
+}
+
+const SHARD_LEASE_MIN = 30; // minutes
+const SHARD_RESCAN_DAYS = 7;
+
+async function v1ShardClaim(env, deviceId, _body) {
+    const conn = await getConn(env);
+    try {
+        await ensureShardTable(conn);
+        // Pick a shard that:
+        //   (a) has no active lease (or the lease has expired), AND
+        //   (b) was either never scanned OR scanned > SHARD_RESCAN_DAYS ago.
+        // Strategy: find the next un-tracked CF /24 first (cheapest), else
+        // re-issue the oldest expired-lease / stale-scan row.
+        const all = allCfShards();
+        const pickRandomFrom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+        // Random sample of 32 shards to check tracked state — avoids
+        // sending all ~3000 over the wire on every claim.
+        const sample = [];
+        for (let i = 0; i < 32; i++) sample.push(pickRandomFrom(all));
+        const placeholders = sample.map(() => "?").join(",");
+        const [tracked] = await conn.query(
+            `SELECT shard_cidr, last_scanned_at, lease_expires_at
+             FROM scan_shards
+             WHERE shard_cidr IN (${placeholders})`,
+            sample
+        );
+        const trackedMap = new Map(tracked.map(r => [r.shard_cidr, r]));
+
+        let chosen = null;
+        // Prefer a sampled shard that's never been seen.
+        for (const s of sample) {
+            if (!trackedMap.has(s)) { chosen = s; break; }
+        }
+        // Else accept one whose lease has expired AND scan is stale.
+        if (!chosen) {
+            const now = Date.now();
+            for (const r of tracked) {
+                const leaseExp = r.lease_expires_at ? new Date(r.lease_expires_at).getTime() : 0;
+                const lastScan = r.last_scanned_at ? new Date(r.last_scanned_at).getTime() : 0;
+                const stale = lastScan === 0 || (now - lastScan) > SHARD_RESCAN_DAYS * 86400_000;
+                if (leaseExp < now && stale) { chosen = r.shard_cidr; break; }
+            }
+        }
+        if (!chosen) {
+            // Worst case: every sampled shard is fresh. Tell client to retry later.
+            return cors(json({ ok: false, retry_after_sec: 300, reason: "no_shard_available" }));
+        }
+        const leaseExpires = new Date(Date.now() + SHARD_LEASE_MIN * 60_000);
+        await conn.query(
+            `INSERT INTO scan_shards (shard_cidr, lease_owner, lease_expires_at)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE lease_owner = VALUES(lease_owner),
+                                     lease_expires_at = VALUES(lease_expires_at)`,
+            [chosen, deviceId, leaseExpires]
+        );
+        return cors(json({
+            ok: true,
+            shard: chosen,
+            lease_expires_at: leaseExpires.toISOString(),
+            lease_minutes: SHARD_LEASE_MIN,
+        }));
+    } finally {
+        conn.end();
+    }
+}
+
+async function v1ShardComplete(env, deviceId, body) {
+    const shard = String((body && body.shard) || "").slice(0, 32);
+    if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/.test(shard)) {
+        return cors(json({ error: "Invalid shard" }, 400));
+    }
+    const okCount = Number.isFinite(body && body.ok_count) ? body.ok_count : 0;
+    const totalCount = Number.isFinite(body && body.total_count) ? body.total_count : 0;
+    const conn = await getConn(env);
+    try {
+        await ensureShardTable(conn);
+        await conn.query(
+            `UPDATE scan_shards
+             SET last_scanned_at = NOW(),
+                 scanned_by_device = ?,
+                 ok_count = ?,
+                 total_count = ?,
+                 lease_owner = NULL,
+                 lease_expires_at = NULL
+             WHERE shard_cidr = ? AND (lease_owner = ? OR lease_owner IS NULL)`,
+            [deviceId, okCount, totalCount, shard, deviceId]
+        );
+        return cors(json({ ok: true }));
+    } finally {
+        conn.end();
+    }
+}
+
+

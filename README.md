@@ -274,23 +274,7 @@ python run_app.py
 > Captures all tabs at 1440×900 @2× into [`docs/screenshots/`](docs/screenshots/). See [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs).
 
 ---
-
-## 🆕 What's New in v2.1.2
-
-- 🩹 **Hotfix — DNS Tunnel routes now register in packaged builds.** The PyInstaller-frozen backend was hitting `if __name__ == '__main__': uvicorn.run(...)` *before* the DNS Tunnel / DNS Scanner / Speed Matrix endpoints were declared, so every `/api/tunnel/*` and `/api/dns-scan/*` call returned **404** in the installer build (it worked locally because `run_app.py` imports `main.py` as a module). The entrypoint guard is now at EOF with a code comment to keep it there.
-- 🛡️ **Release pipeline hardened** — `electron-builder` no longer double-publishes alongside `softprops/action-gh-release` (fixes `422 already_exists`), and stale assets from a failed run are now scrubbed before re-upload.
-- 🌐 **Default route through System Proxy / VPN** — the *“Route Location API & Discovery through Windows System Proxy / VPN”* checkbox is now ticked by default and persisted to `localStorage`.
-
-See [Release notes](https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.1.2).
-
-## 🆕 What's New in v2.1.1
-
-- ✨ **Data Sync rebuilt** as a full backup engine: 17 data sections, **AES-256-GCM + PBKDF2** passphrase encryption (200k iters), per-section **SHA-256** integrity manifest, **dry-run preview**, server-side rolling **snapshots** (local, max 20), **selective restore**, and **import history**.
-- 🔧 **SlipNet `slipnet://` share links fixed** — builder now always pads to the SlipNet **v18 minimum of 38 fields**, eliminating *“Invalid v18 format (expected at least 38 fields, got 15)”* on import.
-- 🩺 **DNS Tunnel cold-start UX** — health banner is suppressed during the first ~12s of app boot and uses adaptive 4s polling until healthy, then 30s. Distinct copy for *backend unreachable* vs *missing Python packages*.
-- 🌐 **Localized changelog** — 6 languages now show the 2.1.1 release notes inside the About tab.
-
-See the full diff in the [Release notes](https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.1.1).
+## 🛠️ Recent Improvements (v2.1.6)
 
 ---
 

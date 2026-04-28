@@ -1,0 +1,44 @@
+# Gradle
+.gradle/
+build/
+!**/src/**/build/
+local.properties
+captures/
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+.cxx/
+
+# Keystores & secrets — NEVER COMMIT
+*.jks
+*.keystore
+keystore.properties
+release.keystore.properties
+db.properties
+local-bootstrap.ps1
+.env
+.env.local
+
+# Generated bootstrap blob (built from CI secret)
+app/src/main/assets/bootstrap.bin
+
+# Large prebuilt native binaries (downloaded by CI / dev-setup, never committed)
+app/libs/*.aar
+app/libs/*.jar
+app/src/main/jniLibs/**/*.so
+
+# Native build
+.externalNativeBuild/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# QA / scratch screenshots & dumps
+_qa*.png
+_ui.xml
+
+# 3rd-party APKs (download separately, never commit)
+v2rayng-*.apk
+*.apk

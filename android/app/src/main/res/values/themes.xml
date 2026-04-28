@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Antigravity" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+        <item name="android:statusBarColor">#FF06081A</item>
+        <item name="android:navigationBarColor">#FF06081A</item>
+    </style>
+    <!-- Backwards-compat alias for old AndroidManifest references. -->
+    <style name="Theme.KhateFreeNet" parent="Theme.Antigravity" />
+</resources>

@@ -1,0 +1,16 @@
+# Copy to db.properties (git-ignored) and fill with your values.
+# Empty values disable worker-backed DB calls and force local fallback layers.
+
+# Canonical DB proxy endpoint (include https://)
+dbProxyUrl=
+
+# Optional bearer token for proxy auth
+dbProxyApiKey=
+
+# Optional comma-separated backup worker hosts (no protocol)
+# Example: cf-ip-scanner-db-proxy.user.workers.dev,backup.user.workers.dev
+workerFallbackHosts=
+
+# Optional comma-separated clean IP seed list for cold-start L3
+# Example: 104.16.0.1,104.17.0.1,104.18.0.1
+bootstrapCleanIps=104.16.0.1,104.17.0.1,104.18.0.1,104.19.0.1,104.20.0.1,162.159.135.234

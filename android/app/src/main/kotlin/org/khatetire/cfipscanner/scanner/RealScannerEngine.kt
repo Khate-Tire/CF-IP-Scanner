@@ -1,0 +1,182 @@
+package org.khatetire.cfipscanner.scanner
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.khatetire.cfipscanner.net.DbClient
+import org.khatetire.cfipscanner.net.IspContext
+import org.khatetire.cfipscanner.ui.ScanResultRow
+import org.khatetire.cfipscanner.ui.ScanStateHolder
+import java.net.InetSocketAddress
+import java.net.Socket
+
+/**
+ * TCP-connect probe scanner. Pulls candidate IPs from [DbClient] (which
+ * walks the 5-layer fallback ladder), then opens a socket to port 443 and
+ * records the connect latency. Falls back to [MockScannerEngine] when
+ * DbClient returns nothing (no DB configured + no cache).
+ *
+ * Honors [ScanProfile] parallelism + interval between batches.
+ */
+object RealScannerEngine {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var job: Job? = null
+
+    private const val PROBE_PORT = 443
+    private const val CONNECT_TIMEOUT_MS = 2000L
+    private const val CLEAN_THRESHOLD_MS = 200
+
+    fun start(ctx: Context) {
+        if (job?.isActive == true) return
+        ScanStateHolder.applyProfile(ScanProfile.NORMAL)
+        job = scope.launch {
+            // Track the most recent batch of IPs so we can detect when the
+            // per-ISP DB is exhausted (returns identical picks). When it is,
+            // we switch to shard mode and contribute fresh coverage.
+            var lastBatchSig: String = ""
+            var staleCount = 0
+            while (isActive) {
+                val profile = ScanStateHolder.state.value.profile
+                if (profile == ScanProfile.PAUSED) {
+                    delay(500); continue
+                }
+                val info = runCatching { IspContext.current() }.getOrDefault(IspContext.Info())
+                val picks = DbClient.bestIps(ctx, limit = 30)
+                ScanStateHolder.setDbLayer(picks.layer.tag, picks.latencyMs)
+                val sig = picks.rawIps.sorted().joinToString(",")
+                val sameAsLast = sig == lastBatchSig && sig.isNotEmpty()
+                staleCount = if (sameAsLast) staleCount + 1 else 0
+                lastBatchSig = sig
+
+                val useShard = picks.ips.isEmpty() || staleCount >= 2
+                if (useShard) {
+                    runShardCycle(ctx, profile, info)
+                } else {
+                    runDbCycle(ctx, profile, info, picks.rawIps)
+                }
+                val intervalMs = profile.interval.inWholeMilliseconds
+                if (intervalMs > 0 && intervalMs != Long.MAX_VALUE) delay(intervalMs)
+            }
+        }
+    }
+
+    /** Probe a batch of DB-supplied IPs and contribute results back. */
+    private suspend fun runDbCycle(
+        ctx: Context, profile: ScanProfile, info: IspContext.Info, ips: List<String>,
+    ) {
+        val parallelism = profile.parallelism.coerceAtLeast(1)
+        val results = probeAll(ips, parallelism)
+        contribute(ctx, info, results)
+    }
+
+    /** Claim a /24 from the worker, scan all 256 IPs, contribute results,
+     *  release the lease. If no shard is available we just sleep briefly
+     *  and let the outer loop retry — the loop never exits. */
+    private suspend fun runShardCycle(
+        ctx: Context, profile: ScanProfile, info: IspContext.Info,
+    ) {
+        val claim = DbClient.claimShard(ctx)
+        if (claim == null) {
+            ScanStateHolder.setDbLayer("SHARD_WAIT", 0)
+            delay(60_000); return
+        }
+        ScanStateHolder.setDbLayer("SHARD ${claim.shard}", 0)
+        val ips = expandSlash24(claim.shard)
+        val parallelism = profile.parallelism.coerceAtLeast(1)
+        val results = probeAll(ips, parallelism)
+        val okCount = results.count { it.second.clean }
+        contribute(ctx, info, results)
+        runCatching { DbClient.completeShard(ctx, claim.shard, okCount, results.size) }
+    }
+
+    private suspend fun probeAll(
+        ips: List<String>, parallelism: Int,
+    ): List<Pair<String, ScanResultRow>> = coroutineScope {
+        val out = mutableListOf<Pair<String, ScanResultRow>>()
+        ips.chunked(parallelism).forEach { batch ->
+            if (!isActive) return@coroutineScope out
+            val rows: List<Pair<String, ScanResultRow>> =
+                batch.map { ip -> async { ip to probe(ip) } }.awaitAll()
+            rows.forEach { pair ->
+                ScanStateHolder.pushResult(pair.second)
+                out += pair
+            }
+        }
+        out
+    }
+
+    private suspend fun contribute(
+        ctx: Context, info: IspContext.Info, results: List<Pair<String, ScanResultRow>>,
+    ) {
+        if (results.isEmpty()) return
+        runCatching {
+            val payload = results.map { (ip, row) ->
+                buildJsonObject {
+                    put("ip", ip)
+                    put("port", PROBE_PORT)
+                    put("ping", row.pingMs)
+                    put("status", if (row.clean) "ok" else "fail")
+                }
+            }
+            DbClient.submitScanResultsBatch(
+                ctx = ctx,
+                cc = info.country,
+                isp = info.isp,
+                appVersion = "0.1.0",
+                results = payload,
+            )
+        }
+    }
+
+    /** "1.2.3.0/24" -> List of 256 dotted-quad strings. */
+    private fun expandSlash24(cidr: String): List<String> {
+        val base = cidr.substringBefore('/')
+        val parts = base.split('.')
+        if (parts.size != 4) return emptyList()
+        val (a, b, c) = Triple(parts[0], parts[1], parts[2])
+        return (0..255).map { "$a.$b.$c.$it" }
+    }
+
+    fun stop() {
+        job?.cancel(); job = null
+        MockScannerEngine.stop()
+        ScanStateHolder.applyProfile(ScanProfile.PAUSED)
+    }
+
+    private suspend fun probe(ip: String): ScanResultRow {
+        val started = System.nanoTime()
+        val ok = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
+            runCatching {
+                Socket().use { s ->
+                    s.connect(InetSocketAddress(ip, PROBE_PORT), CONNECT_TIMEOUT_MS.toInt())
+                    s.isConnected
+                }
+            }.getOrDefault(false)
+        } ?: false
+        val ms = ((System.nanoTime() - started) / 1_000_000).toInt()
+        return ScanResultRow(
+            redactedIp = redact(ip),
+            pingMs = if (ok) ms else -1,
+            clean = ok && ms <= CLEAN_THRESHOLD_MS,
+            timestampMs = System.currentTimeMillis(),
+        )
+    }
+
+    /** Drop the last two octets so logs/UI never display full edge addresses. */
+    private fun redact(ip: String): String {
+        val parts = ip.split('.')
+        return if (parts.size == 4) "${parts[0]}.${parts[1]}.*.*" else "***"
+    }
+}
