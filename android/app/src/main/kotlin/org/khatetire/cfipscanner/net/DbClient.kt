@@ -131,6 +131,7 @@ object DbClient {
         L2_WORKER("L2"),
         L3_FRONTED("L3"),
         L4_DOH("L4"),
+        L4V_VLESS("L4V"),
         L5_MIRROR("L5"),
         L6_POOL("L6"),
         L7_CACHE("L7"),
@@ -140,7 +141,12 @@ object DbClient {
 
     /** Total number of layers reported in the badge ("working/total"). Keep
      *  in sync with [Layer]. */
-    const val TOTAL_LAYERS = 8
+    const val TOTAL_LAYERS = 9
+
+    /** Layers that hit the worker over the network (in fallback order). */
+    private val NETWORK_LAYERS = arrayOf(
+        Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH, Layer.L4V_VLESS,
+    )
 
     /** URL of the static snapshot mirror used by [Layer.L5_MIRROR]. The CI
      *  workflow `update-snapshot.yml` rewrites the upstream JSON every 30
@@ -195,10 +201,10 @@ object DbClient {
         val asn = info.asn
         val deviceId = deviceId(ctx)
 
-        // ---- L1..L4: network layers that hit the actual worker -----------
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
+        // ---- L1..L4V: network layers that hit the actual worker ---------
+        for (layer in NETWORK_LAYERS) {
             val started = System.nanoTime()
-            val picks = runCatching { fetchBestIpsViaLayer(layer, deviceId, cc, isp, asn, limit) }
+            val picks = runCatching { fetchBestIpsViaLayer(ctx, layer, deviceId, cc, isp, asn, limit) }
                 .onFailure { Log.w(TAG, "${layer.tag} bestIps failed: ${it.message}") }
                 .getOrNull()
             val ms = (System.nanoTime() - started) / 1_000_000
@@ -374,6 +380,7 @@ object DbClient {
     // ---- per-layer fetchers ---------------------------------------------
 
     private fun fetchBestIpsViaLayer(
+        ctx: Context,
         layer: Layer,
         deviceId: String,
         cc: String,
@@ -382,14 +389,15 @@ object DbClient {
         limit: Int,
     ): List<Pick> {
         val host = pickHost(layer) ?: return emptyList()
-        // L3 / L4 bypass system DNS via fronting / DoH respectively, so they
-        // must NOT inherit the cooldown that L1 set on the same hostname.
-        if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) {
+        // L3 / L4 / L4V bypass system DNS via fronting / DoH / VLESS tunnel
+        // respectively, so they must NOT inherit the cooldown that L1 set
+        // on the same hostname.
+        if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && layer != Layer.L4V_VLESS && isCoolingOff(host)) {
             Log.d(TAG, "${layer.tag} host $host cooling off, skipping")
             return emptyList()
         }
 
-        val client = clientForLayer(layer)
+        val client = clientForLayer(layer, ctx)
         val urlBuilder = HttpUrl.Builder()
             .scheme("https").host(host).addPathSegments("v1/best-ips")
             .addQueryParameter("limit", limit.toString())
@@ -444,10 +452,10 @@ object DbClient {
 
     private fun postV1(ctx: Context, path: String, body: JsonObject): JsonObject? {
         val deviceId = deviceId(ctx)
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
+        for (layer in NETWORK_LAYERS) {
             val host = pickHost(layer) ?: continue
-            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) continue
-            val client = clientForLayer(layer)
+            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && layer != Layer.L4V_VLESS && isCoolingOff(host)) continue
+            val client = clientForLayer(layer, ctx)
             val url = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
                 .build()
@@ -479,10 +487,10 @@ object DbClient {
 
     private fun getV1(ctx: Context, path: String, params: Map<String, String>): JsonObject? {
         val deviceId = deviceId(ctx)
-        for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED, Layer.L4_DOH)) {
+        for (layer in NETWORK_LAYERS) {
             val host = pickHost(layer) ?: continue
-            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && isCoolingOff(host)) continue
-            val client = clientForLayer(layer)
+            if (layer != Layer.L3_FRONTED && layer != Layer.L4_DOH && layer != Layer.L4V_VLESS && isCoolingOff(host)) continue
+            val client = clientForLayer(layer, ctx)
             val urlBuilder = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
             params.forEach { (k, v) -> if (v.isNotBlank()) urlBuilder.addQueryParameter(k, v) }
@@ -518,6 +526,7 @@ object DbClient {
             Layer.L2_WORKER -> rotationHosts().firstOrNull { it != canonical } ?: canonical
             Layer.L3_FRONTED -> canonical
             Layer.L4_DOH -> canonical
+            Layer.L4V_VLESS -> canonical
             else -> null
         }
     }
@@ -556,9 +565,24 @@ object DbClient {
 
     private fun bundledSeedIps(): List<String> = cleanIps()
 
-    private fun clientForLayer(layer: Layer): OkHttpClient {
-        val base = activeClient()
+    private fun clientForLayer(layer: Layer, ctx: Context? = null): OkHttpClient {
+        val base = activeClient(ctx)
         return when (layer) {
+            Layer.L4V_VLESS -> {
+                // Spin up (or reuse) a parallel Xray-core instance dedicated
+                // to DB fetches and route this request through its loopback
+                // HTTP inbound. Mirrors the desktop's "Layer 4: VLESS Tunnel"
+                // method — works even when the user's main VPN is OFF.
+                val proxyAddr = ctx?.let { org.khatetire.cfipscanner.xray.DbTunnel.httpProxyAddress(it) }
+                if (proxyAddr == null) base else {
+                    plainClient.newBuilder()
+                        .proxy(java.net.Proxy(java.net.Proxy.Type.HTTP, proxyAddr))
+                        // VLESS handshake + tunnel can be slow on first call.
+                        .connectTimeout(15, TimeUnit.SECONDS)
+                        .readTimeout(15, TimeUnit.SECONDS)
+                        .build()
+                }
+            }
             Layer.L3_FRONTED -> {
                 // L3: override DNS so the worker host resolves to a known-clean
                 // Cloudflare anycast IP. SNI is left as-is so the TLS handshake

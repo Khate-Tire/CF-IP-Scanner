@@ -35,6 +35,7 @@ data class ScanUiState(
         DbLayerHealth("L2", "Worker"),
         DbLayerHealth("L3", "Fronted"),
         DbLayerHealth("L4", "DoH"),
+        DbLayerHealth("L4V", "VLESS Tunnel"),
         DbLayerHealth("L5", "Mirror"),
         DbLayerHealth("L6", "Pool"),
         DbLayerHealth("L7", "Cache"),

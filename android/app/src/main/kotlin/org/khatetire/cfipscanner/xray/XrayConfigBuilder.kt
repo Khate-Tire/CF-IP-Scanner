@@ -90,4 +90,71 @@ object XrayConfigBuilder {
             .put("outbounds", outbounds)
             .toString()
     }
+
+    /**
+     * Minimal config for the **DB tunnel** — opens an HTTP-only inbound on
+     * [httpPort] (no SOCKS, no sniffing) and routes through a VLESS+WS+TLS
+     * outbound. Used by `DbTunnel` to fetch community IPs over VLESS even
+     * when the user's main VPN is OFF, mirroring the desktop's Layer 4
+     * "VLESS Tunnel" DB connection.
+     */
+    fun buildForDb(
+        cfg: VlessConfig,
+        httpPort: Int,
+        overrideSni: String? = null,
+        verifyTls: Boolean = true,
+    ): String {
+        val sni = overrideSni ?: cfg.sni
+        val log = JSONObject().put("loglevel", "warning")
+
+        val inbounds = JSONArray().put(
+            JSONObject()
+                .put("tag", "db-http-in")
+                .put("port", httpPort)
+                .put("listen", SOCKS_HOST)
+                .put("protocol", "http")
+                .put("settings", JSONObject().put("allowTransparent", false))
+        )
+
+        val outbounds = JSONArray().put(
+            JSONObject()
+                .put("tag", "db-vless")
+                .put("protocol", "vless")
+                .put("settings", JSONObject().put("vnext", JSONArray().put(
+                    JSONObject()
+                        .put("address", cfg.host)
+                        .put("port", cfg.port)
+                        .put("users", JSONArray().put(
+                            JSONObject()
+                                .put("id", cfg.uuid)
+                                .put("encryption", "none")
+                                .put("level", 0)
+                        ))
+                )))
+                .put("streamSettings", JSONObject()
+                    .put("network", "ws")
+                    .put("security", "tls")
+                    .put("tlsSettings", JSONObject()
+                        .put("serverName", sni)
+                        .put("allowInsecure", cfg.allowInsecure || !verifyTls)
+                        .put("fingerprint", cfg.fingerprint)
+                        .put("alpn", JSONArray().also { a -> cfg.alpn.forEach(a::put) })
+                    )
+                    .put("wsSettings", JSONObject()
+                        .put("path", cfg.wsPath)
+                        .put("headers", JSONObject().put("Host", cfg.wsHost))
+                    )
+                )
+        ).put(
+            JSONObject().put("tag", "direct").put("protocol", "freedom")
+        ).put(
+            JSONObject().put("tag", "block").put("protocol", "blackhole")
+        )
+
+        return JSONObject()
+            .put("log", log)
+            .put("inbounds", inbounds)
+            .put("outbounds", outbounds)
+            .toString()
+    }
 }
