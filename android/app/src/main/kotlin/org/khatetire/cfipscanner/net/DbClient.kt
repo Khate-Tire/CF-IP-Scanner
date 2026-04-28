@@ -3,7 +3,11 @@ package org.khatetire.cfipscanner.net
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -191,8 +195,12 @@ object DbClient {
 
     // ---- entry points ----------------------------------------------------
 
-    /** Returns up to [limit] best IPs by walking L1..L8 in order. The first
-     *  network layer that returns a non-empty list ALSO updates the L7 cache,
+    /** Returns up to [limit] best IPs by RACING all 5 network layers
+     *  (L1..L4V) in parallel. The fastest layer that returns a non-empty
+     *  response wins; the others still run to completion so the per-layer
+     *  health badge fills with accurate latency data on every call. If all
+     *  network layers fail or the race exceeds 8 s, falls through to L5..L8
+     *  sequentially. The winning layer's payload is written to the L7 cache
      *  so the offline backup grows organically as the user uses the app. */
     suspend fun bestIps(ctx: Context, limit: Int = 30): Picks = withContext(Dispatchers.IO) {
         val info = runCatching { IspContext.current() }.getOrDefault(IspContext.Info())
@@ -201,21 +209,30 @@ object DbClient {
         val asn = info.asn
         val deviceId = deviceId(ctx)
 
-        // ---- L1..L4V: network layers that hit the actual worker ---------
-        for (layer in NETWORK_LAYERS) {
-            val started = System.nanoTime()
-            val picks = runCatching { fetchBestIpsViaLayer(ctx, layer, deviceId, cc, isp, asn, limit) }
-                .onFailure { Log.w(TAG, "${layer.tag} bestIps failed: ${it.message}") }
-                .getOrNull()
-            val ms = (System.nanoTime() - started) / 1_000_000
-            if (!picks.isNullOrEmpty()) {
-                DbCache.savePicks(ctx, picks)
-                Log.i(TAG, "bestIps: ${layer.tag} returned ${picks.size} ips in ${ms}ms")
-                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(layer.tag, ok = true, latencyMs = ms)
-                return@withContext Picks(picks, layer, ms)
-            } else {
-                org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(layer.tag, ok = false, latencyMs = ms)
+        // ---- L1..L4V: RACE all network layers in parallel --------------
+        val raceStart = System.nanoTime()
+        val winner: Triple<Layer, List<Pick>, Long>? = withTimeoutOrNull(8_000L) {
+            coroutineScope {
+                val deferreds = NETWORK_LAYERS.map { layer ->
+                    async {
+                        val started = System.nanoTime()
+                        val picks = runCatching { fetchBestIpsViaLayer(ctx, layer, deviceId, cc, isp, asn, limit) }
+                            .onFailure { Log.w(TAG, "${layer.tag} bestIps failed: ${it.message}") }
+                            .getOrNull()
+                        val ms = (System.nanoTime() - started) / 1_000_000
+                        val ok = !picks.isNullOrEmpty()
+                        org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(layer.tag, ok = ok, latencyMs = ms)
+                        if (ok) Triple(layer, picks!!, ms) else null
+                    }
+                }
+                deferreds.awaitAll().filterNotNull().minByOrNull { it.third }
             }
+        }
+        if (winner != null) {
+            val ms = (System.nanoTime() - raceStart) / 1_000_000
+            DbCache.savePicks(ctx, winner.second)
+            Log.i(TAG, "bestIps: race won by ${winner.first.tag} -> ${winner.second.size} ips in ${ms}ms (winner ${winner.third}ms)")
+            return@withContext Picks(winner.second, winner.first, ms)
         }
 
         // ---- L5: static snapshot mirror (jsdelivr / raw.github) ----------
@@ -275,6 +292,63 @@ object DbClient {
         }
 
         Picks(emptyList(), Layer.NONE, 0)
+    }
+
+    /** Probes ALL 9 layers in parallel and reports each one's health to the
+     *  UI badge. Pure observer: does NOT update the L7 cache, does NOT
+     *  trigger cooldowns, uses `limit=1` to keep payloads small. Called
+     *  every 15 min by [org.khatetire.cfipscanner.work.DbWarmUpWorker] so
+     *  the "DB LINK X/9 ONLINE" panel always reflects live reality. */
+    suspend fun probeAllLayers(ctx: Context): Unit = withContext(Dispatchers.IO) {
+        val info = runCatching { IspContext.current() }.getOrDefault(IspContext.Info())
+        val cc = info.country
+        val isp = info.isp
+        val asn = info.asn
+        val deviceId = deviceId(ctx)
+
+        withTimeoutOrNull(10_000L) {
+            coroutineScope {
+                // Network layers (L1..L4V): real GET /v1/best-ips?limit=1
+                val net = NETWORK_LAYERS.map { layer ->
+                    async {
+                        val started = System.nanoTime()
+                        val picks = runCatching { fetchBestIpsViaLayer(ctx, layer, deviceId, cc, isp, asn, 1) }
+                            .getOrNull()
+                        val ms = (System.nanoTime() - started) / 1_000_000
+                        org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(
+                            layer.tag, ok = !picks.isNullOrEmpty(), latencyMs = ms
+                        )
+                    }
+                }
+                // L5 mirror probe (HEAD)
+                val l5 = async {
+                    val started = System.nanoTime()
+                    val ok = runCatching {
+                        plainClient.newCall(Request.Builder().url(MIRROR_URL).head().build())
+                            .execute().use { it.isSuccessful }
+                    }.getOrDefault(false)
+                    val ms = (System.nanoTime() - started) / 1_000_000
+                    org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L5_MIRROR.tag, ok, ms)
+                }
+                // L6 pool / L7 cache / L8 seed: local checks (latency = 0)
+                val l6 = async {
+                    val ok = runCatching {
+                        org.khatetire.cfipscanner.data.IpPoolStore.top(ctx, 1).isNotEmpty()
+                    }.getOrDefault(false)
+                    org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L6_POOL.tag, ok, 0)
+                }
+                val l7 = async {
+                    val ok = runCatching { DbCache.loadPicks(ctx).isNotEmpty() }.getOrDefault(false)
+                    org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L7_CACHE.tag, ok, 0)
+                }
+                val l8 = async {
+                    val ok = bundledSeedIps().isNotEmpty()
+                    org.khatetire.cfipscanner.ui.ScanStateHolder.markDbLayer(Layer.L8_SEED.tag, ok, 0)
+                }
+                (net + listOf(l5, l6, l7, l8)).awaitAll()
+            }
+        }
+        Log.i(TAG, "probeAllLayers: complete")
     }
 
     // ---- L5 snapshot mirror fetcher --------------------------------------

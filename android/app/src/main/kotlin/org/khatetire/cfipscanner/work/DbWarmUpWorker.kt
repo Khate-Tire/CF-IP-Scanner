@@ -29,6 +29,12 @@ import java.util.concurrent.TimeUnit
 class DbWarmUpWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         return try {
+            // Probe all 9 layers in parallel so the UI badge reflects every
+            // layer's true health, not just the winner of the next race.
+            runCatching { DbClient.probeAllLayers(applicationContext) }
+                .onFailure { Log.w(TAG, "probeAllLayers failed: ${it.message}") }
+            // Then race the network layers and refresh the L7 cache from
+            // whichever returned first.
             val picks = DbClient.bestIps(applicationContext, limit = 50)
             Log.i(TAG, "warm-up via ${picks.layer.tag} -> ${picks.ips.size} ips")
             // We never fail the worker — a transient failure should not be
