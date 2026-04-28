@@ -1,4 +1,5 @@
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -73,16 +74,42 @@ android {
         }
     }
 
-    signingConfigs {
-        create("release") {
-            val ksProps = rootProject.file("keystore.properties")
-            if (ksProps.exists()) {
-                val props = Properties().apply { load(ksProps.inputStream()) }
-                storeFile = file(props.getProperty("storeFile"))
-                storePassword = props.getProperty("storePassword")
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
+    // Release signing config. Loads credentials from `android/keystore.properties`
+    // (git-ignored). If the file or any required field is missing, the release
+    // build falls back to the debug signing config so the APK still installs
+    // — but a loud warning is logged. CI can also supply credentials via the
+    // env vars KHATE_KEYSTORE_FILE / KHATE_KEYSTORE_PASSWORD /
+    // KHATE_KEY_ALIAS / KHATE_KEY_PASSWORD (env wins over the properties file).
+    val releaseSigning = signingConfigs.create("release") {
+        val ksProps = rootProject.file("keystore.properties")
+        val props = Properties().apply { if (ksProps.exists()) load(ksProps.inputStream()) }
+        val storePath = System.getenv("KHATE_KEYSTORE_FILE") ?: props.getProperty("storeFile")
+        val storePass = System.getenv("KHATE_KEYSTORE_PASSWORD") ?: props.getProperty("storePassword")
+        val alias = System.getenv("KHATE_KEY_ALIAS") ?: props.getProperty("keyAlias")
+        val keyPass = System.getenv("KHATE_KEY_PASSWORD") ?: props.getProperty("keyPassword")
+        if (!storePath.isNullOrBlank() && !storePass.isNullOrBlank() &&
+            !alias.isNullOrBlank() && !keyPass.isNullOrBlank()
+        ) {
+            // Resolve relative paths against rootProject (android/) so the
+            // properties file can stay portable across machines.
+            val resolved = File(storePath).let { raw ->
+                if (raw.isAbsolute) raw else rootProject.file(storePath)
             }
+            if (resolved.exists()) {
+                storeFile = resolved
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
+                // Enable v1+v2+v3 signing schemes. v1 (JAR) is required for
+                // pre-API 24, v2 for 24-27, v3 (28+) supports key rotation.
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            } else {
+                logger.warn("⚠️  Release keystore file not found at ${resolved.absolutePath} — release build will fall back to debug signing.")
+            }
+        } else {
+            logger.warn("⚠️  No release signing credentials found (keystore.properties or KHATE_* env vars). Release build will fall back to debug signing. See keystore.properties.example.")
         }
     }
 
@@ -91,7 +118,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("release")
+            // Use the configured release signing if it has a storeFile; otherwise
+            // fall back to debug so the APK is still installable for testing.
+            signingConfig = if (releaseSigning.storeFile != null) releaseSigning
+            else signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
