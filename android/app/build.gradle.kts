@@ -273,9 +273,18 @@ val encryptBootstrap = tasks.register("encryptBootstrap") {
 
 androidComponents {
     onVariants { variant ->
-        // Run before resources/assets are merged into APK.
+        // Run before resources/assets are merged into APK, AND before lint
+        // tasks scan the assets directory (Gradle 9 strict implicit-dep check).
         val capName = variant.name.replaceFirstChar { it.uppercase() }
-        tasks.matching { it.name == "merge${capName}Assets" || it.name == "package${capName}Assets" }
-            .configureEach { dependsOn(encryptBootstrap) }
+        tasks.matching {
+            it.name == "merge${capName}Assets" ||
+                it.name == "package${capName}Assets" ||
+                it.name == "generate${capName}LintVitalReportModel" ||
+                it.name == "generate${capName}LintModel" ||
+                it.name == "lintVitalAnalyze${capName}" ||
+                it.name == "lintAnalyze${capName}" ||
+                it.name == "lintVitalReport${capName}" ||
+                it.name == "lintReport${capName}"
+        }.configureEach { dependsOn(encryptBootstrap) }
     }
 }
