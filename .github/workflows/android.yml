@@ -6,6 +6,8 @@ on:
     paths:
       - "android/**"
       - ".github/workflows/android.yml"
+    tags:
+      - "v*"
   pull_request:
     paths:
       - "android/**"
@@ -55,21 +57,21 @@ jobs:
           EOF
 
       - name: Build debug APK
-        if: github.event_name != 'release'
+        if: github.event_name != 'release' && !startsWith(github.ref, 'refs/tags/v')
         env:
           BOOTSTRAP_VLESS_CONFIGS: ${{ secrets.BOOTSTRAP_VLESS_CONFIGS }}
           BOOTSTRAP_KEY: ${{ secrets.BOOTSTRAP_KEY }}
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Build release APK
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
         env:
           BOOTSTRAP_VLESS_CONFIGS: ${{ secrets.BOOTSTRAP_VLESS_CONFIGS }}
           BOOTSTRAP_KEY: ${{ secrets.BOOTSTRAP_KEY }}
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       - name: Upload debug artifacts
-        if: github.event_name != 'release'
+        if: github.event_name != 'release' && !startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: khate-debug-apks
@@ -77,7 +79,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload release artifacts
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: khate-release-apks
@@ -85,10 +87,13 @@ jobs:
           if-no-files-found: error
 
       - name: Attach release APKs to GitHub Release
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish rolling 'nightly' pre-release (debug APK)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
