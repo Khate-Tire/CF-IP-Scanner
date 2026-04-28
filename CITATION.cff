@@ -18,7 +18,7 @@ repository-code: "https://github.com/Khate-Tire/CF-IP-Scanner"
 url: "https://github.com/Khate-Tire/CF-IP-Scanner"
 license: GNU AGPLv3
 version: 2.1.4
-date-released: "2026-04-27"
+date-released: "2026-04-28"
 keywords:
   - cloudflare
   - ip-scanner
