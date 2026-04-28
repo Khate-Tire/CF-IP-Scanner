@@ -261,7 +261,7 @@ private fun DbHealthBadge(state: ScanUiState) {
         }
         Spacer(Modifier.width(6.dp))
         Text(
-            text = "$working/5",
+            text = "$working/5 layers",
             fontSize = 10.sp,
             color = AntigravityColors.OnDarkDim,
         )

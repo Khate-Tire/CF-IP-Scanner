@@ -209,6 +209,7 @@ fun SettingsScreen(
                 onCheckedChange = { v ->
                     AppSettings.update { it.copy(scheduledScans = v) }
                     org.khatetire.cfipscanner.work.ScanScheduler.apply(ctx)
+                    org.khatetire.cfipscanner.work.IpPoolRefreshScheduler.apply(ctx)
                 },
             )
             SettingsRow(

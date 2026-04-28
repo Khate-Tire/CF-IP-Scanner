@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import org.khatetire.cfipscanner.settings.AppSettings
 import org.khatetire.cfipscanner.ui.AntigravityApp
 import org.khatetire.cfipscanner.ui.LocalActivity
@@ -37,6 +39,14 @@ class MainActivity : FragmentActivity() {
             notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         val anonId = AnonymousId.get(applicationContext)
+        // Hand the app context to IspContext so cellular SIM operator can be
+        // merged into the ISP label, and pre-warm the DB layer ladder so the
+        // header badge in the Scanner tab reflects reality before the first
+        // scan kicks off (otherwise the user only sees L5 lit on cold start).
+        org.khatetire.cfipscanner.net.IspContext.attach(applicationContext)
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { org.khatetire.cfipscanner.net.DbClient.bestIps(applicationContext, limit = 5) }
+        }
         setContent {
             AntigravityTheme {
                 CompositionLocalProvider(LocalActivity provides this) {

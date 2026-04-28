@@ -1,5 +1,7 @@
 package org.khatetire.cfipscanner.net
 
+import android.content.Context
+import android.telephony.TelephonyManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -34,10 +36,20 @@ object IspContext {
     private const val TAG = "IspContext"
     private const val URL_META = "https://speed.cloudflare.com/meta"
     private const val URL_TRACE = "https://www.cloudflare.com/cdn-cgi/trace"
+    // ip-api.com fallback — same source the desktop scanner uses, queried
+    // by-IP via a known-clean anycast (208.95.112.1) with Host header so it
+    // works even when DNS for ip-api.com is poisoned.
+    private const val URL_IPAPI = "http://208.95.112.1/json"
     private const val TTL_MS = 10 * 60 * 1000L // 10 minutes
 
     @Volatile private var cached: Info? = null
     @Volatile private var cachedAt: Long = 0
+    @Volatile private var appCtx: Context? = null
+
+    /** App should call this once at startup so the ISP probe can also pull
+     *  the SIM operator name on cellular for a richer label. Optional — the
+     *  CF / ip-api lookups still work without it. */
+    fun attach(ctx: Context) { appCtx = ctx.applicationContext }
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -71,11 +83,73 @@ object IspContext {
         cached?.let { c ->
             if (!forceRefresh && now - cachedAt < TTL_MS) return@withContext c
         }
-        val info = fetchMeta() ?: fetchTrace() ?: cached ?: Info()
+        // Multi-source ISP detection: CF /meta gives ASN+org reliably when
+        // it's reachable; ip-api.com fills the org/ISP gap when CF only
+        // returns IP+colo via the trace fallback; the SIM carrier name is
+        // merged on top so the user sees "MCI" not just "AS44244" on data.
+        var info = fetchMeta() ?: fetchTrace() ?: Info()
+        if (info.isp.isBlank() || info.asn.isBlank()) {
+            fetchIpApi(info.ip)?.let { info = mergeNonBlank(info, it) }
+        }
+        info = mergeNonBlank(info, simCarrier())
         cached = info
         cachedAt = now
         Log.i(TAG, "resolved cc=${info.country} asn=${info.asn} isp=${info.isp.take(40)}")
         info
+    }
+
+    private fun mergeNonBlank(base: Info, overlay: Info): Info = base.copy(
+        ip = base.ip.ifBlank { overlay.ip },
+        asn = base.asn.ifBlank { overlay.asn },
+        country = base.country.ifBlank { overlay.country },
+        isp = base.isp.ifBlank { overlay.isp },
+        location = base.location.ifBlank { overlay.location },
+    )
+
+    private fun fetchIpApi(ip: String): Info? {
+        return try {
+            val url = if (ip.isNotBlank()) "$URL_IPAPI/$ip?fields=country,countryCode,city,isp,as,query"
+                      else "$URL_IPAPI?fields=country,countryCode,city,isp,as,query"
+            val req = Request.Builder().url(url).header("Host", "ip-api.com").get().build()
+            client().newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val body = resp.body?.string().orEmpty()
+                if (body.isBlank()) return null
+                val obj = json.parseToJsonElement(body).jsonObject
+                val asField = (obj["as"] as? JsonPrimitive)?.content.orEmpty() // "AS44244 MCI ..."
+                val asn = asField.substringBefore(' ', "").takeIf { it.startsWith("AS") }.orEmpty()
+                Info(
+                    ip = (obj["query"] as? JsonPrimitive)?.content.orEmpty(),
+                    country = (obj["countryCode"] as? JsonPrimitive)?.content.orEmpty(),
+                    location = (obj["city"] as? JsonPrimitive)?.content.orEmpty(),
+                    asn = asn,
+                    isp = (obj["isp"] as? JsonPrimitive)?.content.orEmpty(),
+                )
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "ipapi fetch failed: ${t.message}")
+            null
+        }
+    }
+
+    private fun simCarrier(): Info {
+        val ctx = appCtx ?: return Info()
+        return runCatching {
+            val tm = ctx.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+                ?: return@runCatching Info()
+            // Only meaningful when a SIM is present and registered.
+            if (tm.simState != TelephonyManager.SIM_STATE_READY) return@runCatching Info()
+            val name = tm.networkOperatorName.orEmpty()
+            val mcc = tm.networkOperator.orEmpty().take(3)
+            // We don't trust this for ASN, but the operator name is a great
+            // ISP hint for cellular and the country (MCC) is rock solid.
+            val country = when (mcc) {
+                "432" -> "IR"; "262" -> "DE"; "234", "235" -> "GB"; "310", "311", "312" -> "US"
+                "250" -> "RU"; "286" -> "TR"; "404", "405" -> "IN"; "460" -> "CN"
+                else -> ""
+            }
+            Info(isp = name, country = country)
+        }.getOrDefault(Info())
     }
 
     private fun fetchMeta(): Info? {

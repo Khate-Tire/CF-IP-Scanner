@@ -349,6 +349,15 @@ class CfVpnService : VpnService() {
         Log.i(TAG, "pickConfig: requested slot=$slot, effective=$effectiveSlot of ${bootstrap.size}")
         val base = bootstrap[effectiveSlot]
 
+        // Locally-validated pool wins over the remote DB (see
+        // AdaptiveConnectController.bestNow for the same rationale).
+        val poolBest = runCatching {
+            org.khatetire.cfipscanner.data.IpPoolStore.bestIp(applicationContext)
+        }.getOrNull()
+        if (!poolBest.isNullOrBlank()) {
+            Log.i(TAG, "pickConfig: pool clean IP -> $poolBest")
+            return base.copy(host = poolBest)
+        }
         val picks = runCatching { DbClient.bestIps(applicationContext, limit = 5) }
             .getOrNull()
         val freshIp = picks?.rawIps?.firstOrNull()

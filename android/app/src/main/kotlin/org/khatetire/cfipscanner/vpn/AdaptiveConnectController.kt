@@ -69,6 +69,18 @@ object AdaptiveConnectController {
             return@withContext base.copy(host = manual)
         }
 
+        // Local pool wins over the remote DB — anything in the pool was
+        // PERSONALLY measured by this device with both download and upload
+        // > 0, so it is by definition more trustworthy than a third-party
+        // suggestion that may have been recorded under a different ISP.
+        val poolBest = runCatching {
+            org.khatetire.cfipscanner.data.IpPoolStore.bestIp(ctx)
+        }.getOrNull()
+        if (!poolBest.isNullOrBlank()) {
+            Log.i(TAG, "pool clean IP -> $poolBest (locally validated)")
+            return@withContext base.copy(host = poolBest)
+        }
+
         val picks = runCatching { DbClient.bestIps(ctx, limit = PROBE_TARGETS) }.getOrNull()
         val candidates = picks?.rawIps?.take(PROBE_TARGETS).orEmpty()
         if (candidates.isEmpty()) {

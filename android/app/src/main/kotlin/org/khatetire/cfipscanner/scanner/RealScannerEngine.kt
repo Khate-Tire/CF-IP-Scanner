@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.khatetire.cfipscanner.data.IpPoolStore
 import org.khatetire.cfipscanner.net.DbClient
 import org.khatetire.cfipscanner.net.IpQualityProbe
 import org.khatetire.cfipscanner.net.IspContext
@@ -129,18 +130,24 @@ object RealScannerEngine {
         // Always do the cheap TCP-connect first to filter dead IPs fast.
         val tcp = probe(ip)
         if (!fullQuality || !tcp.clean) {
-            return Triple(ip, tcp, null)
+            // TCP-only path. Demote `clean` for the user-visible badge so we
+            // never show a ping-only IP as a working one — the user explicitly
+            // asked for this. The IP can still be contributed (status="fail")
+            // so the worker knows we tried.
+            return Triple(ip, tcp.copy(clean = false), null)
         }
         // Upgrade to full HTTP quality probe (ping/jitter/dl/ul/colo).
         val q = runCatching { IpQualityProbe.probe(ip) }.getOrNull()
         if (q == null || !q.ok) {
-            return Triple(ip, tcp, q)
+            return Triple(ip, tcp.copy(clean = false), q)
         }
-        // Replace the TCP-connect ms with the real HTTP-ping average and
-        // attach the rich metrics so the UI can display them.
+        // STRICT clean filter: only call an IP "clean" if the speed test
+        // actually moved bytes in BOTH directions. A box that answers ping
+        // but won't pass traffic is exactly the failure mode the user hit.
+        val passedSpeed = q.downloadMbps > 0.0 && q.uploadMbps > 0.0
         val upgradedRow = tcp.copy(
             pingMs = q.pingMs,
-            clean = q.pingMs in 1..400,
+            clean = passedSpeed && q.pingMs in 1..400,
             jitterMs = q.jitterMs,
             downloadMbps = q.downloadMbps,
             uploadMbps = q.uploadMbps,
@@ -155,12 +162,27 @@ object RealScannerEngine {
     ) {
         if (results.isEmpty()) return
         runCatching {
+            // Persist quality-verified IPs to the local pool BEFORE we even
+            // try to talk to the worker — the local pool is the user's main
+            // safety net when L1..L3 of the DB ladder are blocked.
+            results.forEach { (ip, _, q) ->
+                if (q != null && q.ok && q.downloadMbps > 0.0 && q.uploadMbps > 0.0) {
+                    runCatching {
+                        IpPoolStore.record(ctx, ip, PROBE_PORT, q, info.isp, info.country)
+                    }
+                }
+            }
             val payload = results.map { (ip, row, q) ->
+                // "ok" for the community ONLY if speed test actually passed.
+                // A TCP-only or ping-only result is reported as "fail" so a
+                // bad IP can never be promoted by partial data.
+                val passedSpeed = q != null && q.ok &&
+                    q.downloadMbps > 0.0 && q.uploadMbps > 0.0
                 buildJsonObject {
                     put("ip", ip)
                     put("port", PROBE_PORT)
                     put("ping", q?.pingMs ?: row.pingMs)
-                    put("status", if (row.clean) "ok" else "fail")
+                    put("status", if (passedSpeed) "ok" else "fail")
                     if (q != null && q.ok) {
                         put("jitter", q.jitterMs)
                         put("download", q.downloadMbps)
