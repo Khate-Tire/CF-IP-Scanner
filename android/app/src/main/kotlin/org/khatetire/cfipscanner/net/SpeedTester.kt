@@ -31,7 +31,7 @@ object SpeedTester {
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
         if (useSocks) {
-            builder.proxy(Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", 10808)))
+            builder.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", 10809)))
         }
         val client = builder.build()
         val req = Request.Builder().url(URL).get().build()

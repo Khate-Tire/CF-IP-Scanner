@@ -18,6 +18,7 @@ object XrayConfigBuilder {
     /** Local SOCKS5 inbound used by tun2socks. Keep in sync with [SOCKS_PORT]. */
     const val SOCKS_HOST = "127.0.0.1"
     const val SOCKS_PORT = 10808
+    const val HTTP_PORT = 10809
 
     fun build(
         cfg: VlessConfig,
@@ -39,6 +40,13 @@ object XrayConfigBuilder {
                 .put("settings", JSONObject().put("udp", true).put("auth", "noauth"))
                 .put("sniffing", JSONObject().put("enabled", true)
                     .put("destOverride", JSONArray().put("http").put("tls")))
+        ).put(
+            JSONObject()
+                .put("tag", "http-in")
+                .put("port", HTTP_PORT)
+                .put("listen", SOCKS_HOST)
+                .put("protocol", "http")
+                .put("settings", JSONObject().put("allowTransparent", false))
         )
 
         val outbounds = JSONArray().put(
