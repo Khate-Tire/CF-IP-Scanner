@@ -244,14 +244,17 @@ val encryptBootstrap = tasks.register("encryptBootstrap") {
     outputs.upToDateWhen { false }
     doLast {
         outFile.parentFile.mkdirs()
+        val strict = (project.findProperty("strictBootstrap") as String?) == "true"
         val configs = System.getenv("BOOTSTRAP_VLESS_CONFIGS")
         if (configs.isNullOrBlank()) {
+            if (strict) error("encryptBootstrap: BOOTSTRAP_VLESS_CONFIGS env var is empty but -PstrictBootstrap=true. Refusing to ship a placeholder.")
             outFile.writeBytes("KFN1".toByteArray() + ByteArray(12) + ByteArray(16))
             logger.lifecycle("encryptBootstrap: BOOTSTRAP_VLESS_CONFIGS not set, wrote placeholder.")
             return@doLast
         }
         val fingerprintHex = loadSigningCertSha256Hex()
         if (fingerprintHex == null) {
+            if (strict) error("encryptBootstrap: no signing keystore found but -PstrictBootstrap=true. Refusing to ship a placeholder.")
             outFile.writeBytes("KFN1".toByteArray() + ByteArray(12) + ByteArray(16))
             logger.lifecycle("encryptBootstrap: no signing keystore found, wrote placeholder.")
             return@doLast

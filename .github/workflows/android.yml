@@ -68,7 +68,7 @@ jobs:
         env:
           BOOTSTRAP_VLESS_CONFIGS: ${{ secrets.BOOTSTRAP_VLESS_CONFIGS }}
           BOOTSTRAP_KEY: ${{ secrets.BOOTSTRAP_KEY }}
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+        run: ./gradlew :app:assembleRelease -PstrictBootstrap=true --no-daemon --stacktrace
 
       - name: Upload debug artifacts
         if: github.event_name != 'release' && !startsWith(github.ref, 'refs/tags/v')
