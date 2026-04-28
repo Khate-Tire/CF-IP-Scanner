@@ -136,10 +136,15 @@ object RealScannerEngine {
         if (q == null || !q.ok) {
             return Triple(ip, tcp, q)
         }
-        // Replace the TCP-connect ms with the real HTTP-ping average.
+        // Replace the TCP-connect ms with the real HTTP-ping average and
+        // attach the rich metrics so the UI can display them.
         val upgradedRow = tcp.copy(
             pingMs = q.pingMs,
             clean = q.pingMs in 1..400,
+            jitterMs = q.jitterMs,
+            downloadMbps = q.downloadMbps,
+            uploadMbps = q.uploadMbps,
+            datacenter = q.datacenter,
         )
         return Triple(ip, upgradedRow, q)
     }
@@ -205,6 +210,7 @@ object RealScannerEngine {
             pingMs = if (ok) ms else -1,
             clean = ok && ms <= CLEAN_THRESHOLD_MS,
             timestampMs = System.currentTimeMillis(),
+            fullIp = ip,
         )
     }
 

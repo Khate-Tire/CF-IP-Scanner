@@ -46,9 +46,16 @@ data class ScanUiState(
 }
 
 data class ScanResultRow(
-    /** Redacted form: e.g. "104.21.*.*" */
+    /** Redacted form for display: e.g. "104.21.*.*" */
     val redactedIp: String,
     val pingMs: Int,
     val clean: Boolean,
     val timestampMs: Long,
+    /** Full IP, used only for copy-to-clipboard. */
+    val fullIp: String = "",
+    /** Optional richer metrics (only populated by the HTTP quality probe). */
+    val jitterMs: Int = -1,
+    val downloadMbps: Double = 0.0,
+    val uploadMbps: Double = 0.0,
+    val datacenter: String = "",
 )

@@ -1,6 +1,7 @@
 package org.khatetire.cfipscanner.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Cancel
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.Radar
@@ -38,10 +40,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.widget.Toast
 import org.khatetire.cfipscanner.R
 import org.khatetire.cfipscanner.scanner.ScanProfile
 import org.khatetire.cfipscanner.ui.theme.AntigravityColors
@@ -313,41 +319,83 @@ private fun ScanStatCard(value: String, label: String, accent: Color, modifier: 
 
 @Composable
 private fun ResultRow(row: ScanResultRow) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val ipForCopy = row.fullIp.ifBlank { row.redactedIp }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                clipboard.setText(AnnotatedString(ipForCopy))
+                Toast.makeText(context, "Copied $ipForCopy", Toast.LENGTH_SHORT).show()
+            },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = AntigravityColors.Nebula),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = if (row.clean) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
-                contentDescription = null,
-                tint = if (row.clean) AntigravityColors.Ion else AntigravityColors.Critical,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = row.redactedIp,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground,
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (row.clean) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                    contentDescription = null,
+                    tint = if (row.clean) AntigravityColors.Ion else AntigravityColors.Critical,
+                    modifier = Modifier.size(20.dp),
                 )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = ipForCopy,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = formatRelative(row.timestampMs) +
+                            if (row.datacenter.isNotBlank()) "  •  ${row.datacenter}" else "",
+                        fontSize = 11.sp,
+                        color = AntigravityColors.OnDarkDim,
+                    )
+                }
                 Text(
-                    text = formatRelative(row.timestampMs),
-                    fontSize = 11.sp,
-                    color = AntigravityColors.OnDarkDim,
+                    text = if (row.clean) "${row.pingMs} ms" else "blocked",
+                    fontSize = 13.sp,
+                    color = if (row.clean) AntigravityColors.OnDark else AntigravityColors.OnDarkDim,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ContentCopy,
+                    contentDescription = "Copy IP",
+                    tint = AntigravityColors.OnDarkDim,
+                    modifier = Modifier.size(16.dp),
                 )
             }
-            Text(
-                text = if (row.clean) "${row.pingMs} ms" else "blocked",
-                fontSize = 13.sp,
-                color = if (row.clean) AntigravityColors.OnDark else AntigravityColors.OnDarkDim,
-                fontWeight = FontWeight.SemiBold,
-            )
+            // Quality metrics row — only shown if the HTTP probe succeeded.
+            val hasMetrics = row.clean && (row.jitterMs >= 0 || row.downloadMbps > 0 || row.uploadMbps > 0)
+            if (hasMetrics) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (row.jitterMs >= 0) MetricChip("jitter", "${row.jitterMs} ms")
+                    if (row.downloadMbps > 0) MetricChip("↓", "%.1f Mbps".format(row.downloadMbps))
+                    if (row.uploadMbps > 0) MetricChip("↑", "%.1f Mbps".format(row.uploadMbps))
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun MetricChip(label: String, value: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(AntigravityColors.OnDark.copy(alpha = 0.06f))
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = "$label $value",
+            fontSize = 11.sp,
+            color = AntigravityColors.OnDark,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
