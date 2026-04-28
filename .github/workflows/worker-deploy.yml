@@ -47,4 +47,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
+          # Pin to the same major used locally (4.x). The action's default
+          # bundled wrangler is 3.90.0 which fails on newer Hyperdrive
+          # binding handling.
+          wranglerVersion: "4.68.1"
           command: deploy
