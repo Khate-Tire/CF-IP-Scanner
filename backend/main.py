@@ -1521,12 +1521,41 @@ def add_log(scan_id, message):
 # fronted by Cloudflare and present a valid CF cert, so the TLS handshake
 # succeeds and the inner traffic is routed by the WS Host header instead.
 DEFAULT_SNI_FALLBACK_BANK = [
+    # Cloudflare-owned (always present on every CF anycast IP)
     "speed.cloudflare.com",
-    "cf.090227.xyz",
+    "www.cloudflare.com",
+    "developers.cloudflare.com",
+    "workers.cloudflare.com",
+    "ajax.cloudflare.com",
     "cdnjs.cloudflare.com",
+    "challenges.cloudflare.com",
+    "one.one.one.one",
+    "1.1.1.1",
+    # Mainstream consumer apps fronted by Cloudflare
+    "discord.com",
+    "discordapp.com",
+    "patreon.com",
+    "linktr.ee",
+    "canva.com",
+    "udemy.com",
+    "medium.com",
+    "coursera.org",
+    "producthunt.com",
+    "ycombinator.com",
+    "imgur.com",
+    # Developer / SaaS tooling on Cloudflare
+    "npmjs.com",
+    "statuspage.io",
+    "atlassian.com",
+    "typeform.com",
+    "bitwarden.com",
+    # Public CDNs / static assets
+    "cdn.jsdelivr.net",
+    "fonts.bunny.net",
+    # Legacy fallbacks (kept for compatibility)
+    "cf.090227.xyz",
     "www.visa.com.sg",
     "www.icloud.com",
-    "discord.com",
 ]
 
 
