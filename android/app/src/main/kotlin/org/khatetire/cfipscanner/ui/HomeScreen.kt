@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.NorthEast
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -462,13 +463,25 @@ private fun ManualIpRow() {
     val scope = rememberCoroutineScope()
     val settings by AppSettings.state.collectAsState()
     val current = settings.manualCleanIp
+    val activity = LocalActivity.current
+    val bioTitle = stringResource(R.string.biometric_manual_ip_title)
     var dialogOpen by remember { mutableStateOf(false) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { dialogOpen = true },
+            .clickable {
+                if (settings.biometricLock && activity != null) {
+                    org.khatetire.cfipscanner.util.BiometricGate.authenticate(
+                        activity = activity,
+                        title = bioTitle,
+                        onSuccess = { dialogOpen = true },
+                    )
+                } else {
+                    dialogOpen = true
+                }
+            },
     ) {
         Icon(
             imageVector = Icons.Rounded.Edit,
@@ -518,17 +531,28 @@ private fun ManualIpRow() {
                     val clip = LocalClipboardManager.current
                     val emptyMsg = stringResource(R.string.home_paste_ip_empty)
                     val invalidMsg = stringResource(R.string.home_paste_ip_invalid)
-                    TextButton(onClick = {
-                        val raw = clip.getText()?.text?.trim().orEmpty()
-                        when {
-                            raw.isEmpty() -> Toast.makeText(ctx, emptyMsg, Toast.LENGTH_SHORT).show()
-                            !looksLikeIp(raw) -> Toast.makeText(ctx, invalidMsg, Toast.LENGTH_SHORT).show()
-                            else -> input = raw
+                    Row {
+                        TextButton(onClick = {
+                            val raw = clip.getText()?.text?.trim().orEmpty()
+                            when {
+                                raw.isEmpty() -> Toast.makeText(ctx, emptyMsg, Toast.LENGTH_SHORT).show()
+                                !looksLikeIp(raw) -> Toast.makeText(ctx, invalidMsg, Toast.LENGTH_SHORT).show()
+                                else -> input = raw
+                            }
+                        }) {
+                            Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = AntigravityColors.Ion)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.home_paste_ip), color = AntigravityColors.Ion)
                         }
-                    }) {
-                        Icon(Icons.Rounded.ContentPaste, contentDescription = null, tint = AntigravityColors.Ion)
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.home_paste_ip), color = AntigravityColors.Ion)
+                        Spacer(Modifier.width(4.dp))
+                        TextButton(onClick = {
+                            dialogOpen = false
+                            QrScanRequest.request()
+                        }) {
+                            Icon(Icons.Rounded.QrCodeScanner, contentDescription = null, tint = AntigravityColors.Aurora)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.home_scan_qr), color = AntigravityColors.Aurora)
+                        }
                     }
                 }
             },

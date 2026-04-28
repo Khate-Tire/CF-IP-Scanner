@@ -47,6 +47,12 @@ data class Settings(
     val useDynamicColors: Boolean = false,
     /** Re-evaluate best clean IP whenever the underlying network changes. */
     val autoReconnectOnNetChange: Boolean = true,
+    /** Require biometric / device-credential auth before showing Settings
+     *  and the Manual-IP override dialog. */
+    val biometricLock: Boolean = false,
+    /** Run a background scanning batch via WorkManager when the app is
+     *  closed. Helps keep the on-device IP cache fresh between sessions. */
+    val scheduledScans: Boolean = false,
 )
 
 object AppSettings {
@@ -62,6 +68,8 @@ object AppSettings {
     private val K_EXCLUDED = stringSetPreferencesKey("excluded_apps")
     private val K_DYNAMIC  = booleanPreferencesKey("use_dynamic_colors")
     private val K_NETRECON = booleanPreferencesKey("auto_reconnect_net")
+    private val K_BIOLOCK  = booleanPreferencesKey("biometric_lock")
+    private val K_SCHEDSCAN = booleanPreferencesKey("scheduled_scans")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(Settings())
@@ -97,6 +105,8 @@ object AppSettings {
                 prefs[K_EXCLUDED] = next.excludedApps
                 prefs[K_DYNAMIC]  = next.useDynamicColors
                 prefs[K_NETRECON] = next.autoReconnectOnNetChange
+                prefs[K_BIOLOCK]  = next.biometricLock
+                prefs[K_SCHEDSCAN] = next.scheduledScans
             }
         }
     }
@@ -116,5 +126,7 @@ object AppSettings {
         excludedApps     = this[K_EXCLUDED] ?: emptySet(),
         useDynamicColors = this[K_DYNAMIC] ?: false,
         autoReconnectOnNetChange = this[K_NETRECON] ?: true,
+        biometricLock    = this[K_BIOLOCK] ?: false,
+        scheduledScans   = this[K_SCHEDSCAN] ?: false,
     )
 }

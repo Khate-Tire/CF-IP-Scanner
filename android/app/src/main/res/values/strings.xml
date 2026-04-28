@@ -127,7 +127,32 @@
     <string name="settings_dynamic_colors_desc">Use wallpaper-derived dynamic colors (Android 12+)</string>
     <string name="settings_always_on">Always-on VPN</string>
     <string name="settings_always_on_desc">Open system VPN settings to enable always-on &amp; block-without-VPN</string>
+    <string name="settings_biometric">Biometric lock</string>
+    <string name="settings_biometric_desc">Require fingerprint, face, or screen lock for Settings &amp; Manual IP</string>
+    <string name="settings_scheduled_scans">Background IP scans</string>
+    <string name="settings_scheduled_scans_desc">Refresh clean-IP cache every 6h while the app is closed</string>
+    <string name="settings_history">Connection history</string>
+    <string name="settings_history_desc">Past sessions, bytes, and durations</string>
     <string name="settings_reset">Reset to defaults</string>
+
+    <!-- History screen -->
+    <string name="history_title">Connection history</string>
+    <string name="history_empty">No sessions recorded yet</string>
+    <string name="history_clear">Clear</string>
+
+    <!-- Biometric prompt -->
+    <string name="biometric_settings_title">Unlock Settings</string>
+    <string name="biometric_manual_ip_title">Unlock Manual IP</string>
+
+    <!-- QR scanner -->
+    <string name="qr_title">Scan VPN config QR</string>
+    <string name="qr_grant">Grant camera access</string>
+    <string name="qr_permission_required">Camera access is required to scan QR codes</string>
+    <string name="home_scan_qr">Scan QR</string>
+
+    <!-- Glance widget -->
+    <string name="widget_description">Khate Free Net — connect &amp; status</string>
+    <string name="widget_tap_to_open">Tap to open</string>
 
     <!-- App picker -->
     <string name="exclude_apps_title">Choose apps to bypass</string>

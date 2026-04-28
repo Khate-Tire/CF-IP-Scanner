@@ -5,19 +5,21 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import org.khatetire.cfipscanner.settings.AppSettings
 import org.khatetire.cfipscanner.ui.AntigravityApp
+import org.khatetire.cfipscanner.ui.LocalActivity
 import org.khatetire.cfipscanner.ui.theme.AntigravityTheme
 import org.khatetire.cfipscanner.util.AnonymousId
 import org.khatetire.cfipscanner.vpn.CfVpnService
 import org.khatetire.cfipscanner.vpn.VpnStateHolder
 import org.khatetire.cfipscanner.vpn.VpnStatus
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val prepareVpnLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -37,12 +39,14 @@ class MainActivity : ComponentActivity() {
         val anonId = AnonymousId.get(applicationContext)
         setContent {
             AntigravityTheme {
-                AntigravityApp(
-                    onConnect = ::onConnectClick,
-                    onDisconnect = ::onDisconnectClick,
-                    anonymousId = anonId,
-                    onOpenLink = ::openExternal,
-                )
+                CompositionLocalProvider(LocalActivity provides this) {
+                    AntigravityApp(
+                        onConnect = ::onConnectClick,
+                        onDisconnect = ::onDisconnectClick,
+                        anonymousId = anonId,
+                        onOpenLink = ::openExternal,
+                    )
+                }
             }
         }
         // Auto-connect if user enabled it and we are idle.

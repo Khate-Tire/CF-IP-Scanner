@@ -23,6 +23,8 @@ import androidx.compose.material.icons.rounded.BatteryChargingFull
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ColorLens
+import androidx.compose.material.icons.rounded.Fingerprint
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.rounded.Lan
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Power
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.AlertDialog
@@ -67,6 +70,7 @@ import org.khatetire.cfipscanner.ui.theme.paletteFor
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onPickExcludedApps: () -> Unit = {},
+    onShowHistory: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val settings by AppSettings.state.collectAsState()
@@ -189,6 +193,29 @@ fun SettingsScreen(
                         )
                     }
                 },
+            )
+            SettingsToggle(
+                icon = Icons.Rounded.Fingerprint,
+                title = stringResource(R.string.settings_biometric),
+                subtitle = stringResource(R.string.settings_biometric_desc),
+                checked = settings.biometricLock,
+                onCheckedChange = { v -> AppSettings.update { it.copy(biometricLock = v) } },
+            )
+            SettingsToggle(
+                icon = Icons.Rounded.Schedule,
+                title = stringResource(R.string.settings_scheduled_scans),
+                subtitle = stringResource(R.string.settings_scheduled_scans_desc),
+                checked = settings.scheduledScans,
+                onCheckedChange = { v ->
+                    AppSettings.update { it.copy(scheduledScans = v) }
+                    org.khatetire.cfipscanner.work.ScanScheduler.apply(ctx)
+                },
+            )
+            SettingsRow(
+                icon = Icons.Rounded.History,
+                title = stringResource(R.string.settings_history),
+                subtitle = stringResource(R.string.settings_history_desc),
+                onClick = onShowHistory,
             )
         }
 
