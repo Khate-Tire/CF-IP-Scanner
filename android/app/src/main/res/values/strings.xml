@@ -52,6 +52,12 @@
     <string name="home_speed_failed">Speed test failed: %1$s</string>
     <string name="home_clean_ip_label">Clean IP</string>
     <string name="home_clean_ip_copied">Clean IP copied</string>
+    <string name="home_manual_ip_label">Manual clean IP</string>
+    <string name="home_manual_ip_off">Auto</string>
+    <string name="home_manual_ip_hint">e.g. 104.18.0.123</string>
+    <string name="home_manual_ip_help">Pin a specific Cloudflare IP. While set, automatic IP rotation is disabled. Leave empty to restore automatic selection.</string>
+    <string name="home_manual_ip_apply">Apply</string>
+    <string name="home_manual_ip_clear">Clear</string>
     <string name="netinfo_title">Network identity</string>
     <string name="netinfo_real">Your real internet</string>
     <string name="netinfo_vpn">Through VPN</string>

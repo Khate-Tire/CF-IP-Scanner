@@ -11,6 +11,8 @@ import kotlinx.coroutines.withContext
 import org.khatetire.cfipscanner.bootstrap.BootstrapLoader
 import org.khatetire.cfipscanner.model.VlessConfig
 import org.khatetire.cfipscanner.net.DbClient
+import org.khatetire.cfipscanner.net.SpeedTester
+import org.khatetire.cfipscanner.settings.AppSettings
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.coroutines.coroutineContext
@@ -36,10 +38,20 @@ object AdaptiveConnectController {
     private const val SWAP_DELTA_MS = 25
     private const val SWAP_CONSECUTIVE_WINS = 2
 
+    /** Throughput-based rotation. Every Nth probe cycle we do a small download
+     *  through the live tunnel; if it stays under [MIN_MBPS_FLOOR] for
+     *  [SLOW_CONSECUTIVE_HITS] cycles, we force-rotate to the next-best IP. */
+    private const val THROUGHPUT_CHECK_EVERY_N_CYCLES = 4   // ~ every 2 minutes
+    private const val MIN_MBPS_FLOOR = 1.0
+    private const val SLOW_CONSECUTIVE_HITS = 2
+
     /**
      * Returns a [VlessConfig] whose `host` is the lowest-RTT candidate
      * that successfully completed a TCP-443 handshake. Falls back to the
      * bootstrap entry as-is if no candidate is reachable.
+     *
+     * If the user has set a manual clean IP in settings, that IP wins
+     * unconditionally — no DB lookup, no probing.
      */
     suspend fun bestNow(ctx: Context, slot: Int): VlessConfig? = withContext(Dispatchers.IO) {
         val bootstrap = BootstrapLoader.load(ctx)
@@ -49,6 +61,13 @@ object AdaptiveConnectController {
         }
         val effectiveSlot = slot.coerceIn(0, bootstrap.lastIndex)
         val base = bootstrap[effectiveSlot]
+
+        // Manual override wins.
+        val manual = AppSettings.current().manualCleanIp.trim()
+        if (manual.isNotEmpty()) {
+            Log.i(TAG, "manual clean IP override -> $manual (auto-rotation disabled)")
+            return@withContext base.copy(host = manual)
+        }
 
         val picks = runCatching { DbClient.bestIps(ctx, limit = PROBE_TARGETS) }.getOrNull()
         val candidates = picks?.rawIps?.take(PROBE_TARGETS).orEmpty()
@@ -68,7 +87,11 @@ object AdaptiveConnectController {
 
     /**
      * Long-running probe loop. Reports [onSwap] when a candidate beats the
-     * current host by [SWAP_DELTA_MS] for [SWAP_CONSECUTIVE_WINS] cycles.
+     * current host by [SWAP_DELTA_MS] for [SWAP_CONSECUTIVE_WINS] cycles, OR
+     * when the live-tunnel throughput stays under [MIN_MBPS_FLOOR] for
+     * [SLOW_CONSECUTIVE_HITS] consecutive cycles.
+     *
+     * Skips entirely while the user has a manual clean IP pinned.
      * Caller is responsible for performing the actual swap (Xray restart).
      */
     suspend fun improvementLoop(
@@ -77,13 +100,50 @@ object AdaptiveConnectController {
         onSwap: suspend (VlessConfig) -> Unit,
     ) {
         var winsByIp = mutableMapOf<String, Int>()
+        var slowHits = 0
+        var cycle = 0
         while (coroutineContext.isActive) {
             delay(PROBE_INTERVAL_MS)
+            cycle++
+
+            // Manual pin → no rotation.
+            if (AppSettings.current().manualCleanIp.trim().isNotEmpty()) {
+                winsByIp.clear(); slowHits = 0
+                continue
+            }
+
             val current = currentRef() ?: continue
             val picks = runCatching { DbClient.bestIps(ctx, limit = PROBE_TARGETS) }.getOrNull()
             val candidates = picks?.rawIps?.filter { it != current.host }?.take(PROBE_TARGETS).orEmpty()
-            if (candidates.isEmpty()) continue
 
+            // ---- (A) Throughput-based rotation -----------------------------
+            // Only test occasionally — pulling 256KB through the tunnel
+            // on every cycle would chew bandwidth.
+            if (cycle % THROUGHPUT_CHECK_EVERY_N_CYCLES == 0) {
+                val res = runCatching { SpeedTester.run(useSocks = true) }.getOrNull()
+                if (res != null && res.ok) {
+                    if (res.mbps < MIN_MBPS_FLOOR) {
+                        slowHits++
+                        Log.i(TAG, "throughput low: ${"%.2f".format(res.mbps)} Mbps (hit $slowHits/$SLOW_CONSECUTIVE_HITS)")
+                        if (slowHits >= SLOW_CONSECUTIVE_HITS && candidates.isNotEmpty()) {
+                            val rankedNow = rankByRtt(candidates)
+                            val nextIp = rankedNow.firstOrNull { it.second != Int.MAX_VALUE }?.first
+                            if (nextIp != null) {
+                                Log.i(TAG, "force-rotate (slow tunnel): ${current.host} -> $nextIp")
+                                onSwap(current.copy(host = nextIp))
+                                slowHits = 0
+                                winsByIp.clear()
+                                continue
+                            }
+                        }
+                    } else {
+                        slowHits = 0
+                    }
+                } // probe failure → don't rotate, just try again next cycle
+            }
+
+            // ---- (B) Latency-based hot-swap (existing behaviour) -----------
+            if (candidates.isEmpty()) continue
             val curRtt = medianRtt(current.host)
             val ranked = rankByRtt(candidates)
             val (bestIp, bestRtt) = ranked.first()
@@ -96,7 +156,7 @@ object AdaptiveConnectController {
                 winsByIp = mutableMapOf(bestIp to w) // reset others
                 Log.i(TAG, "candidate $bestIp rtt=$bestRtt vs cur=$curRtt (win $w/$SWAP_CONSECUTIVE_WINS)")
                 if (w >= SWAP_CONSECUTIVE_WINS) {
-                    Log.i(TAG, "hot-swap: $current.host -> $bestIp")
+                    Log.i(TAG, "hot-swap: ${current.host} -> $bestIp")
                     onSwap(current.copy(host = bestIp))
                     winsByIp.clear()
                 }

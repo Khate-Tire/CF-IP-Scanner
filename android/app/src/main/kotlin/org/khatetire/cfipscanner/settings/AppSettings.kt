@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +38,8 @@ data class Settings(
     val lanBypass: Boolean = true,
     val accent: AccentTheme = AccentTheme.AURORA,
     val selectedSlot: Int = 0,
+    /** When non-blank, pin the VPN to this clean IP and disable auto-rotation. */
+    val manualCleanIp: String = "",
 )
 
 object AppSettings {
@@ -48,6 +51,7 @@ object AppSettings {
     private val K_LAN      = booleanPreferencesKey("lan_bypass")
     private val K_ACCENT   = intPreferencesKey("accent_theme")
     private val K_SLOT     = intPreferencesKey("selected_slot")
+    private val K_MANUAL   = stringPreferencesKey("manual_clean_ip")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(Settings())
@@ -79,6 +83,7 @@ object AppSettings {
                 prefs[K_LAN]    = next.lanBypass
                 prefs[K_ACCENT] = next.accent.ordinal
                 prefs[K_SLOT]   = next.selectedSlot
+                prefs[K_MANUAL] = next.manualCleanIp
             }
         }
     }
@@ -94,5 +99,6 @@ object AppSettings {
         lanBypass        = this[K_LAN]    ?: true,
         accent           = AccentTheme.entries.getOrElse(this[K_ACCENT] ?: 0) { AccentTheme.AURORA },
         selectedSlot     = this[K_SLOT]   ?: 0,
+        manualCleanIp    = this[K_MANUAL] ?: "",
     )
 }

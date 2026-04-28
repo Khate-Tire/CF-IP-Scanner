@@ -64,6 +64,10 @@ class CfVpnService : VpnService() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            ACTION_APPLY_MANUAL_IP -> {
+                applyManualIp()
+                return START_STICKY
+            }
             else -> startConnect()
         }
         return START_STICKY
@@ -185,6 +189,35 @@ class CfVpnService : VpnService() {
             }
         } catch (t: Throwable) {
             Log.w(TAG, "hotSwap error: ${t.message}")
+        }
+    }
+
+    /** Apply (or clear) the user's manual clean-IP override on a live tunnel.
+     *  No-op if VPN isn't connected. When the manual field is cleared we revert
+     *  to the bootstrap host for the active slot. */
+    private fun applyManualIp() {
+        val state = VpnStateHolder.status.value.state
+        if (state != VpnStatus.State.CONNECTED) {
+            Log.i(TAG, "applyManualIp: VPN not connected, will pick up on next connect")
+            return
+        }
+        val cur = liveCfg ?: return
+        scope.launch {
+            val manual = AppSettings.current().manualCleanIp.trim()
+            val target = if (manual.isNotEmpty()) {
+                cur.copy(host = manual)
+            } else {
+                // Cleared → fall back to the bootstrap host for the selected slot.
+                val slot = AppSettings.current().selectedSlot
+                val bootstrap = BootstrapLoader.load(applicationContext)
+                val base = bootstrap.getOrNull(slot.coerceIn(0, bootstrap.lastIndex.coerceAtLeast(0))) ?: cur
+                cur.copy(host = base.host)
+            }
+            if (target.host == cur.host) {
+                Log.i(TAG, "applyManualIp: host unchanged (${cur.host})")
+                return@launch
+            }
+            hotSwapXray(target)
         }
     }
 
@@ -342,6 +375,7 @@ class CfVpnService : VpnService() {
         private const val TAG = "CfVpn"
         const val ACTION_CONNECT = "org.khatetire.cfipscanner.action.CONNECT"
         const val ACTION_DISCONNECT = "org.khatetire.cfipscanner.action.DISCONNECT"
+        const val ACTION_APPLY_MANUAL_IP = "org.khatetire.cfipscanner.action.APPLY_MANUAL_IP"
         private const val CHANNEL_ID = "khate_vpn"
         private const val NOTIF_ID = 1001
 
@@ -350,5 +384,11 @@ class CfVpnService : VpnService() {
 
         fun disconnectIntent(context: Context) =
             Intent(context, CfVpnService::class.java).setAction(ACTION_DISCONNECT)
+
+        /** Tell a running VPN service to swap its host to whatever the user
+         *  just stored in `AppSettings.manualCleanIp` (or the bootstrap host
+         *  when the manual field is cleared). No-op if the service isn't running. */
+        fun applyManualIpIntent(context: Context) =
+            Intent(context, CfVpnService::class.java).setAction(ACTION_APPLY_MANUAL_IP)
     }
 }

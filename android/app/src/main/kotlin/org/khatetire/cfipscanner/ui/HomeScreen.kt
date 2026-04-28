@@ -27,6 +27,8 @@ import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.NorthEast
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,8 +36,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +66,9 @@ import android.net.Uri
 import kotlinx.coroutines.launch
 import org.khatetire.cfipscanner.R
 import org.khatetire.cfipscanner.net.SpeedTester
+import org.khatetire.cfipscanner.settings.AppSettings
 import org.khatetire.cfipscanner.ui.theme.AntigravityColors
+import org.khatetire.cfipscanner.vpn.CfVpnService
 import org.khatetire.cfipscanner.vpn.VpnStatus
 
 @Composable
@@ -258,6 +265,8 @@ fun HomeScreen(
                     CleanIpRow(ip = status.cleanIp)
                 }
                 Spacer(Modifier.height(10.dp))
+                ManualIpRow()
+                Spacer(Modifier.height(10.dp))
                 DetailRow(
                     icon = Icons.Rounded.NetworkPing,
                     label = stringResource(R.string.home_protocol_label),
@@ -409,6 +418,94 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun ManualIpRow() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settings by AppSettings.state.collectAsState()
+    val current = settings.manualCleanIp
+    var dialogOpen by remember { mutableStateOf(false) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { dialogOpen = true },
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Edit,
+            contentDescription = null,
+            tint = AntigravityColors.Ion,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = stringResource(R.string.home_manual_ip_label),
+            fontSize = 13.sp,
+            color = AntigravityColors.OnDarkDim,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = if (current.isBlank())
+                stringResource(R.string.home_manual_ip_off)
+            else current,
+            fontSize = 13.sp,
+            color = if (current.isBlank()) AntigravityColors.OnDarkDim else AntigravityColors.Ion,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = if (current.isBlank()) FontFamily.Default else FontFamily.Monospace,
+        )
+    }
+
+    if (dialogOpen) {
+        var input by remember { mutableStateOf(current) }
+        AlertDialog(
+            onDismissRequest = { dialogOpen = false },
+            title = { Text(stringResource(R.string.home_manual_ip_label)) },
+            text = {
+                Column {
+                    Text(
+                        text = stringResource(R.string.home_manual_ip_help),
+                        fontSize = 12.sp,
+                        color = AntigravityColors.OnDarkDim,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it.trim() },
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.home_manual_ip_hint)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cleaned = input.trim()
+                    scope.launch {
+                        AppSettings.update { it.copy(manualCleanIp = cleaned) }
+                        // Apply immediately if VPN is up
+                        runCatching {
+                            ctx.startService(CfVpnService.applyManualIpIntent(ctx))
+                        }
+                    }
+                    dialogOpen = false
+                }) { Text(stringResource(R.string.home_manual_ip_apply)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        AppSettings.update { it.copy(manualCleanIp = "") }
+                        runCatching {
+                            ctx.startService(CfVpnService.applyManualIpIntent(ctx))
+                        }
+                    }
+                    dialogOpen = false
+                }) { Text(stringResource(R.string.home_manual_ip_clear)) }
+            },
         )
     }
 }
