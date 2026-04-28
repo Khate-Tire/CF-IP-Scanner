@@ -59,8 +59,42 @@ object DbClient {
         OkHttpClient.Builder()
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
+            // ProxySelector: try the local Xray HTTP inbound first (remote DNS),
+            // then fall back to a direct connection. This rescues L1/L2 from
+            // local ISPs that block DNS for *.workers.dev.
+            .proxySelector(object : java.net.ProxySelector() {
+                override fun select(uri: java.net.URI): List<java.net.Proxy> = listOf(
+                    java.net.Proxy(
+                        java.net.Proxy.Type.HTTP,
+                        java.net.InetSocketAddress("127.0.0.1", 10809)
+                    ),
+                    java.net.Proxy.NO_PROXY
+                )
+                override fun connectFailed(
+                    uri: java.net.URI,
+                    sa: java.net.SocketAddress,
+                    ioe: java.io.IOException,
+                ) {}
+            })
             .build()
     }
+
+    /** Default Cloudflare anycast IPs used as a permanent L5 safety net when
+     *  no clean-IP list was baked into [BuildConfig.BOOTSTRAP_CLEAN_IPS]. */
+    private val DEFAULT_SEED_IPS = listOf(
+        "104.16.132.229",
+        "104.17.43.81",
+        "104.18.36.214",
+        "104.19.42.10",
+        "104.20.46.55",
+        "104.21.45.62",
+        "172.67.171.55",
+        "172.67.184.49",
+        "172.67.214.155",
+        "188.114.96.7",
+        "188.114.97.7",
+        "162.159.135.233",
+    )
 
     /** Per-host failure backoff so we cool off broken layers briefly. */
     private val recentFailures = HashMap<String, Long>()
@@ -229,7 +263,9 @@ object DbClient {
         limit: Int,
     ): List<Pick> {
         val host = pickHost(layer) ?: return emptyList()
-        if (isCoolingOff(host)) {
+        // L3 bypasses DNS by using a hardcoded clean IP, so it must NOT inherit
+        // the cooldown that L1 set on the same hostname.
+        if (layer != Layer.L3_FRONTED && isCoolingOff(host)) {
             Log.d(TAG, "${layer.tag} host $host cooling off, skipping")
             return emptyList()
         }
@@ -291,7 +327,7 @@ object DbClient {
         val deviceId = deviceId(ctx)
         for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED)) {
             val host = pickHost(layer) ?: continue
-            if (isCoolingOff(host)) continue
+            if (layer != Layer.L3_FRONTED && isCoolingOff(host)) continue
             val client = clientForLayer(layer)
             val url = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
@@ -326,7 +362,7 @@ object DbClient {
         val deviceId = deviceId(ctx)
         for (layer in arrayOf(Layer.L1_DIRECT, Layer.L2_WORKER, Layer.L3_FRONTED)) {
             val host = pickHost(layer) ?: continue
-            if (isCoolingOff(host)) continue
+            if (layer != Layer.L3_FRONTED && isCoolingOff(host)) continue
             val client = clientForLayer(layer)
             val urlBuilder = HttpUrl.Builder().scheme("https").host(host)
                 .addPathSegments("v1${path.trimStart('/')}")
@@ -380,10 +416,15 @@ object DbClient {
         return (listOfNotNull(canonical) + extras).distinct()
     }
 
-    private fun cleanIps(): List<String> = BuildConfig.BOOTSTRAP_CLEAN_IPS
-        .split(',')
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
+    private fun cleanIps(): List<String> {
+        val baked = BuildConfig.BOOTSTRAP_CLEAN_IPS
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        // If no clean IPs were baked at build time, fall back to a known-good
+        // anycast list so L3 fronting and L5 seed always have something.
+        return if (baked.isNotEmpty()) baked else DEFAULT_SEED_IPS
+    }
 
     private fun bundledSeedIps(): List<String> = cleanIps()
 
