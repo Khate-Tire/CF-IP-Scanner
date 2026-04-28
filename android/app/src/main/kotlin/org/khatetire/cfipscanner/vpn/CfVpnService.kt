@@ -140,6 +140,7 @@ class CfVpnService : VpnService() {
 
             VpnStateHolder.update {
                 it.copy(state = VpnStatus.State.CONNECTED, serverSlot = cfg.displaySlot,
+                        cleanIp = cfg.host,
                         uptimeSec = 0L, bytesIn = 0L, bytesOut = 0L,
                         rateInBps = 0L, rateOutBps = 0L)
             }
@@ -177,7 +178,7 @@ class CfVpnService : VpnService() {
             )
             if (xray.start(xrayJson, "${newCfg.host}:${newCfg.port}")) {
                 liveCfg = newCfg
-                VpnStateHolder.update { it.copy(serverSlot = newCfg.displaySlot) }
+                VpnStateHolder.update { it.copy(serverSlot = newCfg.displaySlot, cleanIp = newCfg.host) }
                 updateNotification()
             } else {
                 Log.w(TAG, "hotSwap: xray restart failed, keeping previous host")

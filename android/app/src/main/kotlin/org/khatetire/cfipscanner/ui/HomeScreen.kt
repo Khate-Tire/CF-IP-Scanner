@@ -15,10 +15,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.NetworkPing
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SouthWest
 import androidx.compose.material.icons.rounded.Speed
@@ -43,13 +46,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
+import android.widget.Toast
 import android.net.Uri
 import kotlinx.coroutines.launch
 import org.khatetire.cfipscanner.R
@@ -246,6 +253,10 @@ fun HomeScreen(
                                 "${status.colo.ifBlank { "Auto" }} · slot ${status.serverSlot}"
                             else stringResource(R.string.region_unknown),
                 )
+                if (status.state == VpnStatus.State.CONNECTED && status.cleanIp.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    CleanIpRow(ip = status.cleanIp)
+                }
                 Spacer(Modifier.height(10.dp))
                 DetailRow(
                     icon = Icons.Rounded.NetworkPing,
@@ -260,6 +271,13 @@ fun HomeScreen(
                 )
             }
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Network identity card: Real IP + ISP/ASN/Country, plus the
+        // through-VPN equivalents once connected so the user can verify
+        // the tunnel actually changed their egress.
+        NetworkInfoCard(state = status.state)
 
         Spacer(Modifier.height(16.dp))
 
@@ -391,6 +409,50 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun CleanIpRow(ip: String) {
+    val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val copiedMsg = stringResource(R.string.home_clean_ip_copied)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Public,
+            contentDescription = null,
+            tint = AntigravityColors.Ion,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = stringResource(R.string.home_clean_ip_label),
+            fontSize = 13.sp,
+            color = AntigravityColors.OnDarkDim,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = ip,
+            fontSize = 13.sp,
+            color = AntigravityColors.Ion,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace,
+        )
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.Rounded.ContentCopy,
+            contentDescription = "Copy IP",
+            tint = AntigravityColors.OnDarkDim,
+            modifier = Modifier
+                .size(16.dp)
+                .clickable {
+                    clipboard.setText(AnnotatedString(ip))
+                    Toast.makeText(ctx, copiedMsg, Toast.LENGTH_SHORT).show()
+                },
         )
     }
 }

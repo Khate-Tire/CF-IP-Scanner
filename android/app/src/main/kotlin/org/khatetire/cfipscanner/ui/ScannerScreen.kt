@@ -36,6 +36,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -322,13 +326,11 @@ private fun ResultRow(row: ScanResultRow) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val ipForCopy = row.fullIp.ifBlank { row.redactedIp }
+    var expanded by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                clipboard.setText(AnnotatedString(ipForCopy))
-                Toast.makeText(context, "Copied $ipForCopy", Toast.LENGTH_SHORT).show()
-            },
+            .clickable { expanded = !expanded },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = AntigravityColors.Nebula),
     ) {
@@ -343,7 +345,7 @@ private fun ResultRow(row: ScanResultRow) {
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = ipForCopy,
+                        text = if (expanded) ipForCopy else row.redactedIp.ifBlank { ipForCopy },
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onBackground,
@@ -362,16 +364,28 @@ private fun ResultRow(row: ScanResultRow) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Rounded.ContentCopy,
-                    contentDescription = "Copy IP",
-                    tint = AntigravityColors.OnDarkDim,
-                    modifier = Modifier.size(16.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AntigravityColors.OnDark.copy(alpha = 0.06f))
+                        .clickable {
+                            clipboard.setText(AnnotatedString(ipForCopy))
+                            Toast.makeText(context, "Copied $ipForCopy", Toast.LENGTH_SHORT).show()
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCopy,
+                        contentDescription = "Copy IP",
+                        tint = AntigravityColors.OnDarkDim,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
             }
             // Quality metrics row — only shown if the HTTP probe succeeded.
             val hasMetrics = row.clean && (row.jitterMs >= 0 || row.downloadMbps > 0 || row.uploadMbps > 0)
-            if (hasMetrics) {
+            if (hasMetrics && !expanded) {
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (row.jitterMs >= 0) MetricChip("jitter", "${row.jitterMs} ms")
@@ -379,7 +393,77 @@ private fun ResultRow(row: ScanResultRow) {
                     if (row.uploadMbps > 0) MetricChip("↑", "%.1f Mbps".format(row.uploadMbps))
                 }
             }
+            // Expanded detail panel: full IP + every available test metric.
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(AntigravityColors.OnDark.copy(alpha = 0.04f))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Column {
+                        DetailMetric("Full IP", ipForCopy, monospace = true)
+                        DetailMetric(
+                            label = "Ping",
+                            value = if (row.clean) "${row.pingMs} ms" else "—",
+                        )
+                        DetailMetric(
+                            label = "Jitter",
+                            value = if (row.jitterMs >= 0) "${row.jitterMs} ms" else "—",
+                        )
+                        DetailMetric(
+                            label = "Download",
+                            value = if (row.downloadMbps > 0) "%.2f Mbps".format(row.downloadMbps) else "—",
+                        )
+                        DetailMetric(
+                            label = "Upload",
+                            value = if (row.uploadMbps > 0) "%.2f Mbps".format(row.uploadMbps) else "—",
+                        )
+                        DetailMetric(
+                            label = "Datacenter",
+                            value = row.datacenter.ifBlank { "—" },
+                        )
+                        DetailMetric(
+                            label = "Status",
+                            value = if (row.clean) "Clean" else "Blocked",
+                            valueColor = if (row.clean) AntigravityColors.Ion else AntigravityColors.Critical,
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun DetailMetric(
+    label: String,
+    value: String,
+    monospace: Boolean = false,
+    valueColor: Color = AntigravityColors.OnDark,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = AntigravityColors.OnDarkDim,
+            modifier = Modifier.width(90.dp),
+        )
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            color = valueColor,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = if (monospace) androidx.compose.ui.text.font.FontFamily.Monospace
+                         else androidx.compose.ui.text.font.FontFamily.Default,
+        )
     }
 }
 
