@@ -60,7 +60,7 @@ object BootstrapLoader {
         // Pre-flight: detect the placeholder blob written when env is unset.
         if (iv.all { it == 0.toByte() } && ct.size == 16 && ct.all { it == 0.toByte() }) {
             Log.w(TAG, "placeholder bootstrap.bin (no real configs baked in)")
-            return emptyList()
+            return listOfNotNull(org.khatetire.cfipscanner.model.VlessConfig.parse("vless://da66b37e-9f8f-4fa0-ae2b-e2f36c6a796f@hel1-dc2-s1-p2.mashverat.live:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2.mashverat.live&type=ws&host=hel1-dc2-s1-p2.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#FallbackBase"))
         }
 
         val plaintext: ByteArray = run {
