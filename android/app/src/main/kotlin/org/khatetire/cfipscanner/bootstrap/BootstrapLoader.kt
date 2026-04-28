@@ -39,7 +39,7 @@ object BootstrapLoader {
      * connection token, not a long-term secret.
      */
     private const val ALWAYS_ON_FALLBACK_URL =
-        "vless://7da7195c-2a78-418e-99e6-ebcda4f107ec@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#FallbackBase"
+        "vless://27741e38-11ee-4d56-97e2-e1b37b3c17ab@66.81.247.143:443?encryption=none&security=tls&sni=hel1-dc2-s1-p2-6.mashverat.live&fp=chrome&alpn=http%2F1.1&insecure=0&allowInsecure=0&type=ws&host=hel1-dc2-s1-p2-6.mashverat.live&path=%2FQ4Rh2OKHkV445SsgEmzqnoNzK#FallbackBase"
 
     @Volatile private var cached: List<VlessConfig>? = null
 

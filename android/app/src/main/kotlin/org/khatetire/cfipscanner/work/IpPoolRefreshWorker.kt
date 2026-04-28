@@ -39,7 +39,7 @@ class IpPoolRefreshWorker(
             var refreshed = 0
             var failed = 0
             for (entry in due) {
-                val q = runCatching { IpQualityProbe.probe(entry.ip) }.getOrNull()
+                val q = runCatching { IpQualityProbe.probe(entry.ip, applicationContext) }.getOrNull()
                 if (q != null && q.ok && q.downloadMbps > 0.0 && q.uploadMbps > 0.0) {
                     IpPoolStore.record(
                         ctx = applicationContext,

@@ -2,6 +2,7 @@ package org.khatetire.cfipscanner.vpn
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 
@@ -34,6 +35,30 @@ object SystemVpnDetector {
             }
         } catch (_: Throwable) {
             false
+        }
+    }
+
+    /**
+     * Returns the first active non-VPN [Network] (cellular or Wi-Fi) the
+     * device has, or `null` if only VPN networks are up. Used by the
+     * scanner so per-IP probes go over the user's NATIVE ISP — testing a
+     * Cloudflare IP from inside a VPN tunnel is meaningless because the
+     * tunnel itself rewrites the path. Requires API 23 (M); earlier APIs
+     * return null and callers should fall back to plain OkHttp.
+     */
+    fun underlyingNetwork(ctx: Context): Network? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+        return try {
+            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return null
+            cm.allNetworks.firstOrNull { n ->
+                val caps = cm.getNetworkCapabilities(n) ?: return@firstOrNull false
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
+                    !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+            }
+        } catch (_: Throwable) {
+            null
         }
     }
 }

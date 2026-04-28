@@ -1,5 +1,6 @@
 package org.khatetire.cfipscanner.net
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -9,6 +10,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.khatetire.cfipscanner.vpn.SystemVpnDetector
 import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 
@@ -51,9 +53,14 @@ object IpQualityProbe {
 
     /** Run the full probe against [ip]. Returns [Quality.ok]=false if the
      *  edge couldn't even be reached (no ping). All other fields default
-     *  to 0 / -1 when individual sub-probes fail. */
-    suspend fun probe(ip: String): Quality = withContext(Dispatchers.IO) {
-        val client = buildClient(ip)
+     *  to 0 / -1 when individual sub-probes fail.
+     *
+     *  When [ctx] is non-null the probe sockets are bound to the underlying
+     *  ISP network (cellular / Wi-Fi), bypassing any active VPN. This is
+     *  required for the scanner to be meaningful: testing a Cloudflare IP
+     *  *through* a VPN tunnel measures the tunnel, not the IP. */
+    suspend fun probe(ip: String, ctx: Context? = null): Quality = withContext(Dispatchers.IO) {
+        val client = buildClient(ip, ctx)
 
         // 1. Pings (6, drop first)
         val pings = mutableListOf<Long>()
@@ -92,20 +99,26 @@ object IpQualityProbe {
         )
     }
 
-    private fun buildClient(ip: String): OkHttpClient {
+    private fun buildClient(ip: String, ctx: Context? = null): OkHttpClient {
         val pinned = listOf(InetAddress.getByName(ip))
         val pinningDns = object : Dns {
             override fun lookup(hostname: String): List<InetAddress> =
                 if (hostname.equals(SNI_HOST, ignoreCase = true)) pinned
                 else Dns.SYSTEM.lookup(hostname)
         }
-        return OkHttpClient.Builder()
+        val builder = OkHttpClient.Builder()
             .dns(pinningDns)
             .connectTimeout(3, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .retryOnConnectionFailure(false)
-            .build()
+        if (ctx != null) {
+            val underlying = SystemVpnDetector.underlyingNetwork(ctx)
+            if (underlying != null) {
+                builder.socketFactory(underlying.socketFactory)
+            }
+        }
+        return builder.build()
     }
 
     private fun pingOnce(client: OkHttpClient): Long {

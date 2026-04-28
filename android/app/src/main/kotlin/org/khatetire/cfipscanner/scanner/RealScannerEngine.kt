@@ -82,7 +82,7 @@ object RealScannerEngine {
         // Full-quality probe (HTTP ping/jitter + small download/upload + colo)
         // is gated to WiFi only — on mobile data we fall back to TCP-only.
         val onWifi = ScanStateHolder.controller.signals.value.onWifi
-        val results = probeAll(ips, parallelism, fullQuality = onWifi)
+        val results = probeAll(ctx, ips, parallelism, fullQuality = onWifi)
         contribute(ctx, info, results)
     }
 
@@ -101,20 +101,20 @@ object RealScannerEngine {
         val ips = expandSlash24(claim.shard)
         val parallelism = profile.parallelism.coerceAtLeast(1)
         // Shard cycle = 256 IPs, never run full-quality (would burn ~150MB).
-        val results = probeAll(ips, parallelism, fullQuality = false)
+        val results = probeAll(ctx, ips, parallelism, fullQuality = false)
         val okCount = results.count { it.second.clean }
         contribute(ctx, info, results)
         runCatching { DbClient.completeShard(ctx, claim.shard, okCount, results.size) }
     }
 
     private suspend fun probeAll(
-        ips: List<String>, parallelism: Int, fullQuality: Boolean,
+        ctx: Context, ips: List<String>, parallelism: Int, fullQuality: Boolean,
     ): List<Triple<String, ScanResultRow, IpQualityProbe.Quality?>> = coroutineScope {
         val out = mutableListOf<Triple<String, ScanResultRow, IpQualityProbe.Quality?>>()
         ips.chunked(parallelism).forEach { batch ->
             if (!isActive) return@coroutineScope out
             val rows = batch.map { ip ->
-                async { probeOne(ip, fullQuality) }
+                async { probeOne(ctx, ip, fullQuality) }
             }.awaitAll()
             rows.forEach { triple ->
                 ScanStateHolder.pushResult(triple.second)
@@ -125,10 +125,10 @@ object RealScannerEngine {
     }
 
     private suspend fun probeOne(
-        ip: String, fullQuality: Boolean,
+        ctx: Context, ip: String, fullQuality: Boolean,
     ): Triple<String, ScanResultRow, IpQualityProbe.Quality?> {
         // Always do the cheap TCP-connect first to filter dead IPs fast.
-        val tcp = probe(ip)
+        val tcp = probe(ctx, ip)
         if (!fullQuality || !tcp.clean) {
             // TCP-only path. Demote `clean` for the user-visible badge so we
             // never show a ping-only IP as a working one — the user explicitly
@@ -137,7 +137,7 @@ object RealScannerEngine {
             return Triple(ip, tcp.copy(clean = false), null)
         }
         // Upgrade to full HTTP quality probe (ping/jitter/dl/ul/colo).
-        val q = runCatching { IpQualityProbe.probe(ip) }.getOrNull()
+        val q = runCatching { IpQualityProbe.probe(ip, ctx) }.getOrNull()
         if (q == null || !q.ok) {
             return Triple(ip, tcp.copy(clean = false), q)
         }
@@ -216,11 +216,13 @@ object RealScannerEngine {
         ScanStateHolder.applyProfile(ScanProfile.PAUSED)
     }
 
-    private suspend fun probe(ip: String): ScanResultRow {
+    private suspend fun probe(ctx: Context, ip: String): ScanResultRow {
         val started = System.nanoTime()
         val ok = withTimeoutOrNull(CONNECT_TIMEOUT_MS) {
             runCatching {
-                Socket().use { s ->
+                val underlying = org.khatetire.cfipscanner.vpn.SystemVpnDetector.underlyingNetwork(ctx)
+                val socket = underlying?.socketFactory?.createSocket() ?: java.net.Socket()
+                socket.use { s ->
                     s.connect(InetSocketAddress(ip, PROBE_PORT), CONNECT_TIMEOUT_MS.toInt())
                     s.isConnected
                 }
