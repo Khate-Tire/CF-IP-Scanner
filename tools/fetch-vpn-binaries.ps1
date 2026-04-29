@@ -134,7 +134,15 @@ foreach ($abi in $abiMap.Keys) {
         Invoke-WebRequest -Uri $apkAsset.browser_download_url -OutFile $tmp
         $extractDir = Join-Path $_tempBase ("v2rayng-" + [Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
-        tar -xf $tmp -C $extractDir
+        # APKs are ZIP archives, not tar. Use Expand-Archive (cross-platform in
+        # PowerShell 7) — but it requires a .zip extension, so copy first.
+        $zipCopy = Join-Path $_tempBase ([IO.Path]::GetFileNameWithoutExtension($tmp) + ".zip")
+        Copy-Item -Force -Path $tmp -Destination $zipCopy
+        try {
+            Expand-Archive -Path $zipCopy -DestinationPath $extractDir -Force
+        } finally {
+            Remove-Item -Force -ErrorAction SilentlyContinue $zipCopy
+        }
         $soFromApk = Join-Path $extractDir ("lib/{0}/libhev-socks5-tunnel.so" -f $abi)
         if (-not (Test-Path $soFromApk)) {
             throw "libhev-socks5-tunnel.so not found in $($apkAsset.name) for ABI '$abi'."
