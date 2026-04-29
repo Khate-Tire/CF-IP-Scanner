@@ -53,3 +53,46 @@ jobs:
             git commit -m "chore(snapshot): refresh DB mirror"
             git push
           fi
+
+      - name: Build full region-grouped snapshot
+        id: full
+        run: |
+          set -e
+          URL="${WORKER_URL:-https://cf-ip-scanner-db-proxy.amn46.workers.dev}/v1/best-ips?limit=5000"
+          tmp=$(mktemp)
+          if curl -fsSL --max-time 60 "$URL" -o "$tmp"; then
+            if jq -e '.results | length > 0' "$tmp" >/dev/null 2>&1; then
+              # Group results by `cc` and `asn` if those fields are present
+              # on each row; always include a `default` bucket with the top
+              # 1000 IPs by score so older worker schemas still produce a
+              # useful file. The Android client tolerates missing buckets.
+              jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+                {
+                  version: 1,
+                  generatedAt: $ts,
+                  default: (.results | .[0:1000]),
+                  by_cc:  (.results | group_by(.cc  // .country // "")  | map(select(.[0].cc  != "" and .[0].cc  != null)) | from_entries(map({key:.[0].cc,  value:.[0:200]}))) // {},
+                  by_asn: (.results | group_by(.asn // "")              | map(select(.[0].asn != "" and .[0].asn != null)) | from_entries(map({key:(.[0].asn|tostring), value:.[0:200]}))) // {}
+                }' "$tmp" > worker/db_full_snapshot.json 2>/dev/null || jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+                  { version: 1, generatedAt: $ts, default: (.results | .[0:1000]) }
+                ' "$tmp" > worker/db_full_snapshot.json
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit full snapshot if changed
+        if: steps.full.outputs.changed == 'true'
+        run: |
+          if git diff --quiet -- worker/db_full_snapshot.json; then
+            echo "No diff."
+          else
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add worker/db_full_snapshot.json
+            git commit -m "chore(snapshot): refresh full DB mirror"
+            git push
+          fi

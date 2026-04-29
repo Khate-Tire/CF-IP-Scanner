@@ -135,6 +135,21 @@
     <string name="settings_history_desc">Past sessions, bytes, and durations</string>
     <string name="settings_reset">Reset to defaults</string>
 
+    <!-- SNI fronting (advanced) -->
+    <string name="settings_section_sni">SNI Fronting (Advanced)</string>
+    <string name="settings_sni_toggle">Enable SNI fronting</string>
+    <string name="settings_sni_toggle_desc">Override TLS serverName with user-supplied domains. Off by default.</string>
+    <string name="settings_sni_domains_label">Fronting domains (one per line)</string>
+    <string name="settings_sni_validate">Validate</string>
+    <string name="settings_sni_validating">Validating…</string>
+    <string name="settings_sni_count_fmt">%1$d valid</string>
+
+    <!-- Custom IPs / CIDR -->
+    <string name="settings_section_customips">Custom IPs / CIDR</string>
+    <string name="settings_customips_label">Extra IPs or CIDRs (one per line)</string>
+    <string name="settings_customips_save">Save</string>
+    <string name="settings_customips_count_fmt">%1$d IPs queued</string>
+
     <!-- History screen -->
     <string name="history_title">Connection history</string>
     <string name="history_empty">No sessions recorded yet</string>

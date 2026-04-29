@@ -27,5 +27,5 @@ enum class ScanProfile(
     BOOST(3.seconds, 3, "Boost — charging"),
 
     /** Not yet connected — burn the queue to find a good IP fast. */
-    MAXIMUM(500.milliseconds, 6, "Maximum — searching for clean IP"),
+    MAXIMUM(200.milliseconds, 12, "Maximum — searching for clean IP"),
 }

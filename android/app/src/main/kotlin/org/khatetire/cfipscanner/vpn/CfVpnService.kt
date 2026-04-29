@@ -110,13 +110,18 @@ class CfVpnService : VpnService() {
             }
             liveCfg = cfg
             Log.i(TAG, "using config slot=${cfg.displaySlot} host=${cfg.host}")
-            // Phase-1 SNI selection: just use the primary; Phase-4 watchdog
-            // will rotate through SniBank.rotation(...) on failure.
-            val rotation = SniBank.rotation(cfg.sni, originalSni = cfg.sni)
+            // SNI fronting is OPT-IN. When disabled (default) we hand the
+            // config's own SNI straight to Xray. When enabled with at least
+            // one user-supplied domain we override TLS serverName only
+            // (frontOnlyTls=true) so the WS Host: header still points at the
+            // real backend.
+            val s = AppSettings.current()
+            val userSni: String? = if (s.sniFrontingEnabled)
+                s.sniUserDomains.firstOrNull { it.isNotBlank() } else null
             val xrayJson = XrayConfigBuilder.build(
                 cfg = cfg,
-                overrideSni = rotation.first(),
-                frontOnlyTls = false,
+                overrideSni = userSni,
+                frontOnlyTls = userSni != null,
                 verifyTls = !cfg.allowInsecure,
             )
             if (!xray.start(xrayJson, "${cfg.host}:${cfg.port}")) {
@@ -185,11 +190,13 @@ class CfVpnService : VpnService() {
         Log.i(TAG, "hotSwapXray -> ${newCfg.host}")
         try {
             xray.stop()
-            val rotation = SniBank.rotation(newCfg.sni, originalSni = newCfg.sni)
+            val s = AppSettings.current()
+            val userSni: String? = if (s.sniFrontingEnabled)
+                s.sniUserDomains.firstOrNull { it.isNotBlank() } else null
             val xrayJson = XrayConfigBuilder.build(
                 cfg = newCfg,
-                overrideSni = rotation.first(),
-                frontOnlyTls = false,
+                overrideSni = userSni,
+                frontOnlyTls = userSni != null,
                 verifyTls = !newCfg.allowInsecure,
             )
             if (xray.start(xrayJson, "${newCfg.host}:${newCfg.port}")) {

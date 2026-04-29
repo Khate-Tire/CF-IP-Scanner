@@ -62,11 +62,24 @@ object RealScannerEngine {
                 staleCount = if (sameAsLast) staleCount + 1 else 0
                 lastBatchSig = sig
 
-                val useShard = picks.ips.isEmpty() || staleCount >= 2
+                // Always include user custom IPs first (highest priority).
+                val customIps = org.khatetire.cfipscanner.scanner.CustomIpRangeParser
+                    .parse(org.khatetire.cfipscanner.settings.AppSettings.current().customIpRanges)
+
+                val useShard = picks.ips.isEmpty() && customIps.isEmpty() || staleCount >= 2
                 if (useShard) {
                     runShardCycle(ctx, profile, info)
                 } else {
-                    runDbCycle(ctx, profile, info, picks.rawIps)
+                    // Merge: custom IPs first, then DB picks, then top-up with
+                    // gold-domain-resolved IPs when DB list is short.
+                    val merged = LinkedHashSet<String>()
+                    customIps.forEach { merged.add(it) }
+                    picks.rawIps.forEach { merged.add(it) }
+                    if (merged.size < 20) {
+                        val gold = runCatching { GoldDomains.ips(ctx) }.getOrDefault(emptyList())
+                        gold.take(30 - merged.size).forEach { merged.add(it) }
+                    }
+                    runDbCycle(ctx, profile, info, merged.toList())
                 }
                 val intervalMs = profile.interval.inWholeMilliseconds
                 if (intervalMs > 0 && intervalMs != Long.MAX_VALUE) delay(intervalMs)

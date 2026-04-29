@@ -53,6 +53,15 @@ data class Settings(
     /** Run a background scanning batch via WorkManager when the app is
      *  closed. Helps keep the on-device IP cache fresh between sessions. */
     val scheduledScans: Boolean = false,
+    /** Advanced: enable SNI fronting using user-supplied domains. Default OFF.
+     *  When OFF, the VPN connects with the config's natural SNI and the scanner
+     *  only tests clean IPs (no SNI re-test). */
+    val sniFrontingEnabled: Boolean = false,
+    /** User-supplied SNI fronting domains (validated). One per line in UI. */
+    val sniUserDomains: Set<String> = emptySet(),
+    /** Optional comma/newline-separated extra IPs or /24 CIDRs to scan first.
+     *  Capped to 4096 expanded IPs to avoid OOM. */
+    val customIpRanges: String = "",
 )
 
 object AppSettings {
@@ -70,6 +79,9 @@ object AppSettings {
     private val K_NETRECON = booleanPreferencesKey("auto_reconnect_net")
     private val K_BIOLOCK  = booleanPreferencesKey("biometric_lock")
     private val K_SCHEDSCAN = booleanPreferencesKey("scheduled_scans")
+    private val K_SNI_ON   = booleanPreferencesKey("sni_fronting_enabled")
+    private val K_SNI_DOMS = stringSetPreferencesKey("sni_user_domains")
+    private val K_CUSTOMIPS = stringPreferencesKey("custom_ip_ranges")
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(Settings())
@@ -107,6 +119,9 @@ object AppSettings {
                 prefs[K_NETRECON] = next.autoReconnectOnNetChange
                 prefs[K_BIOLOCK]  = next.biometricLock
                 prefs[K_SCHEDSCAN] = next.scheduledScans
+                prefs[K_SNI_ON]    = next.sniFrontingEnabled
+                prefs[K_SNI_DOMS]  = next.sniUserDomains
+                prefs[K_CUSTOMIPS] = next.customIpRanges
             }
         }
     }
@@ -128,5 +143,8 @@ object AppSettings {
         autoReconnectOnNetChange = this[K_NETRECON] ?: true,
         biometricLock    = this[K_BIOLOCK] ?: false,
         scheduledScans   = this[K_SCHEDSCAN] ?: false,
+        sniFrontingEnabled = this[K_SNI_ON] ?: false,
+        sniUserDomains   = this[K_SNI_DOMS] ?: emptySet(),
+        customIpRanges   = this[K_CUSTOMIPS] ?: "",
     )
 }

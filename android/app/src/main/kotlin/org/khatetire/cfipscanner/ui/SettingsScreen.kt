@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import org.khatetire.cfipscanner.R
 import org.khatetire.cfipscanner.bootstrap.BootstrapInventory
 import org.khatetire.cfipscanner.settings.AccentTheme
@@ -219,6 +220,12 @@ fun SettingsScreen(
                 onClick = onShowHistory,
             )
         }
+
+        Spacer(Modifier.height(16.dp))
+        SniFrontingSection(settings)
+
+        Spacer(Modifier.height(16.dp))
+        CustomIpRangeSection(settings)
 
         Spacer(Modifier.height(20.dp))
         TextButton(
@@ -462,5 +469,153 @@ private fun IconTile(icon: ImageVector) {
             tint = AntigravityColors.Aurora,
             modifier = Modifier.size(20.dp),
         )
+    }
+}
+
+/**
+ * Advanced: SNI fronting opt-in card. OFF by default. When ON, the user
+ * can paste candidate fronting domains (one per line). The "Validate"
+ * button runs [SniValidator] in parallel and shows ✓ / ✗ + reason.
+ * Only validated, non-blank domains are persisted; the VPN connector
+ * uses the first persisted domain as `tlsSettings.serverName`.
+ */
+@Composable
+private fun SniFrontingSection(settings: org.khatetire.cfipscanner.settings.Settings) {
+    var rawText by remember(settings.sniUserDomains) {
+        mutableStateOf(settings.sniUserDomains.joinToString("\n"))
+    }
+    var validating by remember { mutableStateOf(false) }
+    var lastResults by remember {
+        mutableStateOf<List<org.khatetire.cfipscanner.sni.SniValidator.Result>>(emptyList())
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    SettingsSection(stringResource(R.string.settings_section_sni)) {
+        SettingsToggle(
+            icon = Icons.Rounded.Shield,
+            title = stringResource(R.string.settings_sni_toggle),
+            subtitle = stringResource(R.string.settings_sni_toggle_desc),
+            checked = settings.sniFrontingEnabled,
+            onCheckedChange = { v ->
+                AppSettings.update { it.copy(sniFrontingEnabled = v) }
+            },
+        )
+        if (settings.sniFrontingEnabled) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = rawText,
+                    onValueChange = { rawText = it },
+                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                    label = { Text(stringResource(R.string.settings_sni_domains_label)) },
+                    placeholder = { Text("speed.cloudflare.com\ndiscord.com") },
+                    singleLine = false,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            val list = rawText.split('\n', ',').map { it.trim() }.filter { it.isNotBlank() }.distinct()
+                            validating = true
+                            scope.launch {
+                                val res = org.khatetire.cfipscanner.sni.SniValidator.validateAll(list)
+                                lastResults = res
+                                val ok = res.filter { it.ok }.map { it.domain }.toSet()
+                                AppSettings.update { it.copy(sniUserDomains = ok) }
+                                rawText = (ok + res.filterNot { it.ok }.map { it.domain }).joinToString("\n")
+                                validating = false
+                            }
+                        },
+                        enabled = !validating && rawText.isNotBlank(),
+                    ) {
+                        Icon(Icons.Rounded.NetworkCheck, contentDescription = null, tint = AntigravityColors.Aurora)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (validating) stringResource(R.string.settings_sni_validating)
+                                   else stringResource(R.string.settings_sni_validate),
+                            color = AntigravityColors.Aurora,
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = stringResource(
+                            R.string.settings_sni_count_fmt,
+                            settings.sniUserDomains.size,
+                        ),
+                        fontSize = 11.sp,
+                        color = AntigravityColors.OnDarkDim,
+                    )
+                }
+                if (lastResults.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    lastResults.forEach { r ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = if (r.ok) "✓" else "✗",
+                                color = if (r.ok) AntigravityColors.Aurora else AntigravityColors.Plasma,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(20.dp),
+                            )
+                            Text(
+                                text = r.domain,
+                                fontSize = 12.sp,
+                                color = AntigravityColors.OnDark,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = "${r.reason} · ${r.latencyMs}ms",
+                                fontSize = 11.sp,
+                                color = AntigravityColors.OnDarkDim,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * Custom IP / CIDR input. Lets the user paste IPs or /24 CIDRs that should
+ * be tested first on every scan cycle. Capped to 4096 expanded IPs to
+ * prevent OOM. Persisted to [AppSettings.customIpRanges].
+ */
+@Composable
+private fun CustomIpRangeSection(settings: org.khatetire.cfipscanner.settings.Settings) {
+    var rawText by remember(settings.customIpRanges) { mutableStateOf(settings.customIpRanges) }
+    val parsed = remember(rawText) {
+        org.khatetire.cfipscanner.scanner.CustomIpRangeParser.parse(rawText)
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    SettingsSection(stringResource(R.string.settings_section_customips)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            androidx.compose.material3.OutlinedTextField(
+                value = rawText,
+                onValueChange = { rawText = it },
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                label = { Text(stringResource(R.string.settings_customips_label)) },
+                placeholder = { Text("104.16.0.0/24\n1.0.0.1, 1.1.1.1") },
+                singleLine = false,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = {
+                    scope.launch { AppSettings.update { it.copy(customIpRanges = rawText) } }
+                }) {
+                    Icon(Icons.Rounded.Check, contentDescription = null, tint = AntigravityColors.Aurora)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.settings_customips_save), color = AntigravityColors.Aurora)
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = stringResource(R.string.settings_customips_count_fmt, parsed.size),
+                    fontSize = 11.sp,
+                    color = AntigravityColors.OnDarkDim,
+                )
+            }
+        }
     }
 }

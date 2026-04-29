@@ -164,6 +164,19 @@ object DbClient {
     private const val MIRROR_URL_RAW =
         "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/main/worker/best_ips_snapshot.json"
 
+    /** URL of the FULL DB snapshot mirror — the worker CI workflow
+     *  `update-snapshot.yml` will (eventually) publish a region-grouped
+     *  `db_full_snapshot.json` (top 5000 IPs per cc/asn bucket) every 30
+     *  min. This file is large (~1–2 MB), so it's gzip-cached on disk for
+     *  1 h to avoid hammering jsDelivr. If the file does not yet exist on
+     *  the repo the call 404s silently and we fall through to MIRROR_URL. */
+    private const val FULL_MIRROR_URL =
+        "https://cdn.jsdelivr.net/gh/Khate-Tire/CF-IP-Scanner@main/worker/db_full_snapshot.json"
+    private const val FULL_MIRROR_URL_RAW =
+        "https://raw.githubusercontent.com/Khate-Tire/CF-IP-Scanner/main/worker/db_full_snapshot.json"
+    private const val FULL_CACHE_FILE = "db_full_snapshot.json"
+    private const val FULL_CACHE_TTL_MS = 60L * 60L * 1000L
+
     data class Pick(
         val ip: String,
         val avgPing: Double? = null,
@@ -238,9 +251,16 @@ object DbClient {
         // ---- L5: static snapshot mirror (jsdelivr / raw.github) ----------
         run {
             val started = System.nanoTime()
-            val picks = runCatching { fetchSnapshotMirror() }
-                .onFailure { Log.w(TAG, "L5 mirror failed: ${it.message}") }
+            // Prefer the FULL snapshot (large, region-filtered) when available.
+            // Falls back transparently to the small best_ips_snapshot.json.
+            var picks = runCatching { fetchFullSnapshotMirror(ctx, cc, asn, limit) }
+                .onFailure { Log.w(TAG, "L5 full mirror failed: ${it.message}") }
                 .getOrNull().orEmpty()
+            if (picks.isEmpty()) {
+                picks = runCatching { fetchSnapshotMirror() }
+                    .onFailure { Log.w(TAG, "L5 mirror failed: ${it.message}") }
+                    .getOrNull().orEmpty()
+            }
             val ms = (System.nanoTime() - started) / 1_000_000
             if (picks.isNotEmpty()) {
                 DbCache.savePicks(ctx, picks)
@@ -353,6 +373,74 @@ object DbClient {
 
     // ---- L5 snapshot mirror fetcher --------------------------------------
 
+    /** Fetch the full region-grouped snapshot. Filters by user `cc` first,
+     *  then by `asn` if available; if either bucket is empty falls back to
+     *  the global "default" bucket. The raw JSON is cached on disk for
+     *  [FULL_CACHE_TTL_MS] to avoid re-downloading on every call.
+     *
+     *  Expected payload shape (forward-compat — fields tolerated if missing):
+     *  ```json
+     *  { "version": 1,
+     *    "generatedAt": "...",
+     *    "by_cc":  { "US": [{ip,...}, ...], "IR": [...], ... },
+     *    "by_asn": { "13335": [...], ... },
+     *    "default":[...] }
+     *  ```
+     */
+    private fun fetchFullSnapshotMirror(ctx: Context, cc: String, asn: String, limit: Int): List<Pick> {
+        val raw = readFullCacheOrFetch(ctx) ?: return emptyList()
+        return try {
+            val obj = json.parseToJsonElement(raw).jsonObject
+            val byCc = obj["by_cc"] as? JsonObject
+            val byAsn = obj["by_asn"] as? JsonObject
+            val def = obj["default"] as? JsonArray
+            val arr = (byAsn?.get(asn) as? JsonArray)
+                ?: (byCc?.get(cc.uppercase()) as? JsonArray)
+                ?: def
+                ?: return emptyList()
+            arr.mapNotNull { it as? JsonObject }.mapNotNull { o ->
+                val ip = (o["ip"] as? JsonPrimitive)?.content ?: return@mapNotNull null
+                Pick(
+                    ip = ip,
+                    avgPing = (o["avg_ping"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                    avgDownload = (o["avg_download"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                    successRate = (o["success_rate"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                    score = (o["score"] as? JsonPrimitive)?.content?.toDoubleOrNull(),
+                    tier = (o["tier"] as? JsonPrimitive)?.content.orEmpty(),
+                )
+            }.take(limit)
+        } catch (t: Throwable) {
+            Log.w(TAG, "full snapshot parse failed: ${t.message}")
+            emptyList()
+        }
+    }
+
+    private fun readFullCacheOrFetch(ctx: Context): String? {
+        val f = java.io.File(ctx.cacheDir, FULL_CACHE_FILE)
+        val freshUntil = f.lastModified() + FULL_CACHE_TTL_MS
+        if (f.exists() && System.currentTimeMillis() < freshUntil) {
+            return runCatching { f.readText(Charsets.UTF_8) }.getOrNull()
+        }
+        for (url in arrayOf(FULL_MIRROR_URL, FULL_MIRROR_URL_RAW)) {
+            val req = Request.Builder().url(url).get().build()
+            val text = try {
+                plainClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@use null
+                    resp.body?.string()?.takeIf { it.isNotBlank() }
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "full mirror $url failed: ${t.message}")
+                null
+            }
+            if (!text.isNullOrBlank()) {
+                runCatching { f.writeText(text, Charsets.UTF_8) }
+                return text
+            }
+        }
+        // Fall back to stale cache if the network is unreachable.
+        return if (f.exists()) runCatching { f.readText(Charsets.UTF_8) }.getOrNull() else null
+    }
+
     private fun fetchSnapshotMirror(): List<Pick> {
         for (url in arrayOf(MIRROR_URL, MIRROR_URL_RAW)) {
             val req = Request.Builder().url(url).get().build()
@@ -388,7 +476,11 @@ object DbClient {
     suspend fun submitScanResult(ctx: Context, body: JsonObject): Boolean =
         withContext(Dispatchers.IO) { postV1(ctx, "/scan-result", body) != null }
 
-    /** POST a batch of contribution results. */
+    /** POST a batch of contribution results. Wrapped in a small retry-with-
+     *  backoff (3 tries, 400ms / 1.2s / 3s) so transient WAN hiccups don't
+     *  drop user contributions. On total failure the batch is appended to an
+     *  in-memory pending queue (capped at 200 batches) which is drained on
+     *  the next successful submit. */
     suspend fun submitScanResultsBatch(
         ctx: Context,
         cc: String,
@@ -401,7 +493,49 @@ object DbClient {
             put("cc", cc); put("isp", isp); put("app_version", appVersion)
             put("results", buildJsonArray { results.forEach { add(it) } })
         }
-        postV1(ctx, "/scan-results-batch", payload) != null
+        val ok = postWithRetry(ctx, "/scan-results-batch", payload)
+        if (ok) {
+            // Drain any previously-queued batches, oldest first, on success.
+            drainPendingBatches(ctx)
+        } else {
+            enqueuePending(payload)
+        }
+        ok
+    }
+
+    private val pendingBatches = ArrayDeque<JsonObject>()
+    private const val PENDING_CAP = 200
+
+    @Synchronized
+    private fun enqueuePending(payload: JsonObject) {
+        while (pendingBatches.size >= PENDING_CAP) pendingBatches.removeFirst()
+        pendingBatches.addLast(payload)
+    }
+
+    private suspend fun drainPendingBatches(ctx: Context) {
+        // Snapshot under lock, then submit outside lock.
+        val snapshot: List<JsonObject> = synchronized(this) {
+            val s = pendingBatches.toList()
+            pendingBatches.clear()
+            s
+        }
+        for (p in snapshot) {
+            if (!postWithRetry(ctx, "/scan-results-batch", p)) {
+                // If it fails again, re-queue and stop draining.
+                enqueuePending(p); return
+            }
+        }
+    }
+
+    private suspend fun postWithRetry(ctx: Context, path: String, body: JsonObject): Boolean {
+        val backoff = longArrayOf(0L, 400L, 1_200L, 3_000L)
+        for ((i, delayMs) in backoff.withIndex()) {
+            if (delayMs > 0) kotlinx.coroutines.delay(delayMs)
+            val ok = runCatching { postV1(ctx, path, body) != null }.getOrDefault(false)
+            if (ok) return true
+            if (i == backoff.lastIndex) return false
+        }
+        return false
     }
 
     /** Result of a successful shard claim. */
