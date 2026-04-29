@@ -87,3 +87,6 @@ tmp_apk/
 
 .tmp_ui.xml
 
+
+.commitmsg.tmp
+
