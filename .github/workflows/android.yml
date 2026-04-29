@@ -44,6 +44,8 @@ jobs:
       - name: Fetch VPN native binaries
         shell: pwsh
         working-directory: .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./tools/fetch-vpn-binaries.ps1
 
       - name: Verify VPN binaries present

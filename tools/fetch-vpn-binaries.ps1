@@ -8,6 +8,9 @@ param([switch]$Force)
 $ErrorActionPreference = "Stop"
 # Cross-platform temp dir: $env:TEMP on Windows, $env:TMPDIR or /tmp on Linux/macOS
 $_tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
+# In CI, pass GITHUB_TOKEN to avoid the 60/hr unauthenticated rate limit on api.github.com.
+$_ghHeaders = @{ "User-Agent" = "cfipscanner-fetcher" }
+if ($env:GITHUB_TOKEN) { $_ghHeaders["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
 $root = Split-Path -Parent $PSScriptRoot
 $libsDir = Join-Path $root "android\app\libs"
 $jniDir  = Join-Path $root "android\app\src\main\jniLibs"
@@ -19,13 +22,13 @@ foreach ($abi in @("arm64-v8a","armeabi-v7a","x86_64","x86")) {
 
 function Get-LatestReleaseTag($repo) {
     $api = "https://api.github.com/repos/$repo/releases/latest"
-    $r = Invoke-RestMethod -Uri $api -Headers @{ "User-Agent" = "cfipscanner-fetcher" }
+    $r = Invoke-RestMethod -Uri $api -Headers $_ghHeaders
     return $r.tag_name
 }
 
 function Get-LatestRelease($repo) {
     $api = "https://api.github.com/repos/$repo/releases/latest"
-    return Invoke-RestMethod -Uri $api -Headers @{ "User-Agent" = "cfipscanner-fetcher" }
+    return Invoke-RestMethod -Uri $api -Headers $_ghHeaders
 }
 
 function Try-DownloadFile($url, $outFile) {
