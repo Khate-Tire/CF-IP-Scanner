@@ -40,7 +40,7 @@ android {
         }.getOrDefault("")
         val gitCount = runGit("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
         val gitDescribe = runGit("describe", "--tags", "--always", "--dirty", "--abbrev=7")
-            .ifEmpty { "2.3.8" }
+            .ifEmpty { "2.3.9" }
         versionCode = gitCount
         versionName = "2.3.8+$gitCount.$gitDescribe"
         // Expose to runtime so an About / Settings footer can render it.

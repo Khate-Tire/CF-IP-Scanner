@@ -21,7 +21,14 @@ object Tun2SocksController {
 
     private val available: Boolean by lazy {
         try {
-            System.loadLibrary(NATIVE_LIB)
+            // Touching TProxyService triggers its static initializer, which is the
+            // ONLY correct place to call System.loadLibrary for this .so: its
+            // JNI_OnLoad performs RegisterNatives via FindClass("com/v2ray/ang/
+            // service/TProxyService"), which only succeeds when invoked from a
+            // classloader that can resolve that class (i.e. the app's loader).
+            // Calling loadLibrary from this object would use the system loader
+            // and JNI_OnLoad would fail, throwing UnsatisfiedLinkError.
+            Class.forName("com.v2ray.ang.service.TProxyService", true, Tun2SocksController::class.java.classLoader)
             Log.i(TAG, "loaded lib$NATIVE_LIB.so")
             true
         } catch (t: Throwable) {

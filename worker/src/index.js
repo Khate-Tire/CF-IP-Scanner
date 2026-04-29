@@ -487,12 +487,12 @@ const V1_SNI_BANK_BY_CC = {
 };
 
 const V1_LATEST_VERSION = {
-    versionCode: 238,
-    versionName: "2.3.8",
+    versionCode: 239,
+    versionName: "2.3.9",
     minSupportedVersionCode: 1,
-    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.8",
+    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.9",
     sha256: null,
-    changelog: "v2.3.8: Publish Android APKs alongside desktop installers; CI fixes for VPN binary fallback and APK extraction.",
+    changelog: "v2.3.9: Fix Android VPN start failure (libhev-socks5-tunnel.so JNI_OnLoad ClassNotFound) by loading native lib from TProxyService static initializer.",
     forceUpdate: false,
 };
 
