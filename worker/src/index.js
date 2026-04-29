@@ -487,12 +487,12 @@ const V1_SNI_BANK_BY_CC = {
 };
 
 const V1_LATEST_VERSION = {
-    versionCode: 237,
-    versionName: "2.3.7",
+    versionCode: 238,
+    versionName: "2.3.8",
     minSupportedVersionCode: 1,
-    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.7",
+    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.8",
     sha256: null,
-    changelog: "v2.3.7: Fix Android x86 VPN binary download fallback; switch frontend to Babel React plugin for ARM compatibility.",
+    changelog: "v2.3.8: Publish Android APKs alongside desktop installers; CI fixes for VPN binary fallback and APK extraction.",
     forceUpdate: false,
 };
 
