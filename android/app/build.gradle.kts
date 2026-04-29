@@ -40,9 +40,9 @@ android {
         }.getOrDefault("")
         val gitCount = runGit("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
         val gitDescribe = runGit("describe", "--tags", "--always", "--dirty", "--abbrev=7")
-            .ifEmpty { "0.1.0" }
+            .ifEmpty { "2.3.7" }
         versionCode = gitCount
-        versionName = "0.1.0+$gitCount.$gitDescribe"
+        versionName = "2.3.7+$gitCount.$gitDescribe"
         // Expose to runtime so an About / Settings footer can render it.
         buildConfigField("String", "GIT_DESCRIBE", "\"$gitDescribe\"")
         buildConfigField("int", "GIT_COMMIT_COUNT", "$gitCount")

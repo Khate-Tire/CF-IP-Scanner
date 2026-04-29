@@ -239,7 +239,7 @@ object RealScannerEngine {
                 ctx = ctx,
                 cc = info.country,
                 isp = info.isp,
-                appVersion = "0.1.0",
+                appVersion = "2.3.7",
                 results = payload,
             )
         }
