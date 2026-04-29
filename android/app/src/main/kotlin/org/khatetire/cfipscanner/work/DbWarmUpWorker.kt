@@ -37,6 +37,12 @@ class DbWarmUpWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
             // whichever returned first.
             val picks = DbClient.bestIps(applicationContext, limit = 50)
             Log.i(TAG, "warm-up via ${picks.layer.tag} -> ${picks.ips.size} ips")
+            // Finally, drain any contributions that were queued while the
+            // user was offline / unreachable. Best-effort — if all upstreams
+            // are still down, drainPendingNow() simply re-queues the items
+            // and we'll try again on the next 15-minute cycle.
+            runCatching { DbClient.drainPendingNow(applicationContext) }
+                .onFailure { Log.w(TAG, "drainPendingNow failed: ${it.message}") }
             // We never fail the worker — a transient failure should not be
             // logged as a WorkManager error; the next cycle will retry on
             // its own schedule.

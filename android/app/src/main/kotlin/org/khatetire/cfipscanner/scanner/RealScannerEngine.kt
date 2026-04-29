@@ -38,7 +38,13 @@ object RealScannerEngine {
 
     private const val PROBE_PORT = 443
     private const val CONNECT_TIMEOUT_MS = 2000L
-    private const val CLEAN_THRESHOLD_MS = 200
+    // Cheap TCP-handshake gate. Kept aligned with the quality probe's
+    // upper ping bound (400ms): anything that handshakes within this
+    // window is worth upgrading to a full quality measurement, anything
+    // slower would have failed the quality probe anyway. The previous
+    // 200ms gate was rejecting perfectly-good edges on jittery mobile
+    // networks where one out of every ~5 handshakes spikes briefly.
+    private const val CLEAN_THRESHOLD_MS = 400
 
     fun start(ctx: Context) {
         if (job?.isActive == true) return

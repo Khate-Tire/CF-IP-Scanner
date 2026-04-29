@@ -498,33 +498,76 @@ object DbClient {
             // Drain any previously-queued batches, oldest first, on success.
             drainPendingBatches(ctx)
         } else {
-            enqueuePending(payload)
+            enqueuePending(ctx, payload)
         }
         ok
     }
 
-    private val pendingBatches = ArrayDeque<JsonObject>()
+    /** Disk-backed pending queue. Survives process death — earlier the
+     *  queue lived in memory and was lost the moment the user swiped the
+     *  app away or the OS killed the scanner service. Format: one JSON
+     *  object per line in `<cacheDir>/pending_submissions.jsonl`. Capped
+     *  by both line count (PENDING_CAP) and bytes-on-disk (PENDING_BYTES_CAP)
+     *  so we never grow unbounded if the worker stays unreachable. Also
+     *  exposed via [drainPendingNow] for the periodic warm-up worker so
+     *  contributions get re-tried on its 15-minute schedule even if the
+     *  user never opens the app again. */
     private const val PENDING_CAP = 200
+    private const val PENDING_BYTES_CAP = 1024L * 1024L  // 1 MiB
+    private const val PENDING_FILE = "pending_submissions.jsonl"
+    private val pendingLock = Any()
+
+    private fun pendingFile(ctx: Context) = java.io.File(ctx.cacheDir, PENDING_FILE)
 
     @Synchronized
-    private fun enqueuePending(payload: JsonObject) {
-        while (pendingBatches.size >= PENDING_CAP) pendingBatches.removeFirst()
-        pendingBatches.addLast(payload)
+    private fun enqueuePending(ctx: Context, payload: JsonObject) {
+        synchronized(pendingLock) {
+            val f = pendingFile(ctx)
+            // Trim oldest entries if we're over either cap.
+            val existing = if (f.exists()) {
+                runCatching { f.readLines(Charsets.UTF_8) }.getOrDefault(emptyList())
+            } else emptyList()
+            val line = payload.toString()
+            var lines = (existing + line).filter { it.isNotBlank() }
+            while (lines.size > PENDING_CAP) lines = lines.drop(1)
+            // Byte cap: drop oldest until under the budget.
+            var bytes = lines.sumOf { it.length.toLong() + 1 }
+            while (bytes > PENDING_BYTES_CAP && lines.size > 1) {
+                bytes -= lines.first().length.toLong() + 1
+                lines = lines.drop(1)
+            }
+            runCatching { f.writeText(lines.joinToString("\n") + "\n", Charsets.UTF_8) }
+                .onFailure { Log.w(TAG, "enqueuePending write failed: ${it.message}") }
+        }
+    }
+
+    private fun snapshotAndClearPending(ctx: Context): List<JsonObject> = synchronized(pendingLock) {
+        val f = pendingFile(ctx)
+        if (!f.exists()) return emptyList()
+        val lines = runCatching { f.readLines(Charsets.UTF_8) }.getOrDefault(emptyList())
+        runCatching { f.delete() }
+        lines.mapNotNull { l ->
+            if (l.isBlank()) null else runCatching { json.parseToJsonElement(l).jsonObject }.getOrNull()
+        }
     }
 
     private suspend fun drainPendingBatches(ctx: Context) {
-        // Snapshot under lock, then submit outside lock.
-        val snapshot: List<JsonObject> = synchronized(this) {
-            val s = pendingBatches.toList()
-            pendingBatches.clear()
-            s
-        }
+        val snapshot = snapshotAndClearPending(ctx)
         for (p in snapshot) {
             if (!postWithRetry(ctx, "/scan-results-batch", p)) {
-                // If it fails again, re-queue and stop draining.
-                enqueuePending(p); return
+                // If it fails again, re-queue what's left and stop draining.
+                enqueuePending(ctx, p); return
             }
         }
+    }
+
+    /** Public entry point for [org.khatetire.cfipscanner.work.DbWarmUpWorker]
+     *  to retry queued submissions on the 15-minute periodic schedule. Safe
+     *  to call when the queue is empty — returns immediately. */
+    suspend fun drainPendingNow(ctx: Context) {
+        // Only attempt drain when at least one network layer is currently
+        // healthy; otherwise we'll just re-queue everything for nothing.
+        drainPendingBatches(ctx)
     }
 
     private suspend fun postWithRetry(ctx: Context, path: String, body: JsonObject): Boolean {
