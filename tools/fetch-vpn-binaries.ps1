@@ -29,7 +29,7 @@ if ((Test-Path $aar) -and -not $Force) {
     $tag = Get-LatestReleaseTag "2dust/AndroidLibXrayLite"
     Write-Host "[fetch] libv2ray.aar @ $tag"
     $url = "https://github.com/2dust/AndroidLibXrayLite/releases/download/$tag/libv2ray.aar"
-    Invoke-WebRequest -Uri $url -OutFile $aar -UseBasicParsing
+    Invoke-WebRequest -Uri $url -OutFile $aar
     Write-Host "  -> $aar  ($([math]::Round((Get-Item $aar).Length/1MB,1)) MB)"
 }
 
@@ -61,7 +61,7 @@ foreach ($abi in $abiMap.Keys) {
     $tmp = New-TemporaryFile
     try {
         Write-Host "  $abi <- $tarName"
-        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+        Invoke-WebRequest -Uri $url -OutFile $tmp
         $extractDir = Join-Path $env:TEMP ("hev-" + [Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
         # Use tar (Windows 10+ bundles bsdtar)
