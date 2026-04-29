@@ -40,6 +40,21 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Fetch VPN native binaries
+        shell: pwsh
+        working-directory: .
+        run: ./tools/fetch-vpn-binaries.ps1
+
+      - name: Verify VPN binaries present
+        shell: bash
+        working-directory: .
+        run: |
+          set -euo pipefail
+          test -f android/app/libs/libv2ray.aar
+          test -f android/app/src/main/jniLibs/arm64-v8a/libhev-socks5-tunnel.so
+          test -f android/app/src/main/jniLibs/armeabi-v7a/libhev-socks5-tunnel.so
+          test -f android/app/src/main/jniLibs/x86_64/libhev-socks5-tunnel.so
+
       - name: Decode release keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
