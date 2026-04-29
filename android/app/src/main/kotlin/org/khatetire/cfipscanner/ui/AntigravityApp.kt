@@ -96,7 +96,10 @@ fun AntigravityApp(
             }
             VpnStatus.State.FAILED -> {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                snackbarHostState.showSnackbar(ctx.getString(R.string.home_connect_failed))
+                val base = ctx.getString(R.string.home_connect_failed)
+                val msg = if (status.failureReason.isNotBlank())
+                    "$base — ${status.failureReason}" else base
+                snackbarHostState.showSnackbar(msg)
             }
             else -> Unit
         }

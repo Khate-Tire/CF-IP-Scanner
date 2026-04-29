@@ -20,4 +20,9 @@ object VpnStateHolder {
     fun setState(state: VpnStatus.State) {
         _status.value = _status.value.copy(state = state)
     }
+
+    /** Set state=FAILED with a short [reason] surfaced to the UI. */
+    fun fail(reason: String) {
+        _status.value = _status.value.copy(state = VpnStatus.State.FAILED, failureReason = reason)
+    }
 }

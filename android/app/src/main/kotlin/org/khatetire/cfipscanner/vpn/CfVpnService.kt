@@ -95,8 +95,8 @@ class CfVpnService : VpnService() {
             return
         }
         Log.i(TAG, "startConnect")
-        VpnStateHolder.setState(VpnStatus.State.CONNECTING)
-        startForeground(NOTIF_ID, buildNotification(VpnStatus(state = VpnStatus.State.CONNECTING)))
+        VpnStateHolder.update { it.copy(state = VpnStatus.State.CONNECTING, failureReason = "") }
+        startForegroundCompat(buildNotification(VpnStatus(state = VpnStatus.State.CONNECTING)))
 
         connectJob?.cancel()
         connectJob = scope.launch {
@@ -104,7 +104,7 @@ class CfVpnService : VpnService() {
             val cfg = AdaptiveConnectController.bestNow(applicationContext, slot)
             if (cfg == null) {
                 Log.e(TAG, "AdaptiveConnect.bestNow returned null (bootstrap empty?)")
-                VpnStateHolder.setState(VpnStatus.State.FAILED)
+                VpnStateHolder.fail("No server config (bootstrap empty)")
                 updateNotification()
                 return@launch
             }
@@ -126,7 +126,7 @@ class CfVpnService : VpnService() {
             )
             if (!xray.start(xrayJson, "${cfg.host}:${cfg.port}")) {
                 Log.e(TAG, "Xray start failed (libv2ray missing or API mismatch?)")
-                VpnStateHolder.setState(VpnStatus.State.FAILED)
+                VpnStateHolder.fail("Xray core failed to start")
                 updateNotification()
                 return@launch
             }
@@ -135,7 +135,7 @@ class CfVpnService : VpnService() {
             if (fd == null) {
                 Log.e(TAG, "buildVpnInterface returned null")
                 xray.stop()
-                VpnStateHolder.setState(VpnStatus.State.FAILED)
+                VpnStateHolder.fail("VpnService.establish() returned null (revoked?)")
                 updateNotification()
                 return@launch
             }
@@ -152,7 +152,10 @@ class CfVpnService : VpnService() {
                 try { tunFd?.close() } catch (_: Throwable) {}
                 tunFd = null
                 xray.stop()
-                VpnStateHolder.setState(VpnStatus.State.FAILED)
+                val reason = if (!Tun2SocksController.isAvailable())
+                    "libhev-socks5-tunnel.so missing for this ABI"
+                else "tun2socks.start() returned false"
+                VpnStateHolder.fail(reason)
                 updateNotification()
                 return@launch
             }
@@ -486,6 +489,36 @@ class CfVpnService : VpnService() {
     private fun updateNotification() {
         val nm = getSystemService(NotificationManager::class.java) ?: return
         nm.notify(NOTIF_ID, buildNotification(VpnStateHolder.status.value))
+    }
+
+    /**
+     * Bug fix (v2.3.1): the manifest declares
+     * `foregroundServiceType="specialUse"` so on Android 14+ (API 34+) we
+     * MUST call the 3-arg [startForeground] with a matching service type,
+     * otherwise the system raises `MissingForegroundServiceTypeException`
+     * and silently kills the service before any handshake can complete.
+     * On older API levels the 2-arg form is correct.
+     */
+    private fun startForegroundCompat(notif: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                startForeground(
+                    NOTIF_ID, notif,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } catch (t: Throwable) {
+                Log.e(TAG, "startForeground(typed) failed: ${t.message}", t)
+                // Last-ditch fallback: try the 2-arg form. If that also
+                // throws the service will die — surface the reason to UI.
+                try { startForeground(NOTIF_ID, notif) }
+                catch (t2: Throwable) {
+                    VpnStateHolder.fail("startForeground denied: ${t2.javaClass.simpleName}")
+                    throw t2
+                }
+            }
+        } else {
+            startForeground(NOTIF_ID, notif)
+        }
     }
 
     companion object {

@@ -49,14 +49,28 @@ object RealScannerEngine {
             // we switch to shard mode and contribute fresh coverage.
             var lastBatchSig: String = ""
             var staleCount = 0
+            // Cache the DB pick for 30s so MAXIMUM (200ms loop) doesn't
+            // re-race the 5-layer ladder on every iteration. The ladder
+            // typically takes 100-500ms when L1 wins; under load it can
+            // hit 8s and starve the actual scan probes.
+            var cachedPicks: DbClient.Picks? = null
+            var cachedAtMs = 0L
+            val PICK_CACHE_MS = 30_000L
             while (isActive) {
                 val profile = ScanStateHolder.state.value.profile
                 if (profile == ScanProfile.PAUSED) {
                     delay(500); continue
                 }
                 val info = runCatching { IspContext.current() }.getOrDefault(IspContext.Info())
-                val picks = DbClient.bestIps(ctx, limit = 30)
-                ScanStateHolder.setDbLayer(picks.layer.tag, picks.latencyMs)
+                val now = System.currentTimeMillis()
+                val picks = if (cachedPicks != null && (now - cachedAtMs) < PICK_CACHE_MS) {
+                    cachedPicks!!
+                } else {
+                    val fresh = DbClient.bestIps(ctx, limit = 30)
+                    cachedPicks = fresh; cachedAtMs = now
+                    ScanStateHolder.setDbLayer(fresh.layer.tag, fresh.latencyMs)
+                    fresh
+                }
                 val sig = picks.rawIps.sorted().joinToString(",")
                 val sameAsLast = sig == lastBatchSig && sig.isNotEmpty()
                 staleCount = if (sameAsLast) staleCount + 1 else 0
@@ -123,16 +137,27 @@ object RealScannerEngine {
     private suspend fun probeAll(
         ctx: Context, ips: List<String>, parallelism: Int, fullQuality: Boolean,
     ): List<Triple<String, ScanResultRow, IpQualityProbe.Quality?>> = coroutineScope {
-        val out = mutableListOf<Triple<String, ScanResultRow, IpQualityProbe.Quality?>>()
-        ips.chunked(parallelism).forEach { batch ->
-            if (!isActive) return@coroutineScope out
-            val rows = batch.map { ip ->
-                async { probeOne(ctx, ip, fullQuality) }
-            }.awaitAll()
-            rows.forEach { triple ->
-                ScanStateHolder.pushResult(triple.second)
-                out += triple
+        // Bug fix (v2.3.1): the previous implementation chunked by [parallelism]
+        // and ran each chunk SERIALLY via awaitAll(). Each chunk waited for
+        // its slowest probe (often the full 2s timeout) before the next chunk
+        // started, capping throughput at ~6 IPs/s for parallelism=12. We now
+        // launch ALL probes concurrently, gated by a semaphore, so the loop
+        // runs at the configured parallelism continuously without per-chunk
+        // straggler stalls.
+        val sem = kotlinx.coroutines.sync.Semaphore(parallelism.coerceAtLeast(1))
+        val deferreds = ips.map { ip ->
+            async {
+                sem.acquire()
+                try { probeOne(ctx, ip, fullQuality) }
+                finally { sem.release() }
             }
+        }
+        val out = ArrayList<Triple<String, ScanResultRow, IpQualityProbe.Quality?>>(ips.size)
+        for (d in deferreds) {
+            if (!isActive) break
+            val triple = d.await()
+            ScanStateHolder.pushResult(triple.second)
+            out += triple
         }
         out
     }

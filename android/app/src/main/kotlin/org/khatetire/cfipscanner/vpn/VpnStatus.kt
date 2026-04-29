@@ -17,6 +17,8 @@ data class VpnStatus(
     val rateOutBps: Long = 0L,
     val serverSlot: String = "EU-1",
     val cleanIp: String = "",       // currently connected Cloudflare edge IP
+    /** Short human-readable reason when [state] == FAILED. Empty otherwise. */
+    val failureReason: String = "",
 ) {
     enum class State { IDLE, CONNECTING, CONNECTED, DISCONNECTING, FAILED }
 }
