@@ -130,6 +130,23 @@ class CfVpnService : VpnService() {
                 updateNotification()
                 return@launch
             }
+            // Bug fix (v2.3.1): Xray.start() returning true only means the
+            // reflective call did not throw — it does not guarantee the
+            // SOCKS inbound is actually listening. If the JSON config is
+            // malformed or the port is taken, Xray will silently emit an
+            // error and never bind. Probe the inbound for up to 2s before
+            // handing the TUN fd to tun2socks (which would otherwise route
+            // every packet to a black hole).
+            val socksReady = waitForSocksReady(
+                XrayConfigBuilder.SOCKS_HOST, XrayConfigBuilder.SOCKS_PORT, 2_000L,
+            )
+            if (!socksReady) {
+                Log.e(TAG, "Xray SOCKS inbound never bound on ${XrayConfigBuilder.SOCKS_HOST}:${XrayConfigBuilder.SOCKS_PORT}")
+                xray.stop()
+                VpnStateHolder.fail("Xray inbound 127.0.0.1:${XrayConfigBuilder.SOCKS_PORT} never bound (config error?)")
+                updateNotification()
+                return@launch
+            }
             tunFd = buildVpnInterface()
             val fd = tunFd?.fd
             if (fd == null) {
@@ -492,10 +509,29 @@ class CfVpnService : VpnService() {
     }
 
     /**
+     * Polls 127.0.0.1:[port] until a TCP connection succeeds or [timeoutMs]
+     * elapses. Used to confirm Xray's SOCKS inbound is actually listening
+     * before handing the TUN fd to tun2socks.
+     */
+    private suspend fun waitForSocksReady(host: String, port: Int, timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                java.net.Socket().use { sock ->
+                    sock.connect(java.net.InetSocketAddress(host, port), 250)
+                    return true
+                }
+            } catch (_: Throwable) {
+                delay(75)
+            }
+        }
+        return false
+    }
+
+    /**
      * Bug fix (v2.3.1): the manifest declares
      * `foregroundServiceType="specialUse"` so on Android 14+ (API 34+) we
      * MUST call the 3-arg [startForeground] with a matching service type,
-     * otherwise the system raises `MissingForegroundServiceTypeException`
      * and silently kills the service before any handshake can complete.
      * On older API levels the 2-arg form is correct.
      */
