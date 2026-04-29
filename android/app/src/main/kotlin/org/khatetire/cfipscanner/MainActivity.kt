@@ -5,6 +5,7 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.CompositionLocalProvider
@@ -67,10 +68,13 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun onConnectClick() {
+        Log.i("MainActivity", "onConnectClick: requesting VpnService.prepare()")
         val prepareIntent: Intent? = VpnService.prepare(this)
         if (prepareIntent != null) {
+            Log.i("MainActivity", "VPN consent required, launching system dialog")
             prepareVpnLauncher.launch(prepareIntent)
         } else {
+            Log.i("MainActivity", "VPN already prepared, starting service")
             startVpnService()
         }
     }
@@ -80,7 +84,13 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun startVpnService() {
-        ContextCompat.startForegroundService(this, CfVpnService.connectIntent(this))
+        Log.i("MainActivity", "startVpnService: launching CfVpnService")
+        try {
+            ContextCompat.startForegroundService(this, CfVpnService.connectIntent(this))
+        } catch (t: Throwable) {
+            Log.e("MainActivity", "startForegroundService threw: ${t.message}", t)
+            VpnStateHolder.fail("startForegroundService denied: ${t.javaClass.simpleName}")
+        }
     }
 
     private fun openExternal(url: String) {
