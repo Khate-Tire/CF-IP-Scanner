@@ -84,3 +84,6 @@ backend/dns_history.db-wal
 
 # Local debug screenshots
 tmp_apk/
+
+.tmp_ui.xml
+
