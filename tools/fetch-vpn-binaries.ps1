@@ -6,6 +6,8 @@
 param([switch]$Force)
 
 $ErrorActionPreference = "Stop"
+# Cross-platform temp dir: $env:TEMP on Windows, $env:TMPDIR or /tmp on Linux/macOS
+$_tempBase = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { "/tmp" }
 $root = Split-Path -Parent $PSScriptRoot
 $libsDir = Join-Path $root "android\app\libs"
 $jniDir  = Join-Path $root "android\app\src\main\jniLibs"
@@ -90,7 +92,7 @@ foreach ($abi in $abiMap.Keys) {
                 continue
             }
 
-            $extractDir = Join-Path $env:TEMP ("hev-" + [Guid]::NewGuid().ToString("N"))
+            $extractDir = Join-Path $_tempBase ("hev-" + [Guid]::NewGuid().ToString("N"))
             New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
             # Use tar (Windows 10+ bundles bsdtar)
             tar -xzf $tmp -C $extractDir
@@ -130,7 +132,7 @@ foreach ($abi in $abiMap.Keys) {
 
         Write-Host "  $abi <- $($apkAsset.name)"
         Invoke-WebRequest -Uri $apkAsset.browser_download_url -OutFile $tmp
-        $extractDir = Join-Path $env:TEMP ("v2rayng-" + [Guid]::NewGuid().ToString("N"))
+        $extractDir = Join-Path $_tempBase ("v2rayng-" + [Guid]::NewGuid().ToString("N"))
         New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
         tar -xf $tmp -C $extractDir
         $soFromApk = Join-Path $extractDir ("lib/{0}/libhev-socks5-tunnel.so" -f $abi)
