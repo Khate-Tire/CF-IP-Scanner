@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "android/**"
+      - "tools/fetch-vpn-binaries.ps1"
       - ".github/workflows/android.yml"
     tags:
       - "v*"
