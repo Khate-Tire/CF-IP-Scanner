@@ -487,12 +487,12 @@ const V1_SNI_BANK_BY_CC = {
 };
 
 const V1_LATEST_VERSION = {
-    versionCode: 239,
-    versionName: "2.3.9",
+    versionCode: 240,
+    versionName: "2.3.10",
     minSupportedVersionCode: 1,
-    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.9",
+    apkUrl: "https://github.com/Khate-Tire/CF-IP-Scanner/releases/tag/v2.3.10",
     sha256: null,
-    changelog: "v2.3.9: Fix Android VPN start failure (libhev-socks5-tunnel.so JNI_OnLoad ClassNotFound) by loading native lib from TProxyService static initializer.",
+    changelog: "v2.3.10: Fix Android tunnel start failure on release builds — TProxyService class shape now matches v2rayNG (class+companion) and ProGuard keep rules added so R8 cannot rename or strip the JNI binding class.",
     forceUpdate: false,
 };
 

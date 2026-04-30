@@ -19,6 +19,17 @@
 -keepclasseswithmembernames class * { native <methods>; }
 -keep class org.khatetire.cfipscanner.bootstrap.BootstrapNative { *; }
 
+# v2rayNG's libhev-socks5-tunnel.so registers natives against this exact FQN
+# via JNI_OnLoad → FindClass → RegisterNatives. R8 MUST NOT rename or strip
+# the class, its Companion, or the native method names — otherwise FindClass
+# returns null, RegisterNatives fails, and System.loadLibrary throws
+# UnsatisfiedLinkError (user-visible: "libhev-socks5-tunnel.so missing for
+# this ABI"). Keep both Java reflection name and member names intact.
+-keep class com.v2ray.ang.service.TProxyService { *; }
+-keep class com.v2ray.ang.service.TProxyService$Companion { *; }
+-keepnames class com.v2ray.ang.service.TProxyService
+-keepnames class com.v2ray.ang.service.TProxyService$Companion
+
 # Compose / Kotlin metadata.
 -keep class kotlin.Metadata { *; }
 -keepattributes *Annotation*, InnerClasses, Signature
